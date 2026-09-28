@@ -30,14 +30,41 @@ try {
   assert(looksColumns.includes('undo_stack_json'), 'Cột undo_stack_json phải tồn tại');
   console.log(' -> PASSED: Database trống đã áp dụng thành công 001 và 002.\n');
 
-  // Test 2: Chạy lại không áp dụng trùng
-  console.log('[TEST 2] Khởi động lại / gọi lại migration trên database đã có schema...');
+  // Test 2: Chạy lại bằng TIẾN TRÌNH MỚI HOÀN TOÀN không áp dụng trùng migration
+  console.log('[TEST 2] Khởi động lại bằng tiến trình mới (child process) trên database đã có schema...');
   const countBefore = db1.prepare('SELECT count(*) as c FROM schema_migrations').get().c;
-  // Calling getDb() again
-  const db1Again = getDb();
-  const countAfter = db1Again.prepare('SELECT count(*) as c FROM schema_migrations').get().c;
-  assert.strictEqual(countBefore, countAfter, 'Số lượng migration ghi nhận không đổi');
-  console.log(' -> PASSED: Migration đã áp dụng không bị chạy lại trùng lặp.\n');
+  db1.close(); // Close connection in current process first
+
+  const restartSubprocessCode = `
+    import path from 'node:path';
+    import { pathToFileURL } from 'node:url';
+    process.env.DATABASE_PATH = '${db1Path.replace(/\\/g, '/')}';
+    const dbModuleUrl = pathToFileURL(path.resolve('apps/server/dist/db.js')).href;
+    const { getDb } = await import(dbModuleUrl);
+    const db = getDb();
+    const count = db.prepare('SELECT count(*) as c FROM schema_migrations').get().c;
+    console.log('[RESTART_COUNT] ' + count);
+    db.close();
+    process.exit(0);
+  `;
+
+  const restartProc = spawn(process.execPath, ['--input-type=module', '-e', restartSubprocessCode]);
+  let restartOutput = '';
+  restartProc.stdout.on('data', (d) => { restartOutput += d.toString(); });
+  restartProc.stderr.on('data', (d) => { restartOutput += d.toString(); });
+  const restartExitCode = await new Promise((resolve) => restartProc.on('close', resolve));
+
+  if (restartExitCode !== 0) {
+    console.error('Lỗi từ tiến trình con khởi động lại:', restartOutput);
+  }
+  assert.strictEqual(restartExitCode, 0, 'Tiến trình khởi động lại phải thoát thành công (exit 0)');
+
+  assert.strictEqual(restartExitCode, 0, 'Tiến trình khởi động lại phải thoát thành công (exit 0)');
+  const match = restartOutput.match(/\[RESTART_COUNT\]\s+(\d+)/);
+  assert(match, 'Tiến trình con phải trả về số lượng migration đã áp dụng');
+  const countAfter = parseInt(match[1], 10);
+  assert.strictEqual(countBefore, countAfter, 'Số lượng migration ghi nhận trong tiến trình mới không đổi');
+  console.log(' -> PASSED: Tiến trình con mới khởi động lại không chạy lại migration trùng lặp.\n');
 
   // Test 3: Một migration cố ý lỗi không được ghi nhận và server dừng khởi động
   console.log('[TEST 3] Migration cố ý lỗi: Rollback, không ghi nhận và dừng khởi động...');
@@ -134,13 +161,10 @@ try {
   `).run();
   dbUpgrade.close();
 
-  // Now apply 002_undo_and_constraints.sql
+  // Now upgrade database using PRODUCTION migrator runPendingMigrations directly
+  const { runPendingMigrations } = await import('../apps/server/dist/db.js');
   const dbUpgraded = new DatabaseSync(dbUpgradePath);
-  const sql002 = fs.readFileSync(path.resolve('migrations/002_undo_and_constraints.sql'), 'utf-8');
-  dbUpgraded.exec('BEGIN IMMEDIATE');
-  dbUpgraded.exec(sql002);
-  dbUpgraded.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run('002_undo_and_constraints', new Date().toISOString());
-  dbUpgraded.exec('COMMIT');
+  runPendingMigrations(dbUpgraded, path.resolve('migrations'));
 
   // Verify lookbook item is untouched
   const lbItem = dbUpgraded.prepare('SELECT * FROM lookbook WHERE id = ?').get('lb_test_preserve');
@@ -161,7 +185,6 @@ try {
   console.log('===============================================================================');
   console.log('  CHÚC MỪNG: TẤT CẢ 4 BÀI KIỂM THỬ MIGRATION AN TOÀN ĐỀU ĐẠT CHUẨN!');
   console.log('===============================================================================');
-  try { db1.close(); } catch {}
 } finally {
   try {
     fs.rmSync(testDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });

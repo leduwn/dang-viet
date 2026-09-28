@@ -123,7 +123,7 @@ if (fs.existsSync(cultureCardsFile)) {
 const looksCount = db.prepare('SELECT COUNT(*) as cnt FROM looks').get().cnt;
 if (looksCount === 0) {
   console.log('[SEED] Khởi tạo bộ phối mẫu đầu tiên...');
-  const presets = JSON.parse(fs.readFileSync(path.resolve('content/presets.json'), 'utf-8'));
+  const presets = JSON.parse(fs.readFileSync(path.join(config.contentDir, 'presets.json'), 'utf-8'));
   const firstPreset = presets[0];
 
   const defaultLookId = 'look_default_01';

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   type Look,
   type LookbookItem,
@@ -39,12 +39,15 @@ export const App: React.FC = () => {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [viewingDesignTitle, setViewingDesignTitle] = useState<string | null>(null);
 
-  // Helper: Guard against stale responses overwriting newer displayed revision
+  // Synchronous in-flight mutation guard preventing rapid double clicks
+  const isMutatingRef = useRef(false);
+
+  // Helper: Guard against stale responses overwriting newer displayed revision (scoped to same lookId)
   const updateLookSafe = (newLook: Look) => {
     setLook((prev) => {
       if (!prev) return newLook;
-      if (newLook.revision < prev.revision) {
-        console.warn(`Bỏ qua phản hồi cũ: revision ${newLook.revision} < đang hiển thị ${prev.revision}`);
+      if (newLook.id === prev.id && newLook.revision < prev.revision) {
+        console.warn(`Bỏ qua phản hồi cũ: revision ${newLook.revision} < đang hiển thị ${prev.revision} (lookId: ${newLook.id})`);
         return prev;
       }
       return newLook;
@@ -97,6 +100,11 @@ export const App: React.FC = () => {
   // 1. Dispatch Command with revision verification & conflict recovery
   const handleDispatchCommand = async (action: CommandAction, payload: any) => {
     if (!look) return;
+    if (isMutatingRef.current) {
+      console.warn('Đang có thao tác đang xử lý, bỏ qua yêu cầu trùng.');
+      return;
+    }
+    isMutatingRef.current = true;
     const commandId = crypto.randomUUID();
     const command: CommandPayload = {
       commandId,
@@ -136,20 +144,44 @@ export const App: React.FC = () => {
       } else {
         alert(`Lỗi thực hiện lệnh: ${err.message}`);
       }
+    } finally {
+      isMutatingRef.current = false;
     }
   };
 
-  // 2. Undo
+  // 2. Undo with expectedRevision and commandId guard
   const handleUndo = async () => {
     if (!look) return;
+    if (isMutatingRef.current) {
+      console.warn('Đang có thao tác đang xử lý, bỏ qua hoàn tác trùng.');
+      return;
+    }
+    isMutatingRef.current = true;
     try {
-      const res = await undoLook(look.id);
+      const res = await undoLook(look.id, {
+        expectedRevision: look.revision,
+        commandId: crypto.randomUUID(),
+      });
       updateLookSafe(res.look);
       setViewingDesignTitle((prev) => (prev ? `${prev} (đã hoàn tác)` : null));
     } catch (err: any) {
-      alert(`Lỗi hoàn tác: ${err.message}`);
-      const freshLook = await fetchLook(look.id);
-      updateLookSafe(freshLook);
+      if (err.status === 409) {
+        const freshLook = await fetchLook(look.id);
+        updateLookSafe(freshLook);
+        if (err.code === 'DUPLICATE_COMMAND_ID') {
+          alert('Lệnh hoàn tác đã được thực thi trước đó (DUPLICATE_COMMAND_ID). Đã đồng bộ phiên bản mới nhất.');
+        } else {
+          alert(`Xung đột phiên bản khi hoàn tác (REVISION_CONFLICT): Phiên bản v${look.revision} không khớp máy chủ v${err.currentRevision || freshLook.revision}. Đã tự động tải lại.`);
+        }
+      } else {
+        alert(`Lỗi hoàn tác: ${err.message}`);
+        try {
+          const freshLook = await fetchLook(look.id);
+          updateLookSafe(freshLook);
+        } catch {}
+      }
+    } finally {
+      isMutatingRef.current = false;
     }
   };
 
@@ -161,6 +193,11 @@ export const App: React.FC = () => {
   // 4. Save Current Look to Lookbook
   const handleSaveLookbook = async () => {
     if (!look) return;
+    if (isMutatingRef.current) {
+      console.warn('Đang có thao tác đang xử lý, bỏ qua lưu trùng.');
+      return;
+    }
+    isMutatingRef.current = true;
     const newItem: LookbookItem = {
       id: `lookbook_${Date.now()}`,
       title: `${look.title} (v${look.revision})`,
@@ -186,6 +223,8 @@ export const App: React.FC = () => {
     } catch (err: any) {
       alert(`Lỗi lưu Lookbook: ${err.message}`);
       throw err;
+    } finally {
+      isMutatingRef.current = false;
     }
   };
 
@@ -195,6 +234,7 @@ export const App: React.FC = () => {
     const res = await sendAIChat(look.id, message, history);
 
     let commandsStatus: 'none' | 'planned' | 'all_applied' | 'partially_applied' | 'failed' = 'none';
+    let finalReply = res.reply;
 
     if (res.commands && res.commands.length > 0) {
       commandsStatus = 'planned';
@@ -227,11 +267,17 @@ export const App: React.FC = () => {
 
       if (appliedCount === totalCmds) {
         commandsStatus = 'all_applied';
+      } else if (appliedCount === 0) {
+        commandsStatus = 'failed';
+        finalReply = `[Lưu ý: Lệnh phối đồ không thể áp dụng vào bộ trang phục do ràng buộc khóa hoặc quy tắc] ${res.reply}`;
+      } else {
+        commandsStatus = 'partially_applied';
+        finalReply = `[Lưu ý: Chỉ áp dụng thành công ${appliedCount}/${totalCmds} lệnh] ${res.reply}`;
       }
     }
 
     return {
-      reply: res.reply,
+      reply: finalReply,
       explanation: res.explanation,
       citations: res.citations,
       mode: res.mode,
@@ -274,7 +320,7 @@ export const App: React.FC = () => {
         <h2 style={{ color: 'var(--accent-red)', marginBottom: '1rem' }}>Không thể khởi động Dáng Việt</h2>
         <p style={{ marginBottom: '1.5rem', color: 'var(--text-secondary)' }}>{loadError}</p>
         <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-          Hãy kiểm tra xem máy chủ backend API (port 3001) đã được chạy chưa bằng lệnh: <br />
+          Hãy kiểm tra xem máy chủ backend API (port 3088) đã được chạy chưa bằng lệnh: <br />
           <code>npm run dev:server</code> hoặc <code>npm run setup</code>
         </p>
       </div>

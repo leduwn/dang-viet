@@ -14,19 +14,25 @@ import { type AIAdapter } from './adapter.js';
 import { MockAIAdapter } from './mock-adapter.js';
 import { parseModelChatOutput, parseModelDesignOutput } from './parser.js';
 import { dbRepo } from '../db.js';
+import { getAppConfig } from '../config.js';
 
 export class NineRouterAdapter implements AIAdapter {
   private fallbackMock = new MockAIAdapter();
-  private baseUrl: string;
-  private apiKey: string;
-  private model: string;
-  private timeoutMs: number;
 
-  constructor() {
-    this.baseUrl = (process.env.AI_BASE_URL || 'https://api.9router.com/v1').replace(/\/+$/, '');
-    this.apiKey = process.env.AI_API_KEY || '';
-    this.model = process.env.AI_MODEL || 'gemini-2.5-flash';
-    this.timeoutMs = Number(process.env.AI_TIMEOUT_MS) || 25000;
+  private get baseUrl(): string {
+    return (getAppConfig().aiBaseUrl || 'https://api.9router.com/v1').replace(/\/+$/, '');
+  }
+
+  private get apiKey(): string {
+    return getAppConfig().aiApiKey || '';
+  }
+
+  private get model(): string {
+    return getAppConfig().aiModel || 'gemini-2.5-flash';
+  }
+
+  private get timeoutMs(): number {
+    return getAppConfig().aiTimeoutMs || 25000;
   }
 
   isConfigured(): boolean {
@@ -120,17 +126,21 @@ export class NineRouterAdapter implements AIAdapter {
       return this.fallbackMock.chat(look, message, history);
     }
 
-    // 2. Bound inputs to guard against token overflow and attacks
+    // 2. Bound inputs to guard against token overflow and attacks; do not repeat current message
     const boundedMessage = message.slice(0, 1000).trim();
-    const boundedHistory = (history || []).slice(-4).map((h) => ({
-      role: h.role === 'user' || h.role === 'assistant' || h.role === 'system' ? h.role : 'user',
-      content: String(h.content).slice(0, 1000),
-    }));
+    const boundedHistory = (history || [])
+      .slice(-4)
+      .filter((h) => h.role === 'user' || h.role === 'assistant')
+      .filter((h, idx, arr) => !(idx === arr.length - 1 && h.role === 'user' && h.content.trim() === boundedMessage))
+      .map((h) => ({
+        role: h.role,
+        content: String(h.content).slice(0, 1000),
+      }));
 
     try {
       const publishedCards = dbRepo.getCultureCards('published');
       const cardsContext = publishedCards.length > 0
-        ? publishedCards.map((c) => `- "${c.title}" (Nguồn: ${c.sourceName} - ${c.sourceAuthor}): ${c.summary}`).join('\n')
+        ? publishedCards.map((c) => `- [ID: "${c.id}"] (slug: "${c.slug}") | Tiêu đề: "${c.title}" | Nguồn: ${c.sourceName}: ${c.summary}`).join('\n')
         : 'Hiện chưa có thẻ văn hóa nào ở trạng thái published.';
 
       const systemPrompt = `Bạn là Trợ lý Dáng Việt, chuyên gia tư vấn Việt phục truyền thống và phong cách remix đương đại.

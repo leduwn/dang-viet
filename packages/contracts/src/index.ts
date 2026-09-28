@@ -362,14 +362,15 @@ export type AIStatus = z.infer<typeof AIStatusSchema>;
 
 export const AIChatRequestSchema = z.object({
   lookId: z.string(),
-  message: z.string().min(1, 'Tin nhắn không được để trống'),
+  message: z.string().min(1, 'Tin nhắn không được để trống').max(1000, 'Tin nhắn tối đa 1000 ký tự'),
   history: z
     .array(
       z.object({
         role: z.enum(['user', 'assistant']),
-        content: z.string(),
+        content: z.string().max(2000, 'Nội dung lịch sử tối đa 2000 ký tự'),
       })
     )
+    .max(10, 'Lịch sử tối đa 10 tin nhắn')
     .default([]),
 });
 export type AIChatRequest = z.infer<typeof AIChatRequestSchema>;

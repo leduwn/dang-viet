@@ -79,20 +79,21 @@ try {
     });
   };
 
-  // We run backup with DATABASE_PATH pointing to testDbPath
+  // We run backup with DATABASE_PATH pointing to testDbPath and BACKUPS_ROOT_DIR to testBackupRoot
   const backupRes = await runSubprocess(path.resolve('scripts/backup.mjs'), [], {
     DATABASE_PATH: testDbPath,
+    BACKUPS_ROOT_DIR: testBackupRoot,
   });
   assert.strictEqual(backupRes.code, 0, `Sao lưu phải thành công, stderr: ${backupRes.stderr}`);
   console.log(' -> PASSED: scripts/backup.mjs chạy thành công.');
 
-  // Find the created backup directory
-  const rootBackups = fs.readdirSync(path.resolve('backups'))
+  // Find the created backup directory inside testBackupRoot
+  const rootBackups = fs.readdirSync(testBackupRoot)
     .filter((d) => d.startsWith('backup-'))
     .sort()
     .reverse();
   assert(rootBackups.length > 0, 'Phải tìm thấy thư mục backup vừa tạo');
-  const latestBackupDir = path.resolve('backups', rootBackups[0]);
+  const latestBackupDir = path.resolve(testBackupRoot, rootBackups[0]);
 
   // Verify manifest.json
   const manifest = JSON.parse(fs.readFileSync(path.join(latestBackupDir, 'manifest.json'), 'utf-8'));
@@ -105,7 +106,7 @@ try {
   const restoreRes = await runSubprocess(
     path.resolve('scripts/restore.mjs'),
     [latestBackupDir, '--target-dir', testRestoreDir],
-    { DATABASE_PATH: testDbPath }
+    { DATABASE_PATH: testDbPath, BACKUPS_ROOT_DIR: testBackupRoot }
   );
   assert.strictEqual(restoreRes.code, 0, `Restore phải thành công: ${restoreRes.stderr}`);
 
@@ -133,7 +134,7 @@ try {
   const rejectActiveRes = await runSubprocess(
     path.resolve('scripts/restore.mjs'),
     [latestBackupDir, '--target-dir', testDataDir],
-    { DATABASE_PATH: testDbPath }
+    { DATABASE_PATH: testDbPath, BACKUPS_ROOT_DIR: testBackupRoot }
   );
 
   assert.strictEqual(rejectActiveRes.code, 1, 'Restore phải từ chối khi đích trùng thư mục active DB');
@@ -149,7 +150,7 @@ try {
   const rejectSourceRes = await runSubprocess(
     path.resolve('scripts/restore.mjs'),
     [latestBackupDir, '--target-dir', latestBackupDir],
-    { DATABASE_PATH: testDbPath }
+    { DATABASE_PATH: testDbPath, BACKUPS_ROOT_DIR: testBackupRoot }
   );
 
   assert.strictEqual(rejectSourceRes.code, 1, 'Restore phải từ chối khi đích trùng nguồn backup');
@@ -168,7 +169,7 @@ try {
   const rejectNonEmptyRes = await runSubprocess(
     path.resolve('scripts/restore.mjs'),
     [latestBackupDir, '--target-dir', nonEmptyDir],
-    { DATABASE_PATH: testDbPath }
+    { DATABASE_PATH: testDbPath, BACKUPS_ROOT_DIR: testBackupRoot }
   );
 
   assert.strictEqual(rejectNonEmptyRes.code, 1, 'Restore phải từ chối khi thư mục đích không rỗng');
@@ -191,7 +192,7 @@ try {
   const tamperRes = await runSubprocess(
     path.resolve('scripts/restore.mjs'),
     [tamperedDir, '--target-dir', tamperDest],
-    { DATABASE_PATH: testDbPath }
+    { DATABASE_PATH: testDbPath, BACKUPS_ROOT_DIR: testBackupRoot }
   );
 
   assert.strictEqual(tamperRes.code, 1, 'Restore phải từ chối khi sha256 không khớp');

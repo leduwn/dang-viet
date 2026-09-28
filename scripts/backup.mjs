@@ -15,7 +15,9 @@ try {
 }
 
 const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-const backupsRootDir = path.join(config.projectRoot, 'backups');
+const backupsRootDir = process.env.BACKUPS_ROOT_DIR
+  ? path.resolve(process.env.BACKUPS_ROOT_DIR)
+  : path.join(config.projectRoot, 'backups');
 const backupDir = path.join(backupsRootDir, `backup-${timestamp}`);
 fs.mkdirSync(backupDir, { recursive: true });
 

@@ -14,7 +14,7 @@ import { getAppConfig } from './config.js';
 
 let dbInstance: DatabaseSync | null = null;
 
-function runPendingMigrations(db: DatabaseSync, migrationsDir: string): void {
+export function runPendingMigrations(db: DatabaseSync, migrationsDir: string): void {
   // Ensure schema_migrations table exists
   db.exec(`
     CREATE TABLE IF NOT EXISTS schema_migrations (

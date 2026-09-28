@@ -195,7 +195,7 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
         {/* ======================================================== */}
         {/* COLUMN 1: CONTEXT, EVENTS, STYLES & CONTROLS */}
         {/* ======================================================== */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+        <div className="col-controls" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           {/* Card: Bối cảnh sự kiện */}
           <div
             style={{
@@ -402,6 +402,7 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
         {/* COLUMN 2: CENTERPIECE SVG MOCKUP */}
         {/* ======================================================== */}
         <div
+          className="col-visualizer"
           style={{
             background: 'var(--bg-surface)',
             borderRadius: 'var(--radius-lg)',
@@ -464,7 +465,7 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
         {/* ======================================================== */}
         {/* COLUMN 3: CUSTOMIZATION PALETTES & AI DRAWER */}
         {/* ======================================================== */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+        <div className="col-customizer" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           {/* Mobile sub-tabs */}
           <div className="mobile-only" style={{ display: 'none', gap: '0.5rem', marginBottom: '0.5rem' }}>
             <button
@@ -499,6 +500,7 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
 
           {/* SECTION: TÙY CHỌN CHI TIẾT (COLORS, FABRICS, ACCESSORIES) */}
           <div
+            className={`section-customize ${mobileTab !== 'customize' ? 'tab-hidden' : ''}`}
             style={{
               background: 'var(--bg-surface)',
               borderRadius: 'var(--radius-lg)',
@@ -794,6 +796,7 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
           {/* SECTION: TRỢ LÝ AI (AI ASSISTANT CHAT & PROMPTS) */}
           {/* ======================================================== */}
           <div
+            className={`section-ai ${mobileTab !== 'ai' ? 'tab-hidden' : ''}`}
             style={{
               background: 'var(--bg-surface)',
               borderRadius: 'var(--radius-lg)',

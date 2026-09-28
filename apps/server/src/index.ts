@@ -79,7 +79,9 @@ if (fs.existsSync(appConfig.webDistDir)) {
 const start = async () => {
   try {
     await fastify.listen({ port: appConfig.port, host: appConfig.host });
-    console.log(`[DÁNG VIỆT SERVER] Máy chủ API đang chạy tại http://${appConfig.host}:${appConfig.port}`);
+    const address = fastify.server.address();
+    const boundPort = typeof address === 'object' && address ? address.port : appConfig.port;
+    console.log(`[DÁNG VIỆT SERVER] Máy chủ API đang chạy tại http://${appConfig.host}:${boundPort}`);
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);

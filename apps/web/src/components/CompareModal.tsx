@@ -68,7 +68,7 @@ export const CompareModal: React.FC<CompareModalProps> = ({ lookA, lookB, onClos
         </div>
 
         {/* Side-by-side Visualizers */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
+        <div className="compare-visualizers" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
           <div
             style={{
               background: 'var(--bg-primary)',
@@ -111,54 +111,56 @@ export const CompareModal: React.FC<CompareModalProps> = ({ lookA, lookB, onClos
         </div>
 
         {/* Detailed Comparison Table */}
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem' }}>
-          <thead>
-            <tr style={{ background: 'var(--bg-subtle)', borderBottom: '2px solid var(--border-medium)' }}>
-              <th style={{ padding: '0.65rem', textAlign: 'left', width: '25%' }}>Đặc tính</th>
-              <th style={{ padding: '0.65rem', textAlign: 'left', width: '37.5%', color: 'var(--accent-red)' }}>Phương án A</th>
-              <th style={{ padding: '0.65rem', textAlign: 'left', width: '37.5%', color: 'var(--accent-blue)' }}>Phương án B</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr style={{ borderBottom: '1px solid var(--border-light)' }}>
-              <td style={{ padding: '0.65rem', fontWeight: 600 }}>Màu áo</td>
-              <td style={{ padding: '0.65rem' }}>
-                <span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '50%', background: lookA.config.primaryColor.hex, marginRight: '6px' }}></span>
-                {lookA.config.primaryColor.name}
-              </td>
-              <td style={{ padding: '0.65rem' }}>
-                <span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '50%', background: lookB.config.primaryColor.hex, marginRight: '6px' }}></span>
-                {lookB.config.primaryColor.name}
-              </td>
-            </tr>
-            <tr style={{ borderBottom: '1px solid var(--border-light)' }}>
-              <td style={{ padding: '0.65rem', fontWeight: 600 }}>Màu quần</td>
-              <td style={{ padding: '0.65rem' }}>
-                <span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '50%', background: lookA.config.pantsColor.hex, marginRight: '6px', border: '1px solid #ccc' }}></span>
-                {lookA.config.pantsColor.name}
-              </td>
-              <td style={{ padding: '0.65rem' }}>
-                <span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '50%', background: lookB.config.pantsColor.hex, marginRight: '6px', border: '1px solid #ccc' }}></span>
-                {lookB.config.pantsColor.name}
-              </td>
-            </tr>
-            <tr style={{ borderBottom: '1px solid var(--border-light)' }}>
-              <td style={{ padding: '0.65rem', fontWeight: 600 }}>Cổ & Tay áo</td>
-              <td style={{ padding: '0.65rem' }}>{lookA.config.collarStyle} / {lookA.config.sleeveStyle}</td>
-              <td style={{ padding: '0.65rem' }}>{lookB.config.collarStyle} / {lookB.config.sleeveStyle}</td>
-            </tr>
-            <tr style={{ borderBottom: '1px solid var(--border-light)' }}>
-              <td style={{ padding: '0.65rem', fontWeight: 600 }}>Chất liệu & Họa tiết</td>
-              <td style={{ padding: '0.65rem' }}>{lookA.config.fabric} / {lookA.config.pattern}</td>
-              <td style={{ padding: '0.65rem' }}>{lookB.config.fabric} / {lookB.config.pattern}</td>
-            </tr>
-            <tr style={{ borderBottom: '1px solid var(--border-light)' }}>
-              <td style={{ padding: '0.65rem', fontWeight: 600 }}>Phụ kiện</td>
-              <td style={{ padding: '0.65rem' }}>{lookA.config.accessories.join(', ') || 'Không có'}</td>
-              <td style={{ padding: '0.65rem' }}>{lookB.config.accessories.join(', ') || 'Không có'}</td>
-            </tr>
-          </tbody>
-        </table>
+        <div style={{ overflowX: 'auto', width: '100%', WebkitOverflowScrolling: 'touch' }}>
+          <table style={{ width: '100%', minWidth: '400px', borderCollapse: 'collapse', fontSize: '0.88rem' }}>
+            <thead>
+              <tr style={{ background: 'var(--bg-subtle)', borderBottom: '2px solid var(--border-medium)' }}>
+                <th style={{ padding: '0.65rem', textAlign: 'left', width: '25%' }}>Đặc tính</th>
+                <th style={{ padding: '0.65rem', textAlign: 'left', width: '37.5%', color: 'var(--accent-red)' }}>Phương án A</th>
+                <th style={{ padding: '0.65rem', textAlign: 'left', width: '37.5%', color: 'var(--accent-blue)' }}>Phương án B</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style={{ borderBottom: '1px solid var(--border-light)' }}>
+                <td style={{ padding: '0.65rem', fontWeight: 600 }}>Màu áo</td>
+                <td style={{ padding: '0.65rem' }}>
+                  <span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '50%', background: lookA.config.primaryColor.hex, marginRight: '6px' }}></span>
+                  {lookA.config.primaryColor.name}
+                </td>
+                <td style={{ padding: '0.65rem' }}>
+                  <span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '50%', background: lookB.config.primaryColor.hex, marginRight: '6px' }}></span>
+                  {lookB.config.primaryColor.name}
+                </td>
+              </tr>
+              <tr style={{ borderBottom: '1px solid var(--border-light)' }}>
+                <td style={{ padding: '0.65rem', fontWeight: 600 }}>Màu quần</td>
+                <td style={{ padding: '0.65rem' }}>
+                  <span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '50%', background: lookA.config.pantsColor.hex, marginRight: '6px', border: '1px solid #ccc' }}></span>
+                  {lookA.config.pantsColor.name}
+                </td>
+                <td style={{ padding: '0.65rem' }}>
+                  <span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '50%', background: lookB.config.pantsColor.hex, marginRight: '6px', border: '1px solid #ccc' }}></span>
+                  {lookB.config.pantsColor.name}
+                </td>
+              </tr>
+              <tr style={{ borderBottom: '1px solid var(--border-light)' }}>
+                <td style={{ padding: '0.65rem', fontWeight: 600 }}>Cổ & Tay áo</td>
+                <td style={{ padding: '0.65rem' }}>{lookA.config.collarStyle} / {lookA.config.sleeveStyle}</td>
+                <td style={{ padding: '0.65rem' }}>{lookB.config.collarStyle} / {lookB.config.sleeveStyle}</td>
+              </tr>
+              <tr style={{ borderBottom: '1px solid var(--border-light)' }}>
+                <td style={{ padding: '0.65rem', fontWeight: 600 }}>Chất liệu & Họa tiết</td>
+                <td style={{ padding: '0.65rem' }}>{lookA.config.fabric} / {lookA.config.pattern}</td>
+                <td style={{ padding: '0.65rem' }}>{lookB.config.fabric} / {lookB.config.pattern}</td>
+              </tr>
+              <tr style={{ borderBottom: '1px solid var(--border-light)' }}>
+                <td style={{ padding: '0.65rem', fontWeight: 600 }}>Phụ kiện</td>
+                <td style={{ padding: '0.65rem' }}>{lookA.config.accessories.join(', ') || 'Không có'}</td>
+                <td style={{ padding: '0.65rem' }}>{lookB.config.accessories.join(', ') || 'Không có'}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

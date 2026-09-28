@@ -14,15 +14,13 @@ if (fs.existsSync(testDir)) {
 fs.mkdirSync(testDir, { recursive: true });
 
 const testDbPath = path.join(testDir, 'test-flow.db');
-const TEST_PORT = '3188';
-const BASE_URL = `http://127.0.0.1:${TEST_PORT}/api`;
 
-// 1. Launch test server on dedicated port and fresh database
-console.log(`[SERVER] Khởi động máy chủ backend tại port ${TEST_PORT} (database độc lập)...`);
+// 1. Launch test server on OS-allocated ephemeral port and fresh database
+console.log(`[SERVER] Khởi động máy chủ backend tại cổng ngẫu nhiên do HĐH cấp (database độc lập)...`);
 const serverProcess = spawn(process.execPath, ['apps/server/dist/index.js'], {
   env: {
     ...process.env,
-    PORT: TEST_PORT,
+    PORT: '0',
     HOST: '127.0.0.1',
     LOG_LEVEL: 'silent',
     DATABASE_PATH: testDbPath,
@@ -30,24 +28,42 @@ const serverProcess = spawn(process.execPath, ['apps/server/dist/index.js'], {
   stdio: 'pipe',
 });
 
+let assignedPort = null;
+serverProcess.stdout.on('data', (chunk) => {
+  const text = chunk.toString();
+  const match = text.match(/http:\/\/127\.0\.0\.1:(\d+)/);
+  if (match) {
+    assignedPort = match[1];
+  }
+});
+serverProcess.stderr.on('data', (chunk) => {
+  const errText = chunk.toString();
+  if (errText.trim()) console.error('[SERVER STDERR]', errText);
+});
+
+// Wait for the spawned server's own stdout to emit the bound port
 let ready = false;
 for (let i = 0; i < 25; i++) {
-  try {
-    const res = await fetch(`${BASE_URL}/health`);
-    if (res.ok) {
-      ready = true;
-      break;
-    }
-  } catch {}
+  if (assignedPort) {
+    try {
+      const res = await fetch(`http://127.0.0.1:${assignedPort}/api/health`);
+      if (res.ok) {
+        ready = true;
+        break;
+      }
+    } catch {}
+  }
   await new Promise((r) => setTimeout(r, 400));
 }
 
-if (!ready) {
-  console.error('[FAIL] Không thể kết nối tới server sau 10 giây.');
+if (!ready || !assignedPort) {
+  console.error('[FAIL] Không thể kết nối tới server do test khởi động sau 10 giây.');
   serverProcess.kill();
   process.exit(1);
 }
-console.log(`[OK] Máy chủ backend đã sẵn sàng tại port ${TEST_PORT}.\n`);
+
+const BASE_URL = `http://127.0.0.1:${assignedPort}/api`;
+console.log(`[OK] Máy chủ backend đã sẵn sàng tại port ${assignedPort} (xác nhận đúng tiến trình con vừa khởi tạo).\n`);
 
 async function api(endpoint, options = {}) {
   const url = `${BASE_URL}${endpoint}`;

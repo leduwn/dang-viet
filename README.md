@@ -77,8 +77,11 @@ npm run build
 # Kiểm thử luồng nghiệp vụ người dùng trọn vẹn E2E (Khởi tạo -> Phối đồ -> Khóa -> AI -> Thiết kế -> Lưu -> Mở lại)
 npm test
 
-# Kiểm thử củng cố hệ thống (Hoàn tác đa cấp tuần tự, OCC, Khóa, AI Parser)
+# Kiểm thử củng cố hệ thống (Hoàn tác đa cấp tuần tự, OCC 409, Khóa, AI Parser, Chống trùng lặp)
 node scripts/test-harden.mjs
+
+# Kiểm thử upstream AI giả lập toàn diện 7 kịch bản (JSON hợp lệ, JSON hỏng, lệnh sai, timeout, 401/429/500, fallback, kiểm tra key)
+node scripts/test-ai-upstream.mjs
 
 # Kiểm thử di chuyển lược đồ nguyên tử, rollback và bảo toàn dữ liệu
 node scripts/test-migrations.mjs
@@ -93,18 +96,66 @@ node scripts/test-ai-culture.mjs
 ### 5. Khởi động ứng dụng
 
 ```bash
-# Chạy ứng dụng hoàn chỉnh (API + Web trên cổng 3001)
+# Chạy ứng dụng hoàn chỉnh (API + Web trên cổng 3088)
 npm start
 ```
 
-Mở trình duyệt tại: [http://localhost:3001](http://localhost:3001)
+Mở trình duyệt tại: [http://localhost:3088](http://localhost:3088)
 
 Để phát triển với Hot-Reloading:
 
 ```bash
 npm run dev
-# Server API: http://localhost:3001 | Web Vite: http://localhost:5173
+# Server API: http://localhost:3088 | Web Vite: http://localhost:5188 (strictPort: true)
 ```
+
+---
+
+## 🧭 Hướng dẫn Thử nghiệm Hành trình Demo
+
+1. **Khám phá bối cảnh & phong cách:** Truy cập trang chủ, lựa chọn bối cảnh phù hợp: *Chụp ảnh kỷ yếu*, *Đi chơi Tết*, hoặc *Ngày hội trường*.
+2. **Phòng phối đồ tương tác (Outfit Room):**
+   - Lựa chọn màu áo, màu quần, kiểu cổ áo, tay áo, chất liệu và phụ kiện.
+   - Bấm biểu tượng 🔒 để **khóa thuộc tính** (ví dụ: khóa màu áo Đỏ son hoàng gia).
+3. **Trò chuyện cùng Trợ lý AI:**
+   - Đưa ra yêu cầu bằng tiếng Việt tự nhiên (ví dụ: *"Gợi ý đổi màu quần sang đen tuyền dạ hội"*).
+   - AI phân tích câu lệnh, bảo vệ thuộc tính đã khóa và sinh lệnh thay đổi có cấu trúc.
+4. **Sáng tạo thiết kế tại Remix Studio:**
+   - Nhập mô tả ý tưởng tự do kèm bối cảnh sự kiện và phong cách.
+   - Nhận bản thiết kế có cấu trúc và giải trình thẩm mỹ, kèm nhãn cảnh báo quy chuẩn.
+5. **Lưu vào Lookbook cá nhân:**
+   - Bấm nút **Lưu vào Lookbook**; bản thiết kế được chụp sâu độc lập (Snapshot Isolation) trong SQLite, bảo toàn trọn vẹn `eventId`, `styleId`, tiêu đề và ghi chú.
+6. **Mở lại và tùy biến tiếp:**
+   - Vào tab **Lookbook**, bấm **Mở trong phòng phối**; bộ phối được phục hồi qua `APPLY_DESIGN`.
+   - Tiếp tục chỉnh sửa thêm chi tiết; bản snapshot trong Lookbook giữ nguyên tính toàn vẹn.
+7. **Hoàn tác (Undo) đa cấp:**
+   - Bấm **Hoàn tác** để lùi lại từng bước thay đổi; số hiệu `revision` tăng đơn điệu và lịch sử rẽ nhánh an toàn.
+8. **So sánh đối chiếu:**
+   - Chọn hai bản phối bất kỳ trong Lookbook và bấm **So sánh** để đối chiếu trực quan song song và xem bảng đối chiếu đặc tính.
+
+---
+
+## ⚠️ Hạn chế đã biết (Known Limitations)
+
+1. **Mô hình đồ họa minh họa:** Hình ảnh trang phục được dựng bằng vector SVG 2D nhiều lớp động, mô phỏng màu sắc, phom dáng cắt may và vân dệt bề mặt. Hệ thống hiện **chưa mô phỏng độ rủ vi sợi 3D** hoặc độ vừa vặn cơ thể thực tế theo từng số đo nhân trắc học.
+2. **Thiết kế do AI hỗ trợ:** Các mẫu do AI sinh ra là gợi ý sáng tạo thẩm mỹ phong cách cách tân, **không thể dùng trực tiếp làm bản rập kỹ thuật may đo**.
+3. **Dữ liệu tư liệu văn hóa:** Tuân thủ nguyên tắc liêm chính học thuật, hiện tại hệ thống chỉ công bố (`published`) 2 thẻ tư liệu đã được đối soát nguồn công báo/báo chí chính thống trực tiếp (Làng may Trạch Xá và Dệt lụa Vạn Phúc - TTXVN). Các tư liệu văn hóa khác đang được lưu trữ ở trạng thái thẩm định (`review`) và AI từ chối trích dẫn tự động cho tới khi hoàn tất đối soát số trang/công báo vật lý.
+
+---
+
+## 🔄 Hướng dẫn Khôi phục Dữ liệu sang Thư mục Mới
+
+Để khôi phục dữ liệu từ bản sao lưu sang một thư mục độc lập an toàn:
+
+```bash
+# 1. Chạy khôi phục sang thư mục riêng biệt (chẳng hạn: restored/demo-restore)
+node scripts/restore.mjs backups/backup-<timestamp> --target-dir restored/demo-restore
+
+# 2. Để sử dụng cơ sở dữ liệu vừa khôi phục cho máy chủ, khởi động với biến DATABASE_PATH:
+$env:DATABASE_PATH="restored/demo-restore/dangviet.db"; npm start
+```
+
+*Lưu ý an toàn:* Trình khôi phục từ chối mọi thao tác ghi đè lên thư mục database đang hoạt động hoặc thư mục có sẵn tệp. Tuyệt đối không sao chép đè trực tiếp khi máy chủ đang chạy.
 
 ---
 
@@ -113,13 +164,13 @@ npm run dev
 Sao chép `.env.example` thành `.env`:
 
 ```env
-PORT=3001
+PORT=3088
 HOST=127.0.0.1
 DATABASE_PATH=data/dangviet.db
 AI_BASE_URL=https://api.9router.com/v1
 AI_API_KEY=
-AI_MODEL=gpt-4o-mini
-AI_TIMEOUT_MS=12000
+AI_MODEL=gemini-2.5-flash
+AI_TIMEOUT_MS=30000
 ```
 
 *Lưu ý:*

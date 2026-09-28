@@ -506,18 +506,45 @@ export const AoDaiVisualizer: React.FC<AoDaiVisualizerProps> = ({
         )}
       </svg>
 
-      {/* Mandatory disclaimer note */}
-      <span
+      {/* Mandatory visualizer badge & fabric limitation disclaimer */}
+      <div
         style={{
-          marginTop: '0.5rem',
-          fontSize: '0.72rem',
-          color: 'var(--text-muted)',
-          textAlign: 'center',
-          fontStyle: 'italic',
+          marginTop: '0.65rem',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '0.25rem',
+          width: '100%',
+          maxWidth: `${dimensions.width}px`,
+          padding: '0 0.5rem',
         }}
       >
-        Hình ảnh minh họa phối đồ — không mô phỏng độ vừa vặn thực tế
-      </span>
+        <span
+          style={{
+            fontSize: '0.72rem',
+            fontWeight: 700,
+            color: 'var(--text-secondary)',
+            textAlign: 'center',
+            background: 'var(--bg-subtle)',
+            border: '1px solid var(--border-medium)',
+            padding: '2px 10px',
+            borderRadius: '12px',
+            letterSpacing: '0.02em',
+          }}
+        >
+          Mô hình đồ họa SVG minh họa 2D
+        </span>
+        <span
+          style={{
+            fontSize: '0.68rem',
+            color: 'var(--text-muted)',
+            textAlign: 'center',
+            lineHeight: 1.35,
+          }}
+        >
+          Mô phỏng màu sắc và phom dáng cắt may. Lựa chọn chất liệu thay đổi độ bóng và dệt vân bề mặt nhưng không mô phỏng độ rủ vi sợi 3D hay độ vừa vặn cơ thể thực tế.
+        </span>
+      </div>
     </div>
   );
 };

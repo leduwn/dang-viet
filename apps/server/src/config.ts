@@ -105,7 +105,7 @@ export function getAppConfig(options: {
     contentDir,
     migrationsDir,
     webDistDir,
-    port: Number(process.env.PORT) || 3001,
+    port: process.env.PORT !== undefined && process.env.PORT !== '' ? Number(process.env.PORT) : 3088,
     host: process.env.HOST || '127.0.0.1',
     logLevel: process.env.LOG_LEVEL || 'info',
     aiBaseUrl: (process.env.AI_BASE_URL || 'https://api.9router.com/v1').replace(/\/+$/, ''),

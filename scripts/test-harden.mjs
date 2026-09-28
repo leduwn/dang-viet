@@ -15,12 +15,55 @@ if (fs.existsSync(testDir)) {
 fs.mkdirSync(testDir, { recursive: true });
 
 const testDbPath = path.join(testDir, 'dangviet.db');
-const TEST_PORT = '3147';
-const BASE_URL = `http://127.0.0.1:${TEST_PORT}/api`;
+// Start temporary test server
+console.log(`[SETUP] Khởi động máy chủ backend tại cổng ngẫu nhiên do HĐH cấp (database độc lập)...`);
+const serverProcess = spawn(process.execPath, ['apps/server/dist/index.js'], {
+  env: {
+    ...process.env,
+    PORT: '0',
+    HOST: '127.0.0.1',
+    LOG_LEVEL: 'silent',
+    DATABASE_PATH: testDbPath,
+  },
+  stdio: 'pipe',
+});
 
-// 1. Prepare isolated test environment
-console.log('[SETUP] Chuẩn bị môi trường kiểm thử độc lập cho test-harden...');
-// Server will automatically create DB, run schema migrations, and sync culture cards from content/
+let assignedPort = null;
+serverProcess.stdout.on('data', (chunk) => {
+  const text = chunk.toString();
+  const match = text.match(/http:\/\/127\.0\.0\.1:(\d+)/);
+  if (match) {
+    assignedPort = match[1];
+  }
+});
+serverProcess.stderr.on('data', (chunk) => {
+  const errText = chunk.toString();
+  if (errText.trim()) console.error('[SERVER STDERR]', errText);
+});
+
+// Wait for the spawned server's own stdout to emit the bound port
+let ready = false;
+for (let i = 0; i < 25; i++) {
+  if (assignedPort) {
+    try {
+      const res = await fetch(`http://127.0.0.1:${assignedPort}/api/health`);
+      if (res.ok) {
+        ready = true;
+        break;
+      }
+    } catch {}
+  }
+  await new Promise((r) => setTimeout(r, 400));
+}
+
+if (!ready || !assignedPort) {
+  console.error('[FAIL] Không thể kết nối tới server sau 10 giây.');
+  serverProcess.kill();
+  process.exit(1);
+}
+
+const BASE_URL = `http://127.0.0.1:${assignedPort}/api`;
+console.log(`[OK] Máy chủ backend đã sẵn sàng tại port ${assignedPort} (xác nhận đúng tiến trình con vừa khởi tạo).\n`);
 
 // Helper to make API requests
 async function api(path, options = {}) {
@@ -36,39 +79,6 @@ async function api(path, options = {}) {
   const data = await res.json().catch(() => null);
   return { status: res.status, ok: res.ok, data };
 }
-
-// Start temporary test server
-console.log(`[SETUP] Khởi động máy chủ backend tại port ${TEST_PORT} (database độc lập)...`);
-const serverProcess = spawn(process.execPath, ['apps/server/dist/index.js'], {
-  env: {
-    ...process.env,
-    PORT: TEST_PORT,
-    HOST: '127.0.0.1',
-    LOG_LEVEL: 'silent',
-    DATABASE_PATH: testDbPath,
-  },
-  stdio: 'pipe',
-});
-
-// Wait for server ready
-let ready = false;
-for (let i = 0; i < 25; i++) {
-  try {
-    const res = await fetch(`${BASE_URL}/health`);
-    if (res.ok) {
-      ready = true;
-      break;
-    }
-  } catch {}
-  await new Promise((r) => setTimeout(r, 400));
-}
-
-if (!ready) {
-  console.error('[FAIL] Không thể kết nối tới server sau 10 giây.');
-  serverProcess.kill();
-  process.exit(1);
-}
-console.log(`[OK] Máy chủ backend đã sẵn sàng tại port ${TEST_PORT}.\n`);
 
 try {
   // =========================================================================

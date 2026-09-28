@@ -89,18 +89,20 @@ function checkPort(port, host = '127.0.0.1') {
 
 const serverPort = config.port;
 const pServer = await checkPort(serverPort, config.host);
-const p5173 = await checkPort(5173);
+const p5188 = await checkPort(5188, '127.0.0.1');
 
 if (pServer.free) {
   console.log(`[OK] Cổng ${serverPort} (Server API) khả dụng`);
 } else {
-  console.log(`[WARN] Cổng ${serverPort} đang bận (${pServer.error}), kiểm tra nếu tiến trình cũ đang chạy`);
+  console.log(`[CẢNH BÁO] Cổng ${serverPort} (Server API) đang bận (${pServer.error})!`);
+  console.log(`           Hướng dẫn kiểm tra tiến trình: Get-NetTCPConnection -LocalPort ${serverPort} | Select-Object LocalAddress, LocalPort, OwningProcess, State`);
 }
 
-if (p5173.free) {
-  console.log('[OK] Cổng 5173 (Vite Web) khả dụng');
+if (p5188.free) {
+  console.log('[OK] Cổng 5188 (Vite Web Dev) khả dụng');
 } else {
-  console.log(`[WARN] Cổng 5173 đang bận (${p5173.error}), Vite sẽ tự chọn cổng kế tiếp`);
+  console.log(`[CẢNH BÁO] Cổng 5188 (Vite Web Dev) đang bận (${p5188.error})!`);
+  console.log('           Hướng dẫn kiểm tra tiến trình: Get-NetTCPConnection -LocalPort 5188 | Select-Object LocalAddress, LocalPort, OwningProcess, State');
 }
 
 if (hasError) {

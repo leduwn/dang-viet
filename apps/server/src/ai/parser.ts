@@ -264,24 +264,25 @@ export function parseModelChatOutput(rawText: string, currentLook: Look): Parsed
   }
 
   // Strict citation validation: ONLY allow citations matching verified published culture cards!
+  // Must match exact ID or exact slug from published cards list. Never fuzzy keyword matching.
   const citations: Array<{ title: string; source: string; ref: string }> = [];
   if (Array.isArray(json.citations) && json.citations.length > 0) {
     try {
       const publishedCards = dbRepo.getCultureCards('published');
       for (const item of json.citations) {
         if (!item || typeof item !== 'object') continue;
-        const matched = publishedCards.find(
-          (c) =>
-            (item.title && c.title.toLowerCase().includes(String(item.title).toLowerCase())) ||
-            (item.slug && c.slug === item.slug) ||
-            (item.source && c.sourceName.toLowerCase().includes(String(item.source).toLowerCase()))
-        );
+        const targetId = typeof item.id === 'string' ? item.id.trim() : (typeof item.cardId === 'string' ? item.cardId.trim() : '');
+        const targetSlug = typeof item.slug === 'string' ? item.slug.trim() : '';
+        // EXACT match on ID or slug only — no fuzzy substring or keyword includes!
+        const matched = publishedCards.find((c) => (targetId && c.id === targetId) || (targetSlug && c.slug === targetSlug));
         if (matched) {
-          citations.push({
-            title: matched.title,
-            source: matched.sourceName,
-            ref: matched.sourceEvidence,
-          });
+          if (!citations.some((existing) => existing.title === matched.title)) {
+            citations.push({
+              title: matched.title,
+              source: matched.sourceName,
+              ref: matched.sourceEvidence,
+            });
+          }
         }
       }
     } catch {}

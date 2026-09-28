@@ -44,7 +44,9 @@ function getCanonicalPath(p) {
 }
 
 // 2. Locate Backup Directory
-const backupsRootDir = path.join(config.projectRoot, 'backups');
+const backupsRootDir = process.env.BACKUPS_ROOT_DIR
+  ? path.resolve(process.env.BACKUPS_ROOT_DIR)
+  : path.join(config.projectRoot, 'backups');
 let targetBackupDir = '';
 
 if (backupDirInput) {

@@ -62,8 +62,8 @@ assert(resLua.citations && resLua.citations.length > 0, 'Phải có citations');
 const cLua = resLua.citations[0];
 assert(cLua.title.includes('Lụa Vạn Phúc') || cLua.title.includes('lụa Vạn Phúc'), 'Citation phải trỏ đúng thẻ Lụa Vạn Phúc');
 assert(cLua.source.includes('Thông tấn xã Việt Nam') || cLua.source.includes('Báo ảnh Việt Nam'), 'Nguồn trích dẫn phải từ cơ quan báo chí');
-assert(cLua.ref.includes('2969/QĐ-BVHTTDL'), 'Dẫn chứng phải có quyết định di sản quốc gia');
-console.log(' -> PASSED: Trích dẫn chính xác thẻ đã kiểm chứng kèm quyết định công nhận di sản.\n');
+assert(cLua.ref.includes('Báo ảnh Việt Nam') || cLua.ref.includes('Thông tấn xã Việt Nam'), 'Dẫn chứng phải từ bài viết chuyên đề TTXVN đã kiểm chứng độc lập');
+console.log(' -> PASSED: Trích dẫn chính xác thẻ đã kiểm chứng từ Báo ảnh Việt Nam (TTXVN).\n');
 
 // TEST 3: Query about topic in 'review' (Áo ngũ thân thời Nguyễn - card_verified_ngu_than_dinh_che)
 console.log('[TEST 3] Hỏi về Áo ngũ thân (Thẻ đã chuyển về review chờ kiểm chứng số trang sách vật lý)...');
@@ -102,22 +102,23 @@ assert(!resLemur.citations || resLemur.citations.length === 0, 'Tuyệt đối k
 console.log(' -> PASSED: Không bịa nguồn, từ chối khẳng định thông tin chưa kiểm chứng.\n');
 
 // TEST 6: Parser filters fabricated citations from raw model output
-console.log('[TEST 6] Parser kiểm duyệt trích dẫn: Lọc bỏ citation bịa đặt, chỉ giữ citation published...');
+console.log('[TEST 6] Parser kiểm duyệt trích dẫn: Lọc bỏ citation bịa đặt hoặc so khớp mờ, chỉ nhận ID chính xác của thẻ published...');
 const rawModelOutputWithFakeCitation = JSON.stringify({
   reply: 'Áo dài và lụa Hà Đông rất đẹp.',
   actions: [],
   citations: [
-    { title: 'Tà Áo dài Hà thành và kỹ nghệ may đo Trạch Xá', source: 'Bảo tàng Lịch sử Quốc gia' },
-    { title: 'Họa tiết Vân mây và Gấm hoa triều đình Huế', source: 'Bảo tàng Cổ vật Cung đình Huế (Bịa nguồn)' },
-    { title: 'Sách thần thoại tự chế', source: 'Nguồn không có trong DB' },
+    { id: 'card_verified_lich_su_ao_dai' }, // EXACT published ID -> kept
+    { id: 'card_gam_hue_van_may' }, // review card, NOT published -> rejected
+    { title: 'Tà Áo dài Hà thành', source: 'Bảo tàng Lịch sử Quốc gia' }, // Missing exact ID/slug -> rejected (no fuzzy match)
+    { id: 'fake_card_123', title: 'Sách thần thoại tự chế' }, // Unknown ID -> rejected
   ],
 });
 
 const parsed = parseModelChatOutput(rawModelOutputWithFakeCitation, mockLook);
-assert(parsed.citations && parsed.citations.length === 1, 'Parser chỉ được giữ lại đúng 1 citation khớp với thẻ published');
+assert(parsed.citations && parsed.citations.length === 1, 'Parser chỉ được giữ lại đúng 1 citation khớp ID chính xác với thẻ published');
 assert.strictEqual(parsed.citations[0].title, 'Tà Áo dài Hà thành và kỹ nghệ may đo Trạch Xá');
-assert(!parsed.citations.some((c) => c.title.includes('Gấm hoa') || c.title.includes('tự chế')), 'Các citation bịa đặt phải bị loại bỏ');
-console.log(' -> PASSED: Parser bảo vệ nghiêm ngặt, loại bỏ hoàn toàn các citation bịa hoặc thuộc diện review.\n');
+assert(!parsed.citations.some((c) => c.title.includes('Gấm hoa') || c.title.includes('tự chế')), 'Các citation bịa đặt hoặc review phải bị loại bỏ');
+console.log(' -> PASSED: Parser bảo vệ nghiêm ngặt, chỉ cho phép trích dẫn khi có ID/slug chính xác của thẻ published.\n');
 
 // TEST 7: AI Status & Live Adapter mode inspection
 console.log('[TEST 7] Kiểm tra trạng thái AI Adapter (Mock mode & Live mode)...');

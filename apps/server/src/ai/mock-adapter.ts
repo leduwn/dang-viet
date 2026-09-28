@@ -65,13 +65,13 @@ export class MockAIAdapter implements AIAdapter {
       const cards = dbRepo.getCultureCards('published');
 
       if (text.includes('trạch xá') || text.includes('tay trong tay ngoài') || text.includes('bảo tàng lịch sử') || text.includes('hà thành')) {
-        const c = cards.find((x) => x.slug.includes('trach-xa') || x.slug.includes('ha-thanh'));
+        const c = cards.find((x) => x.id === 'card_verified_lich_su_ao_dai');
         if (c) {
           reply = `Về tà Áo dài Hà thành và kỹ nghệ may đo Trạch Xá: ${c.summary}\n\n${c.content}`;
           citations.push({ title: c.title, source: c.sourceName, ref: c.sourceEvidence });
         }
       } else if (text.includes('lụa') || text.includes('vạn phúc') || text.includes('chất liệu')) {
-        const c = cards.find((x) => x.slug.includes('van-phuc') || x.slug.includes('van_phuc') || x.slug.includes('lua'));
+        const c = cards.find((x) => x.id === 'card_verified_lua_van_phuc');
         if (c) {
           reply = `Về di sản dệt lụa Vạn Phúc - Hà Đông: ${c.summary}\n\n${c.content}`;
           citations.push({ title: c.title, source: c.sourceName, ref: c.sourceEvidence });
@@ -81,8 +81,8 @@ export class MockAIAdapter implements AIAdapter {
         reply = 'Hiện tại kho tư liệu văn hóa đã kiểm chứng (trạng thái published) chưa có đủ dẫn chứng xác thực độc lập cho câu hỏi này (các tư liệu liên quan hiện đang ở trạng thái thẩm định - review). Trợ lý xin phép không trích dẫn thông tin chưa kiểm chứng.';
       } else {
         // Default cultural overview for current look using published cards only
-        const cTrachXa = cards.find((x) => x.slug.includes('trach-xa') || x.slug.includes('ha-thanh'));
-        const cLua = cards.find((x) => x.slug.includes('van-phuc') || x.slug.includes('lua'));
+        const cTrachXa = cards.find((x) => x.id === 'card_verified_lich_su_ao_dai');
+        const cLua = cards.find((x) => x.id === 'card_verified_lua_van_phuc');
         if (cTrachXa || cLua) {
           reply = `Bộ phối hiện tại tôn vinh phom dáng áo dài truyền thống với kỹ nghệ dệt lụa và may đo chuẩn mực của người Việt.`;
           if (cTrachXa) citations.push({ title: cTrachXa.title, source: cTrachXa.sourceName, ref: cTrachXa.sourceEvidence });
