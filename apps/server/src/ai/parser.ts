@@ -53,6 +53,35 @@ export function extractJsonFromText(rawText: string): any | null {
  * Strict parser for AI Model chat response
  * Validates domain constraints, locks, catalogs, and revision sequencing.
  */
+function resolveColor(input: any): Color | null {
+  if (typeof input === 'string') {
+    const s = input.trim().toLowerCase();
+    if (s === '#000000' || s === '#1e1b18' || s === 'đen' || s.includes('đen')) {
+      return { hex: '#1E1B18', name: 'Đen tuyền dạ hội', family: 'black' };
+    }
+    if (s === '#ffffff' || s === 'trắng' || s.includes('trắng')) {
+      return { hex: '#FFFFFF', name: 'Trắng tinh khôi', family: 'white' };
+    }
+    if (s === '#b83a24' || s === 'đỏ son' || s.includes('đỏ')) {
+      return { hex: '#B83A24', name: 'Đỏ son hoàng gia', family: 'red' };
+    }
+    if (s === '#e5a93c' || s === 'vàng' || s.includes('vàng')) {
+      return { hex: '#E5A93C', name: 'Vàng hoàng yến', family: 'yellow' };
+    }
+  }
+  if (input && typeof input === 'object') {
+    const h = String(input.hex || '').toLowerCase();
+    const n = String(input.name || '').toLowerCase();
+    const f = String(input.family || '').toLowerCase();
+    if (h === '#000000' || h === '#1e1b18' || f === 'black' || n.includes('đen')) {
+      return { hex: '#1E1B18', name: 'Đen tuyền dạ hội', family: 'black' };
+    }
+    const parse = ColorSchema.safeParse(input);
+    if (parse.success) return parse.data;
+  }
+  return null;
+}
+
 export function parseModelChatOutput(rawText: string, currentLook: Look): ParsedChatResult {
   const json = extractJsonFromText(rawText);
 
@@ -87,14 +116,14 @@ export function parseModelChatOutput(rawText: string, currentLook: Look): Parsed
     switch (action) {
       case 'SET_PRIMARY_COLOR': {
         if (currentLook.locks.primaryColor) continue;
-        const parse = ColorSchema.safeParse(payload.color);
-        if (!parse.success) continue;
+        const color = resolveColor(payload.color);
+        if (!color) continue;
         commands.push({
           commandId: randomUUID(),
           lookId: currentLook.id,
           expectedRevision: nextExpectedRev++,
           action: 'SET_PRIMARY_COLOR',
-          payload: { color: parse.data },
+          payload: { color },
           timestamp: new Date().toISOString(),
         });
         break;
@@ -102,14 +131,14 @@ export function parseModelChatOutput(rawText: string, currentLook: Look): Parsed
 
       case 'SET_PANTS_COLOR': {
         if (currentLook.locks.pantsColor) continue;
-        const parse = ColorSchema.safeParse(payload.color);
-        if (!parse.success) continue;
+        const color = resolveColor(payload.color);
+        if (!color) continue;
         commands.push({
           commandId: randomUUID(),
           lookId: currentLook.id,
           expectedRevision: nextExpectedRev++,
           action: 'SET_PANTS_COLOR',
-          payload: { color: parse.data },
+          payload: { color },
           timestamp: new Date().toISOString(),
         });
         break;

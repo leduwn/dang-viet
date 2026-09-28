@@ -174,8 +174,16 @@ Nghiêm cấm bịa nguồn, không tự suy diễn hoặc dẫn các nguồn ch
   "explanation": "Giải thích thẩm mỹ hoặc nguồn gốc văn hóa",
   "actions": [
     {
-      "action": "SET_PRIMARY_COLOR" | "SET_PANTS_COLOR" | "SET_COLLAR" | "SET_SLEEVE" | "SET_FABRIC" | "SET_PATTERN" | "TOGGLE_ACCESSORY" | "SET_ACCESSORIES" | "SET_EVENT" | "SET_STYLE" | "RESET_OUTFIT",
-      "payload": { ... }
+      "action": "SET_PRIMARY_COLOR" | "SET_PANTS_COLOR",
+      "payload": { "color": { "hex": "#...", "name": "...", "family": "..." } }
+    },
+    {
+      "action": "SET_COLLAR",
+      "payload": { "collarStyle": "traditional_high" | "round" | "boat" | "v_neck" }
+    },
+    {
+      "action": "SET_SLEEVE",
+      "payload": { "sleeveStyle": "traditional_long" | "raglan" | "elbow" | "slit" }
     }
   ],
   "citations": [
@@ -199,6 +207,7 @@ Nếu người dùng chỉ hỏi han hoặc không yêu cầu chỉnh sửa tran
           ],
           max_tokens: 800,
           temperature: 0.5,
+          stream: false,
         }),
         signal: AbortSignal.timeout(this.timeoutMs),
       });
@@ -286,6 +295,7 @@ BẮT BUỘC trả về định dạng JSON:
           ],
           max_tokens: 800,
           temperature: 0.7,
+          stream: false,
         }),
         signal: AbortSignal.timeout(this.timeoutMs),
       });

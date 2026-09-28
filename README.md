@@ -167,9 +167,9 @@ Sao chép `.env.example` thành `.env`:
 PORT=3088
 HOST=127.0.0.1
 DATABASE_PATH=data/dangviet.db
-AI_BASE_URL=https://api.9router.com/v1
+AI_BASE_URL=
 AI_API_KEY=
-AI_MODEL=gemini-2.5-flash
+AI_MODEL=
 AI_TIMEOUT_MS=30000
 ```
 
