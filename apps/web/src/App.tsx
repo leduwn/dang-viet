@@ -6,6 +6,7 @@ import {
   type AIStatus,
   type CommandAction,
   type CommandPayload,
+  type MutationResult,
 } from '@dangviet/contracts';
 import {
   fetchMeta,
@@ -41,6 +42,7 @@ export const App: React.FC = () => {
 
   // Synchronous in-flight mutation guard preventing rapid double clicks
   const isMutatingRef = useRef(false);
+  const [isBusy, setIsBusy] = useState(false);
 
   // Helper: Guard against stale responses overwriting newer displayed revision (scoped to same lookId)
   const updateLookSafe = (newLook: Look) => {
@@ -98,13 +100,14 @@ export const App: React.FC = () => {
   }, []);
 
   // 1. Dispatch Command with revision verification & conflict recovery
-  const handleDispatchCommand = async (action: CommandAction, payload: any) => {
-    if (!look) return;
+  const handleDispatchCommand = async (action: CommandAction, payload: any): Promise<MutationResult> => {
+    if (!look) return { success: false, error: 'Chưa tải bộ phối' };
     if (isMutatingRef.current) {
       console.warn('Đang có thao tác đang xử lý, bỏ qua yêu cầu trùng.');
-      return;
+      return { success: false, busy: true, error: 'Hệ thống đang xử lý thao tác khác, vui lòng thử lại sau.' };
     }
     isMutatingRef.current = true;
+    setIsBusy(true);
     const commandId = crypto.randomUUID();
     const command: CommandPayload = {
       commandId,
@@ -131,32 +134,42 @@ export const App: React.FC = () => {
           return prev;
         });
       }
+      return { success: true, look: result.look };
     } catch (err: any) {
       console.error('Command error:', err);
+      let errorMsg = err.message || 'Lỗi thực hiện lệnh';
+      let freshLook: Look | undefined;
       if (err.status === 409) {
-        const freshLook = await fetchLook(look.id);
+        freshLook = await fetchLook(look.id);
         updateLookSafe(freshLook);
         if (err.code === 'DUPLICATE_COMMAND_ID') {
-          alert('Lệnh đã được ghi nhận trước đó (DUPLICATE_COMMAND_ID). Đã đồng bộ lại trạng thái mới nhất.');
+          errorMsg = 'Lệnh đã được ghi nhận trước đó (DUPLICATE_COMMAND_ID). Đã đồng bộ lại trạng thái mới nhất.';
         } else {
-          alert(`Xung đột phiên bản (REVISION_CONFLICT): Trạng thái trên giao diện không khớp với máy chủ. Đã tự động tải lại phiên bản v${freshLook.revision}.`);
+          errorMsg = `Xung đột phiên bản (REVISION_CONFLICT): Trạng thái trên giao diện không khớp với máy chủ. Đã tự động tải lại phiên bản v${freshLook.revision}.`;
         }
-      } else {
-        alert(`Lỗi thực hiện lệnh: ${err.message}`);
       }
+      return {
+        success: false,
+        busy: false,
+        error: errorMsg,
+        code: err.code,
+        look: freshLook,
+      };
     } finally {
       isMutatingRef.current = false;
+      setIsBusy(false);
     }
   };
 
   // 2. Undo with expectedRevision and commandId guard
-  const handleUndo = async () => {
-    if (!look) return;
+  const handleUndo = async (): Promise<MutationResult> => {
+    if (!look) return { success: false, error: 'Chưa tải bộ phối' };
     if (isMutatingRef.current) {
       console.warn('Đang có thao tác đang xử lý, bỏ qua hoàn tác trùng.');
-      return;
+      return { success: false, busy: true, error: 'Hệ thống đang xử lý thao tác khác, vui lòng thử lại sau.' };
     }
     isMutatingRef.current = true;
+    setIsBusy(true);
     try {
       const res = await undoLook(look.id, {
         expectedRevision: look.revision,
@@ -164,30 +177,41 @@ export const App: React.FC = () => {
       });
       updateLookSafe(res.look);
       setViewingDesignTitle((prev) => (prev ? `${prev} (đã hoàn tác)` : null));
+      return { success: true, look: res.look };
     } catch (err: any) {
+      console.error('Undo error:', err);
+      let errorMsg = err.message || 'Lỗi hoàn tác';
+      let freshLook: Look | undefined;
       if (err.status === 409) {
-        const freshLook = await fetchLook(look.id);
+        freshLook = await fetchLook(look.id);
         updateLookSafe(freshLook);
         if (err.code === 'DUPLICATE_COMMAND_ID') {
-          alert('Lệnh hoàn tác đã được thực thi trước đó (DUPLICATE_COMMAND_ID). Đã đồng bộ phiên bản mới nhất.');
+          errorMsg = 'Lệnh hoàn tác đã được thực thi trước đó (DUPLICATE_COMMAND_ID). Đã đồng bộ phiên bản mới nhất.';
         } else {
-          alert(`Xung đột phiên bản khi hoàn tác (REVISION_CONFLICT): Phiên bản v${look.revision} không khớp máy chủ v${err.currentRevision || freshLook.revision}. Đã tự động tải lại.`);
+          errorMsg = `Xung đột phiên bản khi hoàn tác (REVISION_CONFLICT): Phiên bản v${look.revision} không khớp máy chủ v${err.currentRevision || freshLook.revision}. Đã tự động tải lại.`;
         }
       } else {
-        alert(`Lỗi hoàn tác: ${err.message}`);
         try {
-          const freshLook = await fetchLook(look.id);
+          freshLook = await fetchLook(look.id);
           updateLookSafe(freshLook);
         } catch {}
       }
+      return {
+        success: false,
+        busy: false,
+        error: errorMsg,
+        code: err.code,
+        look: freshLook,
+      };
     } finally {
       isMutatingRef.current = false;
+      setIsBusy(false);
     }
   };
 
   // 3. Reset Outfit
-  const handleReset = async () => {
-    await handleDispatchCommand('RESET_OUTFIT', {});
+  const handleReset = async (): Promise<MutationResult> => {
+    return handleDispatchCommand('RESET_OUTFIT', {});
   };
 
   // 4. Save Current Look to Lookbook
@@ -198,6 +222,7 @@ export const App: React.FC = () => {
       return;
     }
     isMutatingRef.current = true;
+    setIsBusy(true);
     const newItem: LookbookItem = {
       id: `lookbook_${Date.now()}`,
       title: `${look.title} (v${look.revision})`,
@@ -215,22 +240,23 @@ export const App: React.FC = () => {
       try {
         const updated = await fetchLookbook();
         setLookbookItems(updated);
-        alert('Đã lưu thành công bộ phối vào Lookbook!');
       } catch (refetchErr: any) {
         console.error('Refetch lookbook error:', refetchErr);
-        alert('Đã lưu thành công bộ phối vào cơ sở dữ liệu, nhưng chưa thể làm mới danh sách hiển thị. Vui lòng tải lại trang.');
       }
     } catch (err: any) {
-      alert(`Lỗi lưu Lookbook: ${err.message}`);
+      console.error('Save lookbook error:', err);
       throw err;
     } finally {
       isMutatingRef.current = false;
+      setIsBusy(false);
     }
   };
 
   // 5. Ask AI with Command Execution Loop & strict sequential failure reporting
   const handleAskAI = async (message: string, history: Array<{ role: 'user' | 'assistant'; content: string }>) => {
     if (!look) throw new Error('Chưa tải bộ phối');
+
+    // Phase 1: Wait for model response WITHOUT locking UI. User can still interact.
     const res = await sendAIChat(look.id, message, history);
 
     let commandsStatus: 'none' | 'planned' | 'all_applied' | 'partially_applied' | 'failed' = 'none';
@@ -240,39 +266,58 @@ export const App: React.FC = () => {
       commandsStatus = 'planned';
       const totalCmds = res.commands.length;
       let appliedCount = 0;
+      let failureReason = '';
 
-      for (let i = 0; i < totalCmds; i++) {
-        const cmd = res.commands[i];
-        try {
-          // Do NOT mutate cmd.expectedRevision! Keep exact planned revision from server
-          const cmdRes = await sendCommand(cmd);
-          updateLookSafe(cmdRes.look);
-          appliedCount++;
-        } catch (err: any) {
-          console.error(`AI plan command ${i + 1}/${totalCmds} failed:`, err);
-          if (appliedCount > 0) {
-            commandsStatus = 'partially_applied';
-            alert(`Chỉ áp dụng thành công ${appliedCount}/${totalCmds} lệnh từ AI. Lỗi tại lệnh thứ ${i + 1}: ${err.message}`);
-          } else {
-            commandsStatus = 'failed';
-            alert(`Không thể áp dụng lệnh từ AI (0/${totalCmds}): ${err.message}`);
+      // Phase 2: Sequential execution under shared mutation guard
+      if (isMutatingRef.current) {
+        return {
+          reply: `[Không thể áp dụng lệnh AI]: Hệ thống đang xử lý thao tác phối đồ khác. Vui lòng thử lại sau.`,
+          explanation: res.explanation,
+          citations: res.citations,
+          mode: res.mode,
+          model: res.model,
+          commandsStatus: 'failed',
+        };
+      }
+
+      isMutatingRef.current = true;
+      setIsBusy(true);
+
+      try {
+        for (let i = 0; i < totalCmds; i++) {
+          const cmd = res.commands[i];
+          try {
+            // DO NOT alter cmd.expectedRevision. Keep exact planned revision from server.
+            // If user edited during model wait, backend will return 409 REVISION_CONFLICT.
+            const cmdRes = await sendCommand(cmd);
+            updateLookSafe(cmdRes.look);
+            appliedCount++;
+          } catch (err: any) {
+            console.error(`AI plan command ${i + 1}/${totalCmds} failed:`, err);
+            failureReason = err.message || 'Lỗi thực thi lệnh';
+            if (err.status === 409) {
+              const freshLook = await fetchLook(look.id);
+              updateLookSafe(freshLook);
+              if (err.code === 'REVISION_CONFLICT') {
+                failureReason = 'Bộ phối đã được chỉnh sửa trong lúc chờ AI phản hồi';
+              }
+            }
+            break; // Stop execution on first failure
           }
-          if (err.status === 409) {
-            const freshLook = await fetchLook(look.id);
-            updateLookSafe(freshLook);
-          }
-          break; // Stop execution loop on first failure
         }
+      } finally {
+        isMutatingRef.current = false;
+        setIsBusy(false);
       }
 
       if (appliedCount === totalCmds) {
         commandsStatus = 'all_applied';
       } else if (appliedCount === 0) {
         commandsStatus = 'failed';
-        finalReply = `[Lưu ý: Lệnh phối đồ không thể áp dụng vào bộ trang phục do ràng buộc khóa hoặc quy tắc] ${res.reply}`;
+        finalReply = `[Lưu ý: Không thể áp dụng thay đổi từ AI (${failureReason})] ${res.reply.replace(/(Đã|mình đã) (cập nhật|thay đổi|chuyển|đổi|chọn).*/gi, 'Trợ lý đã đề xuất thay đổi nhưng không thể áp dụng vào bộ trang phục.')}`;
       } else {
         commandsStatus = 'partially_applied';
-        finalReply = `[Lưu ý: Chỉ áp dụng thành công ${appliedCount}/${totalCmds} lệnh] ${res.reply}`;
+        finalReply = `[Lưu ý: Chỉ áp dụng thành công ${appliedCount}/${totalCmds} lệnh (${failureReason})] ${res.reply}`;
       }
     }
 
@@ -375,6 +420,7 @@ export const App: React.FC = () => {
             onOpenCompare={handleOpenStudioCompare}
             onAskAI={handleAskAI}
             isLoading={false}
+            isBusy={isBusy}
             viewingDesignTitle={viewingDesignTitle}
           />
         )}

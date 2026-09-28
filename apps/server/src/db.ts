@@ -392,23 +392,30 @@ export const dbRepo = {
    */
   executeUndoTransaction(
     lookId: string,
-    options: { expectedRevision?: number; commandId?: string } = {}
+    options: { expectedRevision: number; commandId: string }
   ): { ok: true; result: { success: boolean; message: string; look: Look; remainingUndoSteps: number } } | { ok: false; statusCode: number; error: string; code?: string; currentRevision?: number } {
+    if (!options || typeof options.expectedRevision !== 'number' || options.expectedRevision < 0 || !options.commandId) {
+      return {
+        ok: false,
+        statusCode: 400,
+        code: 'INVALID_UNDO_REQUEST',
+        error: 'Thiếu expectedRevision hoặc commandId khi hoàn tác',
+      };
+    }
+
     const db = getDb();
     db.exec('BEGIN IMMEDIATE');
 
     try {
-      if (options.commandId) {
-        const existingCmd = db.prepare('SELECT id FROM commands WHERE id = ?').get(options.commandId);
-        if (existingCmd) {
-          db.exec('ROLLBACK');
-          return {
-            ok: false,
-            statusCode: 409,
-            code: 'DUPLICATE_COMMAND_ID',
-            error: `Lệnh hoàn tác trùng lặp (Command ID: ${options.commandId})`,
-          };
-        }
+      const existingCmd = db.prepare('SELECT id FROM commands WHERE id = ?').get(options.commandId);
+      if (existingCmd) {
+        db.exec('ROLLBACK');
+        return {
+          ok: false,
+          statusCode: 409,
+          code: 'DUPLICATE_COMMAND_ID',
+          error: `Lệnh hoàn tác trùng lặp (Command ID: ${options.commandId})`,
+        };
       }
 
       const row = db.prepare('SELECT * FROM looks WHERE id = ?').get(lookId) as LookRow | undefined;
@@ -419,7 +426,7 @@ export const dbRepo = {
 
       const currentLook = rowToLook(row);
 
-      if (options.expectedRevision !== undefined && options.expectedRevision !== currentLook.revision) {
+      if (options.expectedRevision !== currentLook.revision) {
         db.exec('ROLLBACK');
         return {
           ok: false,

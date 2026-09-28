@@ -60,12 +60,12 @@ export async function sendCommand(command: CommandPayload): Promise<CommandResul
 
 export async function undoLook(
   lookId: string,
-  options?: { expectedRevision?: number; commandId?: string }
+  options: { expectedRevision: number; commandId: string }
 ): Promise<{ success: boolean; look: Look; message: string; remainingUndoSteps?: number }> {
   const res = await fetch(`${API_BASE}/looks/${lookId}/undo`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(options || {}),
+    body: JSON.stringify(options),
   });
   const data = await res.json();
   if (!res.ok) {

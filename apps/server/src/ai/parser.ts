@@ -23,7 +23,7 @@ export interface ParsedChatResult {
   reply: string;
   explanation?: string;
   commands: CommandPayload[];
-  citations?: Array<{ title: string; source: string; ref: string }>;
+  citations?: Array<{ title: string; source: string; ref: string; sourceUrl?: string }>;
 }
 
 export function extractJsonFromText(rawText: string): any | null {
@@ -264,23 +264,25 @@ export function parseModelChatOutput(rawText: string, currentLook: Look): Parsed
   }
 
   // Strict citation validation: ONLY allow citations matching verified published culture cards!
-  // Must match exact ID or exact slug from published cards list. Never fuzzy keyword matching.
-  const citations: Array<{ title: string; source: string; ref: string }> = [];
+  // Format: { cardId: "..." } (matches prompt contract).
+  // Must match exact ID of a published card. Never fuzzy keyword matching.
+  const citations: Array<{ title: string; source: string; ref: string; sourceUrl?: string }> = [];
   if (Array.isArray(json.citations) && json.citations.length > 0) {
     try {
       const publishedCards = dbRepo.getCultureCards('published');
       for (const item of json.citations) {
         if (!item || typeof item !== 'object') continue;
-        const targetId = typeof item.id === 'string' ? item.id.trim() : (typeof item.cardId === 'string' ? item.cardId.trim() : '');
-        const targetSlug = typeof item.slug === 'string' ? item.slug.trim() : '';
-        // EXACT match on ID or slug only — no fuzzy substring or keyword includes!
-        const matched = publishedCards.find((c) => (targetId && c.id === targetId) || (targetSlug && c.slug === targetSlug));
+        const targetId = typeof item.cardId === 'string' ? item.cardId.trim() : (typeof item.id === 'string' ? item.id.trim() : '');
+        if (!targetId) continue;
+        // EXACT match on ID only against published cards list — no fuzzy match!
+        const matched = publishedCards.find((c) => c.id === targetId);
         if (matched) {
           if (!citations.some((existing) => existing.title === matched.title)) {
             citations.push({
               title: matched.title,
               source: matched.sourceName,
               ref: matched.sourceEvidence,
+              ...(matched.sourceUrl ? { sourceUrl: matched.sourceUrl } : {}),
             });
           }
         }

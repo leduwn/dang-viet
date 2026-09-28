@@ -317,6 +317,20 @@ export const CommandResultSchema = z.object({
 });
 export type CommandResult = z.infer<typeof CommandResultSchema>;
 
+export const UndoRequestSchema = z.object({
+  commandId: z.string().min(1, 'commandId không được để trống'),
+  expectedRevision: z.number().int('expectedRevision phải là số nguyên').nonnegative('expectedRevision không được là số âm'),
+});
+export type UndoRequest = z.infer<typeof UndoRequestSchema>;
+
+export interface MutationResult {
+  success: boolean;
+  busy?: boolean;
+  error?: string;
+  code?: string;
+  look?: Look;
+}
+
 // ==========================================
 // 5. Culture Cards (Verified Cultural Sources)
 // ==========================================
@@ -379,6 +393,7 @@ export const AICitationSchema = z.object({
   title: z.string(),
   source: z.string(),
   ref: z.string(),
+  sourceUrl: z.string().optional(),
 });
 export type AICitation = z.infer<typeof AICitationSchema>;
 

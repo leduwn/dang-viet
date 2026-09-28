@@ -2,6 +2,7 @@ import { type FastifyPluginAsync } from 'fastify';
 import {
   LookSchema,
   CommandPayloadSchema,
+  UndoRequestSchema,
 } from '@dangviet/contracts';
 import { dbRepo } from '../db.js';
 
@@ -63,9 +64,16 @@ export const lookRoutes: FastifyPluginAsync = async (fastify) => {
   // 4. Sequential Multi-level Undo (Transaction, monotonic revision, conflict protection)
   fastify.post('/looks/:id/undo', async (request, reply) => {
     const { id } = request.params as { id: string };
-    const body = (request.body as { expectedRevision?: number; commandId?: string } | undefined) || {};
+    const parse = UndoRequestSchema.safeParse(request.body);
+    if (!parse.success) {
+      return reply.code(400).send({
+        error: 'Dữ liệu hoàn tác không hợp lệ: ' + parse.error.issues.map((i: { message: string }) => i.message).join(', '),
+        code: 'INVALID_UNDO_REQUEST',
+        details: parse.error.issues,
+      });
+    }
 
-    const undoResult = dbRepo.executeUndoTransaction(id, body);
+    const undoResult = dbRepo.executeUndoTransaction(id, parse.data);
     if (!undoResult.ok) {
       return reply.code(undoResult.statusCode).send({
         error: undoResult.error,

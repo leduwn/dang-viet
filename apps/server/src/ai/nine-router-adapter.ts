@@ -167,7 +167,7 @@ QUY TẮC BẮT BUỘC:
 7. NGUYÊN TẮC TRÍCH DẪN VĂN HÓA:
 Chỉ được phép trích dẫn thông tin từ danh mục tư liệu văn hóa đã kiểm chứng (published) sau đây:
 ${cardsContext}
-Nghiêm cấm bịa nguồn, không tự suy diễn hoặc dẫn các nguồn chưa kiểm chứng. Nếu câu hỏi nằm ngoài các tư liệu đã kiểm chứng trên hoặc hỏi về các chủ đề đang thẩm định (như kỹ thuật raglan, áo dài Lemur, mấn khăn đóng, gấm Huế), BẮT BUỘC phải trả lời: "Hiện chưa đủ thông tin văn hóa đã kiểm chứng để khẳng định điều này." và không đưa citations.
+Nghiêm cấm bịa nguồn, không tự suy diễn hoặc dẫn các nguồn chưa kiểm chứng. Nếu câu hỏi nằm ngoài các tư liệu đã kiểm chứng trên hoặc hỏi về các chủ đề đang thẩm định (như kỹ thuật raglan, áo dài Lemur, mấn khăn đóng, gấm Huế), BẮT BUỘC phải trả lời: "Hiện chưa đủ thông tin văn hóa đã kiểm chứng để khẳng định điều này." và không đưa citations. Khi trích dẫn, BẮT BUỘC dùng định dạng {"cardId": "..."} với cardId khớp chính xác ID trong danh mục trên.
 8. Định dạng phản hồi: BẮT BUỘC trả về một đối tượng JSON duy nhất (có thể bọc trong \`\`\`json ... \`\`\`):
 {
   "reply": "Nội dung phản hồi tư vấn cho người dùng",
@@ -179,7 +179,7 @@ Nghiêm cấm bịa nguồn, không tự suy diễn hoặc dẫn các nguồn ch
     }
   ],
   "citations": [
-    { "title": "Tên thẻ văn hóa khớp với danh mục trên", "source": "Tên nguồn" }
+    { "cardId": "ID_chính_xác_khớp_danh_mục_trên" }
   ]
 }
 Nếu người dùng chỉ hỏi han hoặc không yêu cầu chỉnh sửa trang phục, để mảng "actions": [].`;
@@ -224,12 +224,13 @@ Nếu người dùng chỉ hỏi han hoặc không yêu cầu chỉnh sửa tran
         commandsStatus: parsed.commands.length > 0 ? 'planned' : 'none',
       };
     } catch (err: any) {
-      // Clear reporting: Do NOT pretend to be real AI when request fails
+      // Clear reporting: Do NOT pretend to be real AI when request fails, fallback safely to local mock rules
+      const fallback = await this.fallbackMock.chat(look, message, history);
       return {
-        reply: `[Lỗi kết nối AI - Chuyển sang Chế độ mô phỏng]: Không thể kết nối tới mô hình AI (${err.message}). Lượt này không gọi được model thật.`,
+        ...fallback,
+        reply: `[Lỗi kết nối AI - Tự động chuyển sang Mô phỏng an toàn]: ${fallback.reply}`,
         mode: 'mock',
         model: 'fallback-mock',
-        commandsStatus: 'none',
       };
     }
   }

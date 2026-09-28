@@ -68,13 +68,13 @@ export class MockAIAdapter implements AIAdapter {
         const c = cards.find((x) => x.id === 'card_verified_lich_su_ao_dai');
         if (c) {
           reply = `Về tà Áo dài Hà thành và kỹ nghệ may đo Trạch Xá: ${c.summary}\n\n${c.content}`;
-          citations.push({ title: c.title, source: c.sourceName, ref: c.sourceEvidence });
+          citations.push({ title: c.title, source: c.sourceName, ref: c.sourceEvidence, ...(c.sourceUrl ? { sourceUrl: c.sourceUrl } : {}) });
         }
       } else if (text.includes('lụa') || text.includes('vạn phúc') || text.includes('chất liệu')) {
         const c = cards.find((x) => x.id === 'card_verified_lua_van_phuc');
         if (c) {
           reply = `Về di sản dệt lụa Vạn Phúc - Hà Đông: ${c.summary}\n\n${c.content}`;
-          citations.push({ title: c.title, source: c.sourceName, ref: c.sourceEvidence });
+          citations.push({ title: c.title, source: c.sourceName, ref: c.sourceEvidence, ...(c.sourceUrl ? { sourceUrl: c.sourceUrl } : {}) });
         }
       } else if (text.includes('ngũ thân') || text.includes('năm thân') || text.includes('tiền thân') || text.includes('minh mạng') || text.includes('nguyễn phúc khoát') || text.includes('raglan') || text.includes('lemur') || text.includes('cát tường') || text.includes('khăn đóng') || text.includes('mấn') || text.includes('gấm')) {
         // Explicitly unverified topics currently in review
@@ -85,8 +85,8 @@ export class MockAIAdapter implements AIAdapter {
         const cLua = cards.find((x) => x.id === 'card_verified_lua_van_phuc');
         if (cTrachXa || cLua) {
           reply = `Bộ phối hiện tại tôn vinh phom dáng áo dài truyền thống với kỹ nghệ dệt lụa và may đo chuẩn mực của người Việt.`;
-          if (cTrachXa) citations.push({ title: cTrachXa.title, source: cTrachXa.sourceName, ref: cTrachXa.sourceEvidence });
-          if (cLua) citations.push({ title: cLua.title, source: cLua.sourceName, ref: cLua.sourceEvidence });
+          if (cTrachXa) citations.push({ title: cTrachXa.title, source: cTrachXa.sourceName, ref: cTrachXa.sourceEvidence, ...(cTrachXa.sourceUrl ? { sourceUrl: cTrachXa.sourceUrl } : {}) });
+          if (cLua) citations.push({ title: cLua.title, source: cLua.sourceName, ref: cLua.sourceEvidence, ...(cLua.sourceUrl ? { sourceUrl: cLua.sourceUrl } : {}) });
         }
       }
 

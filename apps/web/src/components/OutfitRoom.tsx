@@ -6,6 +6,7 @@ import {
   type Color,
   type LockState,
   type CommandAction,
+  type MutationResult,
 } from '@dangviet/contracts';
 import { AoDaiVisualizer } from './AoDaiVisualizer.tsx';
 import {
@@ -26,9 +27,9 @@ interface OutfitRoomProps {
   styles: StyleItem[];
   colors: Color[];
   catalog: any;
-  onDispatchCommand: (action: CommandAction, payload: any) => Promise<void>;
-  onUndo: () => Promise<void>;
-  onReset: () => Promise<void>;
+  onDispatchCommand: (action: CommandAction, payload: any) => Promise<MutationResult>;
+  onUndo: () => Promise<MutationResult>;
+  onReset: () => Promise<MutationResult>;
   onSaveLookbook: () => Promise<void>;
   onOpenCompare: () => void;
   onAskAI: (
@@ -36,6 +37,7 @@ interface OutfitRoomProps {
     history: Array<{ role: 'user' | 'assistant'; content: string }>
   ) => Promise<{ reply: string; explanation?: string; citations?: any[]; mode: 'mock' | 'live'; model: string; commandsStatus?: string }>;
   isLoading: boolean;
+  isBusy?: boolean;
   viewingDesignTitle?: string | null;
 }
 
@@ -52,6 +54,7 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
   onOpenCompare,
   onAskAI,
   isLoading,
+  isBusy = false,
   viewingDesignTitle,
 }) => {
   const [chatInput, setChatInput] = useState('');
@@ -75,40 +78,103 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
   const [isAiThinking, setIsAiThinking] = useState(false);
   const [isMutating, setIsMutating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [notification, setNotification] = useState<string | null>(null);
+  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [mobileTab, setMobileTab] = useState<'customize' | 'ai'>('customize');
 
-  const showNotification = (msg: string) => {
-    setNotification(msg);
-    setTimeout(() => setNotification(null), 3000);
+  const isBusyEffective = isMutating || isBusy || isLoading;
+
+  const showNotification = (msg: string, type: 'success' | 'error' | 'info' = 'success') => {
+    setNotification({ message: msg, type });
+    setTimeout(() => setNotification(null), 3500);
   };
 
   const handleCommand = async (action: CommandAction, payload: any) => {
-    if (isMutating || isLoading) return;
+    if (isBusyEffective) return;
     setIsMutating(true);
     try {
-      await onDispatchCommand(action, payload);
+      const res = await onDispatchCommand(action, payload);
+      if (!res.success) {
+        if (res.busy) {
+          showNotification('Hệ thống đang xử lý thao tác trước, vui lòng thử lại', 'info');
+        } else if (res.error) {
+          showNotification(res.error, 'error');
+        }
+      }
     } finally {
       setIsMutating(false);
     }
   };
 
   const handleToggleLock = async (field: keyof LockState) => {
-    if (isMutating || isLoading) return;
+    if (isBusyEffective) return;
     setIsMutating(true);
     try {
-      await onDispatchCommand('TOGGLE_LOCK', { field });
-      showNotification(look.locks[field] ? `Đã mở khóa ${field}` : `Đã khóa ${field}`);
+      const res = await onDispatchCommand('TOGGLE_LOCK', { field });
+      if (res.success && res.look) {
+        const fieldLabels: Record<keyof LockState, string> = {
+          primaryColor: 'màu áo',
+          pantsColor: 'màu quần',
+          collarStyle: 'kiểu cổ áo',
+          sleeveStyle: 'kiểu tay áo',
+          fabric: 'chất liệu vải',
+          pattern: 'họa tiết',
+          accessories: 'phụ kiện',
+        };
+        const label = fieldLabels[field] || field;
+        const isLocked = res.look.locks[field];
+        showNotification(isLocked ? `Đã khóa ${label}` : `Đã mở khóa ${label}`, 'success');
+      } else if (res.busy) {
+        showNotification('Hệ thống đang xử lý thao tác trước, vui lòng thử lại', 'info');
+      } else if (res.error) {
+        showNotification(res.error, 'error');
+      }
+    } finally {
+      setIsMutating(false);
+    }
+  };
+
+  const handleUndoAction = async () => {
+    if (isBusyEffective || look.revision <= 1) return;
+    setIsMutating(true);
+    try {
+      const res = await onUndo();
+      if (res.success) {
+        showNotification('Đã hoàn tác thao tác gần nhất', 'success');
+      } else if (res.busy) {
+        showNotification('Hệ thống đang xử lý thao tác trước, vui lòng thử lại', 'info');
+      } else if (res.error) {
+        showNotification(res.error, 'error');
+      }
+    } finally {
+      setIsMutating(false);
+    }
+  };
+
+  const handleResetAction = async () => {
+    if (isBusyEffective) return;
+    setIsMutating(true);
+    try {
+      const res = await onReset();
+      if (res.success) {
+        showNotification('Đã đặt lại trang phục về ban đầu', 'success');
+      } else if (res.busy) {
+        showNotification('Hệ thống đang xử lý thao tác trước, vui lòng thử lại', 'info');
+      } else if (res.error) {
+        showNotification(res.error, 'error');
+      }
     } finally {
       setIsMutating(false);
     }
   };
 
   const handleSaveLookbookAction = async () => {
-    if (isSaving || isMutating || isLoading) return;
+    if (isSaving || isBusyEffective) return;
     setIsSaving(true);
     try {
       await onSaveLookbook();
+      showNotification('Đã lưu thành công bộ phối vào Lookbook!', 'success');
+    } catch (err: any) {
+      showNotification(err.message || 'Lỗi lưu Lookbook', 'error');
     } finally {
       setIsSaving(false);
     }
@@ -165,7 +231,7 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
             bottom: '2rem',
             left: '50%',
             transform: 'translateX(-50%)',
-            background: 'var(--text-primary)',
+            background: notification.type === 'error' ? 'var(--accent-red)' : notification.type === 'info' ? 'var(--accent-blue)' : 'var(--text-primary)',
             color: 'white',
             padding: '0.65rem 1.5rem',
             borderRadius: 'var(--radius-full)',
@@ -177,8 +243,14 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
             gap: '0.5rem',
           }}
         >
-          <Check size={16} color="#4CAF50" />
-          <span>{notification}</span>
+          {notification.type === 'error' ? (
+            <Info size={16} color="#FFCDD2" />
+          ) : notification.type === 'info' ? (
+            <Info size={16} color="#BBDEFB" />
+          ) : (
+            <Check size={16} color="#4CAF50" />
+          )}
+          <span>{notification.message}</span>
         </div>
       )}
 
@@ -213,7 +285,7 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
               {events.map((ev) => (
                 <button
                   key={ev.id}
-                  disabled={isMutating || isLoading}
+                  disabled={isBusyEffective}
                   onClick={() => handleCommand('SET_EVENT', { eventId: ev.id })}
                   style={{
                     padding: '0.65rem 0.85rem',
@@ -225,8 +297,8 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
                     textAlign: 'left',
                     fontSize: '0.88rem',
                     transition: 'all var(--transition-fast)',
-                    cursor: (isMutating || isLoading) ? 'not-allowed' : 'pointer',
-                    opacity: (isMutating || isLoading) ? 0.7 : 1,
+                    cursor: isBusyEffective ? 'not-allowed' : 'pointer',
+                    opacity: isBusyEffective ? 0.7 : 1,
                   }}
                 >
                   {ev.name}
@@ -252,7 +324,7 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
               {styles.map((st) => (
                 <button
                   key={st.id}
-                  disabled={isMutating || isLoading}
+                  disabled={isBusyEffective}
                   onClick={() => handleCommand('SET_STYLE', { styleId: st.id })}
                   style={{
                     padding: '0.6rem 0.3rem',
@@ -263,8 +335,8 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
                     fontWeight: look.styleId === st.id ? 700 : 500,
                     fontSize: '0.8rem',
                     textAlign: 'center',
-                    cursor: (isMutating || isLoading) ? 'not-allowed' : 'pointer',
-                    opacity: (isMutating || isLoading) ? 0.7 : 1,
+                    cursor: isBusyEffective ? 'not-allowed' : 'pointer',
+                    opacity: isBusyEffective ? 0.7 : 1,
                   }}
                 >
                   {st.name}
@@ -310,8 +382,8 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
             }}
           >
             <button
-              onClick={onUndo}
-              disabled={look.revision <= 1 || isLoading || isMutating}
+              onClick={handleUndoAction}
+              disabled={look.revision <= 1 || isBusyEffective}
               style={{
                 padding: '0.6rem',
                 borderRadius: 'var(--radius-md)',
@@ -324,7 +396,7 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
                 justifyContent: 'center',
                 gap: '0.4rem',
                 border: '1px solid var(--border-light)',
-                cursor: (look.revision <= 1 || isLoading || isMutating) ? 'not-allowed' : 'pointer',
+                cursor: (look.revision <= 1 || isBusyEffective) ? 'not-allowed' : 'pointer',
               }}
             >
               <RotateCcw size={15} />
@@ -332,8 +404,8 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
             </button>
 
             <button
-              onClick={onReset}
-              disabled={isLoading || isMutating}
+              onClick={handleResetAction}
+              disabled={isBusyEffective}
               style={{
                 padding: '0.6rem',
                 borderRadius: 'var(--radius-md)',
@@ -346,7 +418,7 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
                 justifyContent: 'center',
                 gap: '0.4rem',
                 border: '1px solid var(--border-light)',
-                cursor: (isLoading || isMutating) ? 'not-allowed' : 'pointer',
+                cursor: isBusyEffective ? 'not-allowed' : 'pointer',
               }}
             >
               <Sparkles size={15} />
@@ -355,7 +427,7 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
 
             <button
               onClick={handleSaveLookbookAction}
-              disabled={isLoading || isMutating || isSaving}
+              disabled={isBusyEffective || isSaving}
               style={{
                 padding: '0.6rem',
                 borderRadius: 'var(--radius-md)',
@@ -368,7 +440,7 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
                 justifyContent: 'center',
                 gap: '0.4rem',
                 opacity: isSaving ? 0.7 : 1,
-                cursor: (isLoading || isMutating || isSaving) ? 'not-allowed' : 'pointer',
+                cursor: (isBusyEffective || isSaving) ? 'not-allowed' : 'pointer',
               }}
             >
               <BookmarkPlus size={15} />
@@ -377,7 +449,7 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
 
             <button
               onClick={onOpenCompare}
-              disabled={isLoading || isMutating}
+              disabled={isBusyEffective}
               style={{
                 padding: '0.6rem',
                 borderRadius: 'var(--radius-md)',
@@ -389,7 +461,7 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '0.4rem',
-                cursor: (isLoading || isMutating) ? 'not-allowed' : 'pointer',
+                cursor: isBusyEffective ? 'not-allowed' : 'pointer',
               }}
             >
               <GitCompare size={15} />
@@ -521,6 +593,7 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
                   Màu áo: <span style={{ color: 'var(--accent-red)', fontWeight: 600 }}>{look.config.primaryColor.name}</span>
                 </label>
                 <button
+                  disabled={isBusyEffective}
                   onClick={() => handleToggleLock('primaryColor')}
                   title={look.locks.primaryColor ? 'Mở khóa màu áo' : 'Khóa màu áo'}
                   style={{
@@ -530,6 +603,7 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
                     fontSize: '0.72rem',
                     color: look.locks.primaryColor ? 'var(--accent-red)' : 'var(--text-muted)',
                     fontWeight: 600,
+                    cursor: isBusyEffective ? 'not-allowed' : 'pointer',
                   }}
                 >
                   {look.locks.primaryColor ? <Lock size={13} /> : <Unlock size={13} />}
@@ -541,7 +615,7 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '0.4rem' }}>
                 {colors.map((c) => {
                   const isSelected = look.config.primaryColor.hex.toLowerCase() === c.hex.toLowerCase();
-                  const isDisabled = look.locks.primaryColor || isMutating || isLoading;
+                  const isDisabled = look.locks.primaryColor || isBusyEffective;
                   return (
                     <button
                       key={c.hex}
@@ -580,7 +654,7 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
                   Màu quần: <span style={{ color: 'var(--accent-blue)', fontWeight: 600 }}>{look.config.pantsColor.name}</span>
                 </label>
                 <button
-                  disabled={isMutating || isLoading}
+                  disabled={isBusyEffective}
                   onClick={() => handleToggleLock('pantsColor')}
                   title={look.locks.pantsColor ? 'Mở khóa màu quần' : 'Khóa màu quần'}
                   style={{
@@ -590,7 +664,7 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
                     fontSize: '0.72rem',
                     color: look.locks.pantsColor ? 'var(--accent-red)' : 'var(--text-muted)',
                     fontWeight: 600,
-                    cursor: (isMutating || isLoading) ? 'not-allowed' : 'pointer',
+                    cursor: isBusyEffective ? 'not-allowed' : 'pointer',
                   }}
                 >
                   {look.locks.pantsColor ? <Lock size={13} /> : <Unlock size={13} />}
@@ -601,7 +675,7 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '0.4rem' }}>
                 {colors.map((c) => {
                   const isSelected = look.config.pantsColor.hex.toLowerCase() === c.hex.toLowerCase();
-                  const isDisabled = look.locks.pantsColor || isMutating || isLoading;
+                  const isDisabled = look.locks.pantsColor || isBusyEffective;
                   return (
                     <button
                       key={c.hex}
@@ -640,7 +714,7 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
                 </label>
                 <select
                   value={look.config.collarStyle}
-                  disabled={look.locks.collarStyle || isMutating || isLoading}
+                  disabled={look.locks.collarStyle || isBusyEffective}
                   onChange={(e) => handleCommand('SET_COLLAR', { collarStyle: e.target.value })}
                   style={{
                     width: '100%',
@@ -649,7 +723,7 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
                     border: '1px solid var(--border-medium)',
                     background: 'var(--bg-subtle)',
                     fontSize: '0.8rem',
-                    cursor: (look.locks.collarStyle || isMutating || isLoading) ? 'not-allowed' : 'pointer',
+                    cursor: (look.locks.collarStyle || isBusyEffective) ? 'not-allowed' : 'pointer',
                   }}
                 >
                   {catalog.collars.map((col: any) => (
@@ -664,7 +738,7 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
                 </label>
                 <select
                   value={look.config.sleeveStyle}
-                  disabled={look.locks.sleeveStyle || isMutating || isLoading}
+                  disabled={look.locks.sleeveStyle || isBusyEffective}
                   onChange={(e) => handleCommand('SET_SLEEVE', { sleeveStyle: e.target.value })}
                   style={{
                     width: '100%',
@@ -673,7 +747,7 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
                     border: '1px solid var(--border-medium)',
                     background: 'var(--bg-subtle)',
                     fontSize: '0.8rem',
-                    cursor: (look.locks.sleeveStyle || isMutating || isLoading) ? 'not-allowed' : 'pointer',
+                    cursor: (look.locks.sleeveStyle || isBusyEffective) ? 'not-allowed' : 'pointer',
                   }}
                 >
                   {catalog.sleeves.map((slv: any) => (
@@ -691,7 +765,7 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
                 </label>
                 <select
                   value={look.config.fabric}
-                  disabled={look.locks.fabric || isMutating || isLoading}
+                  disabled={look.locks.fabric || isBusyEffective}
                   onChange={(e) => handleCommand('SET_FABRIC', { fabric: e.target.value })}
                   style={{
                     width: '100%',
@@ -700,7 +774,7 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
                     border: '1px solid var(--border-medium)',
                     background: 'var(--bg-subtle)',
                     fontSize: '0.8rem',
-                    cursor: (look.locks.fabric || isMutating || isLoading) ? 'not-allowed' : 'pointer',
+                    cursor: (look.locks.fabric || isBusyEffective) ? 'not-allowed' : 'pointer',
                   }}
                 >
                   {catalog.fabrics.map((fab: any) => (
@@ -715,7 +789,7 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
                 </label>
                 <select
                   value={look.config.pattern}
-                  disabled={look.locks.pattern || isMutating || isLoading}
+                  disabled={look.locks.pattern || isBusyEffective}
                   onChange={(e) => handleCommand('SET_PATTERN', { pattern: e.target.value })}
                   style={{
                     width: '100%',
@@ -724,7 +798,7 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
                     border: '1px solid var(--border-medium)',
                     background: 'var(--bg-subtle)',
                     fontSize: '0.8rem',
-                    cursor: (look.locks.pattern || isMutating || isLoading) ? 'not-allowed' : 'pointer',
+                    cursor: (look.locks.pattern || isBusyEffective) ? 'not-allowed' : 'pointer',
                   }}
                 >
                   {catalog.patterns.map((pat: any) => (
@@ -741,7 +815,7 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
                   Phụ kiện đi kèm ({accessoriesSet.size})
                 </label>
                 <button
-                  disabled={isMutating || isLoading}
+                  disabled={isBusyEffective}
                   onClick={() => handleToggleLock('accessories')}
                   style={{
                     display: 'flex',
@@ -750,7 +824,7 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
                     fontSize: '0.72rem',
                     color: look.locks.accessories ? 'var(--accent-red)' : 'var(--text-muted)',
                     fontWeight: 600,
-                    cursor: (isMutating || isLoading) ? 'not-allowed' : 'pointer',
+                    cursor: isBusyEffective ? 'not-allowed' : 'pointer',
                   }}
                 >
                   {look.locks.accessories ? <Lock size={13} /> : <Unlock size={13} />}
@@ -761,7 +835,7 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.4rem' }}>
                 {catalog.accessories.map((acc: any) => {
                   const isChecked = accessoriesSet.has(acc.id);
-                  const isDisabled = look.locks.accessories || isMutating || isLoading;
+                  const isDisabled = look.locks.accessories || isBusyEffective;
                   return (
                     <button
                       key={acc.id}
@@ -880,9 +954,34 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
                         borderTop: '1px solid rgba(0,0,0,0.1)',
                         fontSize: '0.72rem',
                         color: 'var(--text-muted)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.3rem',
                       }}
                     >
-                      <strong>Dẫn chứng:</strong> {item.citations[0].title} — {item.citations[0].source}
+                      <strong style={{ color: 'var(--text-primary)' }}>Tư liệu văn hóa xác thực:</strong>
+                      {item.citations.map((c: any, cIdx: number) => (
+                        <div key={cIdx} style={{ background: 'rgba(0,0,0,0.03)', padding: '0.3rem 0.5rem', borderRadius: 'var(--radius-sm)' }}>
+                          <div>
+                            <strong>{c.title}</strong> — <span>{c.source}</span>
+                            {c.sourceUrl && (
+                              <a
+                                href={c.sourceUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                style={{ marginLeft: '0.35rem', color: 'var(--accent-blue)', textDecoration: 'underline' }}
+                              >
+                                [Xem nguồn]
+                              </a>
+                            )}
+                          </div>
+                          {c.ref && (
+                            <div style={{ fontStyle: 'italic', marginTop: '0.15rem', color: 'var(--text-secondary)' }}>
+                              Trích: "{c.ref}"
+                            </div>
+                          )}
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>

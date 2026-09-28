@@ -24,6 +24,7 @@ const serverProcess = spawn(process.execPath, ['apps/server/dist/index.js'], {
     HOST: '127.0.0.1',
     LOG_LEVEL: 'silent',
     DATABASE_PATH: testDbPath,
+    AI_API_KEY: '',
   },
   stdio: 'pipe',
 });
@@ -182,10 +183,82 @@ try {
   assert.strictEqual(cmd3.data.look.config.collarStyle, 'boat');
   currentLook = cmd3.data.look;
 
-  // 3 LẦN HOÀN TÁC LIÊN TIẾP
+  // =========================================================================
+  // 1.3.1 BẮT BUỘC KIỂM TRA VALIDATION & OCC CHO ROUTE HOÀN TÁC (/looks/:id/undo)
+  // =========================================================================
+  console.log(' [1.3.1] Kiểm tra từ chối HTTP 400 khi hoàn tác thiếu hoặc sai kiểu dữ liệu');
+
+  // a. Không truyền body
+  const undoNoBody = await api(`/looks/${testLookId}/undo`, { method: 'POST' });
+  assert.strictEqual(undoNoBody.status, 400, 'Không truyền body phải trả về 400');
+  assert.strictEqual(undoNoBody.data.code, 'INVALID_UNDO_REQUEST');
+
+  // b. Thiếu commandId
+  const undoMissingCmdId = await api(`/looks/${testLookId}/undo`, {
+    method: 'POST',
+    body: JSON.stringify({ expectedRevision: currentLook.revision }),
+  });
+  assert.strictEqual(undoMissingCmdId.status, 400, 'Thiếu commandId phải trả về 400');
+  assert.strictEqual(undoMissingCmdId.data.code, 'INVALID_UNDO_REQUEST');
+
+  // c. Thiếu expectedRevision
+  const undoMissingRev = await api(`/looks/${testLookId}/undo`, {
+    method: 'POST',
+    body: JSON.stringify({ commandId: randomUUID() }),
+  });
+  assert.strictEqual(undoMissingRev.status, 400, 'Thiếu expectedRevision phải trả về 400');
+  assert.strictEqual(undoMissingRev.data.code, 'INVALID_UNDO_REQUEST');
+
+  // d. expectedRevision là số âm (-1)
+  const undoNegRev = await api(`/looks/${testLookId}/undo`, {
+    method: 'POST',
+    body: JSON.stringify({ commandId: randomUUID(), expectedRevision: -1 }),
+  });
+  assert.strictEqual(undoNegRev.status, 400, 'expectedRevision âm phải trả về 400');
+  assert.strictEqual(undoNegRev.data.code, 'INVALID_UNDO_REQUEST');
+
+  // e. expectedRevision là số thập phân không phải số nguyên (2.5)
+  const undoFloatRev = await api(`/looks/${testLookId}/undo`, {
+    method: 'POST',
+    body: JSON.stringify({ commandId: randomUUID(), expectedRevision: 2.5 }),
+  });
+  assert.strictEqual(undoFloatRev.status, 400, 'expectedRevision số thập phân phải trả về 400');
+  assert.strictEqual(undoFloatRev.data.code, 'INVALID_UNDO_REQUEST');
+
+  // f. expectedRevision cũ không khớp (xung đột phiên bản 409 REVISION_CONFLICT)
+  console.log(' [1.3.2] Kiểm tra từ chối HTTP 409 khi expectedRevision không khớp (phiên bản cũ/lệch)');
+  const undoStaleRev = await api(`/looks/${testLookId}/undo`, {
+    method: 'POST',
+    body: JSON.stringify({ commandId: randomUUID(), expectedRevision: currentLook.revision - 1 }),
+  });
+  assert.strictEqual(undoStaleRev.status, 409, 'expectedRevision không khớp phải trả về 409');
+  assert.strictEqual(undoStaleRev.data.code, 'REVISION_CONFLICT');
+
+  // g. commandId trùng lặp với lệnh đã tồn tại (409 DUPLICATE_COMMAND_ID)
+  console.log(' [1.3.3] Kiểm tra từ chối HTTP 409 khi commandId hoàn tác bị trùng lặp');
+  const undoDuplicateCmdId = await api(`/looks/${testLookId}/undo`, {
+    method: 'POST',
+    body: JSON.stringify({ commandId: cmd1.data.appliedCommandId, expectedRevision: currentLook.revision }),
+  });
+  assert.strictEqual(undoDuplicateCmdId.status, 409, 'commandId trùng lặp phải trả về 409');
+  assert.strictEqual(undoDuplicateCmdId.data.code, 'DUPLICATE_COMMAND_ID');
+
+  // h. Xác minh các trường hợp từ chối tuyệt đối không làm thay đổi looks hay undo stack
+  console.log(' [1.3.4] Xác minh các lượt hoàn tác bị từ chối KHÔNG làm thay đổi dữ liệu bảng looks');
+  const verifyUnchangedLook = (await api(`/looks/${testLookId}`)).data;
+  assert.strictEqual(verifyUnchangedLook.revision, currentLook.revision, 'Revision không đổi sau các yêu cầu bị từ chối');
+  assert.strictEqual(verifyUnchangedLook.config.collarStyle, currentLook.config.collarStyle, 'Cấu hình không đổi');
+
+  // 3 LẦN HOÀN TÁC LIÊN TIẾP HỢP LỆ VỚI expectedRevision VÀ commandId
   // Undo 1: Phục hồi cổ áo về traditional_high. Revision tăng đơn điệu lên 5!
   console.log(' [1.4] Hoàn tác 1: Revert cổ áo -> kiểm tra revision tăng đơn điệu (v5)');
-  const undo1 = await api(`/looks/${testLookId}/undo`, { method: 'POST' });
+  const undo1 = await api(`/looks/${testLookId}/undo`, {
+    method: 'POST',
+    body: JSON.stringify({
+      commandId: randomUUID(),
+      expectedRevision: currentLook.revision,
+    }),
+  });
   assert.strictEqual(undo1.status, 200);
   assert.strictEqual(undo1.data.look.revision, 5, 'Revision phải tăng đơn điệu lên 5 để tránh xung đột');
   assert.strictEqual(undo1.data.look.config.collarStyle, 'traditional_high', 'Cổ áo đã được khôi phục về traditional_high');
@@ -194,7 +267,13 @@ try {
 
   // Undo 2: Phục hồi màu quần về Trắng tinh khôi. Revision tăng lên 6!
   console.log(' [1.5] Hoàn tác 2: Revert màu quần -> kiểm tra revision tăng đơn điệu (v6)');
-  const undo2 = await api(`/looks/${testLookId}/undo`, { method: 'POST' });
+  const undo2 = await api(`/looks/${testLookId}/undo`, {
+    method: 'POST',
+    body: JSON.stringify({
+      commandId: randomUUID(),
+      expectedRevision: currentLook.revision,
+    }),
+  });
   assert.strictEqual(undo2.status, 200);
   assert.strictEqual(undo2.data.look.revision, 6);
   assert.strictEqual(undo2.data.look.config.pantsColor.name, 'Trắng tinh khôi', 'Màu quần khôi phục về Trắng tinh khôi');
@@ -203,7 +282,13 @@ try {
 
   // Undo 3: Phục hồi màu áo về Trắng sứ ngà (trạng thái gốc ban đầu). Revision tăng lên 7!
   console.log(' [1.6] Hoàn tác 3: Revert màu áo -> trở về trạng thái gốc ban đầu (v7)');
-  const undo3 = await api(`/looks/${testLookId}/undo`, { method: 'POST' });
+  const undo3 = await api(`/looks/${testLookId}/undo`, {
+    method: 'POST',
+    body: JSON.stringify({
+      commandId: randomUUID(),
+      expectedRevision: currentLook.revision,
+    }),
+  });
   assert.strictEqual(undo3.status, 200);
   assert.strictEqual(undo3.data.look.revision, 7);
   assert.strictEqual(undo3.data.look.config.primaryColor.name, initialPrimary, 'Màu áo đã phục hồi về trạng thái ban đầu');
@@ -220,7 +305,13 @@ try {
 
   // Thử Undo thêm lần nữa khi đã ở trạng thái ban đầu -> phải từ chối an toàn
   console.log(' [1.8] Kiểm tra từ chối hoàn tác khi ngăn xếp undo rỗng');
-  const undoEmpty = await api(`/looks/${testLookId}/undo`, { method: 'POST' });
+  const undoEmpty = await api(`/looks/${testLookId}/undo`, {
+    method: 'POST',
+    body: JSON.stringify({
+      commandId: randomUUID(),
+      expectedRevision: currentLook.revision,
+    }),
+  });
   assert.strictEqual(undoEmpty.status, 400);
   assert.strictEqual(undoEmpty.data.code, 'CANNOT_UNDO');
 
@@ -417,6 +508,12 @@ try {
         payload: { accessoryId: 'invalid_fake_accessory' }, // Should be ignored!
       },
     ],
+    citations: [
+      { cardId: 'card_verified_lich_su_ao_dai' }, // Chuẩn prompt: cardId published hợp lệ -> giữ lại
+      { cardId: 'card_gam_hue_van_may' }, // Thẻ review -> BỊ LOẠI
+      { cardId: 'card_fake_unreal_123' }, // ID không tồn tại -> BỊ LOẠI
+      { title: 'Tà Áo dài Hà thành', source: 'Bảo tàng LSVN' }, // Thiếu cardId (tìm kiếm gần đúng) -> BỊ LOẠI
+    ],
   });
 
   // Current look with primaryColor UNLOCKED for parser test
@@ -433,7 +530,13 @@ try {
   assert.strictEqual(parsed.commands[0].expectedRevision, 12);
   assert.strictEqual(parsed.commands[1].action, 'TOGGLE_ACCESSORY');
   assert.strictEqual(parsed.commands[1].expectedRevision, 13);
-  console.log(' -> Parser lọc lệnh rác và sinh expectedRevision tuần tự thành công.');
+
+  // Kiểm tra trích dẫn chuẩn prompt { cardId: "..." }
+  assert(parsed.citations && parsed.citations.length === 1, 'Chỉ duy nhất 1 citation có cardId thuộc danh mục published được chấp nhận');
+  assert.strictEqual(parsed.citations[0].title, 'Tà Áo dài Hà thành và kỹ nghệ may đo Trạch Xá');
+  assert(parsed.citations[0].source.includes('Bảo tàng Lịch sử Quốc gia'));
+  assert(parsed.citations[0].sourceUrl, 'Server phải bổ sung sourceUrl từ dữ liệu published thực tế');
+  console.log(' -> Parser lọc lệnh rác, giữ đúng citation cardId chuẩn prompt và nạp metadata server thành công.');
 
   // 3.2 Parser tôn trọng khóa (Locked attributes protection in Parser)
   console.log(' [3.2] Kiểm thử Parser khi thuộc tính bị khóa: Không tạo lệnh thay đổi');
@@ -480,7 +583,59 @@ try {
   });
   assert.strictEqual(delayedAiCommand.status, 409);
   assert.strictEqual(delayedAiCommand.data.code, 'REVISION_CONFLICT');
-  console.log(' -> Lệnh AI đến muộn bị từ chối an toàn, không ghi đè thao tác người dùng!\n');
+  console.log(' -> Lệnh AI đến muộn bị từ chối an toàn, không ghi đè thao tác người dùng!');
+
+  // 3.4 Thao tác tay không xen giữa chuỗi AI đang áp dụng
+  console.log(' [3.4] Thao tác tay không xen giữa chuỗi AI: Bảo vệ tính toàn vẹn chuỗi lệnh tuần tự');
+  const baseLookBeforeSequence = (await api(`/looks/${testLookId}`)).data;
+  const seqRev1 = baseLookBeforeSequence.revision;
+  const seqRev2 = seqRev1 + 1;
+
+  // Chuỗi AI gồm 2 lệnh tuần tự:
+  const aiCmd1 = {
+    commandId: randomUUID(),
+    lookId: testLookId,
+    expectedRevision: seqRev1,
+    action: 'SET_PANTS_COLOR',
+    payload: { color: { hex: '#E5A93C', name: 'Vàng hoàng yến', family: 'yellow' } },
+    timestamp: new Date().toISOString(),
+  };
+  const aiCmd2 = {
+    commandId: randomUUID(),
+    lookId: testLookId,
+    expectedRevision: seqRev2,
+    action: 'SET_EVENT',
+    payload: { eventId: 'choi_tet' },
+    timestamp: new Date().toISOString(),
+  };
+
+  // Áp dụng lệnh 1 của AI
+  const step1 = await api(`/looks/${testLookId}/command`, { method: 'POST', body: JSON.stringify(aiCmd1) });
+  assert.strictEqual(step1.status, 200);
+  assert.strictEqual(step1.data.look.revision, seqRev2);
+
+  // Thao tác tay xen ngang với revision cũ (seqRev1) bị từ chối 409 ngay lập tức
+  const manualInterleaved = await api(`/looks/${testLookId}/command`, {
+    method: 'POST',
+    body: JSON.stringify({
+      commandId: randomUUID(),
+      lookId: testLookId,
+      expectedRevision: seqRev1, // Stale old revision
+      action: 'SET_COLLAR',
+      payload: { collarStyle: 'round' },
+      timestamp: new Date().toISOString(),
+    }),
+  });
+  assert.strictEqual(manualInterleaved.status, 409);
+  assert.strictEqual(manualInterleaved.data.code, 'REVISION_CONFLICT');
+
+  // Lệnh 2 của AI tiếp tục thực thi chuẩn xác
+  const step2 = await api(`/looks/${testLookId}/command`, { method: 'POST', body: JSON.stringify(aiCmd2) });
+  assert.strictEqual(step2.status, 200);
+  assert.strictEqual(step2.data.look.revision, seqRev2 + 1);
+  assert.strictEqual(step2.data.look.eventId, 'choi_tet');
+  assert.strictEqual(step2.data.look.config.pantsColor.name, 'Vàng hoàng yến');
+  console.log(' -> Chuỗi lệnh AI hoàn tất trọn vẹn, thao tác xen ngang bị chặn bằng OCC an toàn.\n');
 
   // =========================================================================
   // TEST SUITE 4: CULTURAL KNOWLEDGE AUDIT & STATUS GUARDRAILS
