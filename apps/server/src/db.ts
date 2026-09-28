@@ -37,6 +37,8 @@ function runPendingMigrations(db: DatabaseSync): void {
   for (const file of files) {
     const version = path.basename(file, '.sql');
     if (!appliedVersions.has(version)) {
+      console.log(`[MIGRATION] Bắt đầu áp dụng migration: ${file}...`);
+      db.exec('BEGIN IMMEDIATE');
       try {
         const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf-8');
         db.exec(sql);
@@ -44,16 +46,17 @@ function runPendingMigrations(db: DatabaseSync): void {
           version,
           new Date().toISOString()
         );
+        db.exec('COMMIT');
+        console.log(`[MIGRATION] Áp dụng thành công: ${file}`);
       } catch (err: any) {
-        // If column already exists (e.g. from previous run), record migration
-        if (err.message && err.message.includes('duplicate column name')) {
-          db.prepare('INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(
-            version,
-            new Date().toISOString()
-          );
-        } else {
-          console.error(`[DB] Lỗi khi chạy migration ${file}:`, err);
+        try {
+          db.exec('ROLLBACK');
+        } catch (rollbackErr: any) {
+          console.error(`[MIGRATION] Lỗi khi rollback migration ${file}:`, rollbackErr.message);
         }
+        const failMessage = `[MIGRATION ERROR] Thất bại khi áp dụng migration "${file}": ${err.message}. Dừng khởi động hệ thống để bảo vệ dữ liệu.`;
+        console.error(failMessage);
+        throw new Error(failMessage);
       }
     }
   }

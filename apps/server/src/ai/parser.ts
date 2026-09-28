@@ -17,6 +17,7 @@ import {
   GarmentConfigSchema,
   ColorSchema,
 } from '@dangviet/contracts';
+import { dbRepo } from '../db.js';
 
 export interface ParsedChatResult {
   reply: string;
@@ -262,10 +263,35 @@ export function parseModelChatOutput(rawText: string, currentLook: Look): Parsed
     }
   }
 
+  // Strict citation validation: ONLY allow citations matching verified published culture cards!
+  const citations: Array<{ title: string; source: string; ref: string }> = [];
+  if (Array.isArray(json.citations) && json.citations.length > 0) {
+    try {
+      const publishedCards = dbRepo.getCultureCards('published');
+      for (const item of json.citations) {
+        if (!item || typeof item !== 'object') continue;
+        const matched = publishedCards.find(
+          (c) =>
+            (item.title && c.title.toLowerCase().includes(String(item.title).toLowerCase())) ||
+            (item.slug && c.slug === item.slug) ||
+            (item.source && c.sourceName.toLowerCase().includes(String(item.source).toLowerCase()))
+        );
+        if (matched) {
+          citations.push({
+            title: matched.title,
+            source: matched.sourceName,
+            ref: matched.sourceEvidence,
+          });
+        }
+      }
+    } catch {}
+  }
+
   return {
     reply,
     explanation,
     commands,
+    citations: citations.length > 0 ? citations : undefined,
   };
 }
 

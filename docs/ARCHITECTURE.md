@@ -131,11 +131,27 @@ Kiến trúc này giúp tốc độ hiển thị đạt 60fps trên mọi thiế
 
 ---
 
-## 7. Sao lưu & Phục hồi Cơ sở dữ liệu SQLite An toàn
+## 7. Sao lưu, Phục hồi & Khởi động Di chuyển Dữ liệu (Atomic Migrations & Safe Restore)
 
-- **Sao lưu trực tiếp không ngắt quãng (Online Zero-Downtime Backup):** Sử dụng câu lệnh nguyên bản của SQLite `VACUUM INTO '<destination>'`. Cơ chế này tạo bản sao lưu nhất quán tức thời (crash-consistent snapshot) ngay cả khi ứng dụng đang có các kết nối đọc/ghi hoạt động.
-- **Kiểm định tính toàn vẹn (Integrity Verification):** Mọi bản sao lưu đều được kiểm tra ngay với `PRAGMA integrity_check` trước khi ghi nhận thành công và tạo tệp chỉ mục `manifest.json`.
-- **Phục hồi an toàn (Safe Restore):** `scripts/restore.mjs` kiểm tra lock tệp đang hoạt động và hỗ trợ phục hồi vào thư mục thử nghiệm độc lập (`--target-dir <path>`) để thẩm định tính toàn vẹn trước khi áp dụng vào môi trường vận hành thực tế.
+- **Di chuyển lược đồ nguyên tử & Dừng khởi động khi lỗi (Atomic Migrations & Abort on Error):**
+  - Trong `apps/server/src/db.ts`, mỗi tệp di chuyển (`migrations/*.sql`) được thực thi nguyên tử trong một khối `BEGIN IMMEDIATE` ... `COMMIT` riêng biệt cùng với thao tác chèn phiên bản vào bảng `schema_migrations`.
+  - Nếu bất kỳ câu lệnh SQL nào trong tệp di chuyển thất bại, hệ thống thực hiện `ROLLBACK` ngay lập tức, không ghi nhận phiên bản di chuyển, ghi nhật ký lỗi rõ ràng tên tệp gặp sự cố và quăng ngoại lệ dừng toàn bộ tiến trình khởi động máy chủ (`process.exit(1)`).
+  - Loại bỏ hoàn toàn việc nuốt lỗi (không còn bỏ qua lỗi `duplicate column name`), đảm bảo lược đồ cơ sở dữ liệu luôn ở trạng thái nhất quán và an toàn tuyệt đối.
+  - Các database đã có dữ liệu thực tế (looks, look_revisions, lookbook) nâng cấp an toàn mà không làm mất mát bất kỳ bản ghi nào.
+
+- **Sao lưu trực tiếp không ngắt quãng (Online Zero-Downtime Backup):**
+  - Sử dụng lệnh nguyên bản của SQLite `VACUUM INTO '<destination>'`. Cơ chế này tạo bản sao lưu nhất quán tức thời (crash-consistent snapshot) mà không làm gián đoạn các tác vụ đọc/ghi.
+  - Tự động chạy `PRAGMA integrity_check` trên tệp snapshot trước khi phê duyệt.
+  - Tính toán mã băm mật mã **SHA-256** của tệp `dangviet.db` và lưu kèm thông tin kích thước, số lượng bảng vào `manifest.json`.
+
+- **Khôi phục an toàn chống ghi đè khi Server hoạt động (Safe Restore Safeguards):**
+  - `scripts/restore.mjs` sử dụng thăm dò kết nối cổng mạng TCP thực tế (`checkServerRunning`) trên cổng 3001/biến cấu hình để phát hiện chính xác máy chủ đang chạy trên môi trường Windows.
+  - Nếu phát hiện máy chủ đang lắng nghe, lệnh khôi phục lập tức **từ chối** ghi đè lên cơ sở dữ liệu chính và in hướng dẫn dừng máy chủ hoặc sử dụng tham số `--target-dir`.
+  - Kiểm tra tính hợp lệ của `manifest.json` và xác minh mã băm SHA-256 của tệp sao lưu trước khi thực hiện.
+  - Kiểm tra tính toàn vẹn `PRAGMA integrity_check` trên tệp sao lưu.
+  - **Staging Rollback:** Tạo thư mục dự phòng tạm thời `.staging_rollback_<timestamp>` cho đích đến trước khi sao chép, tự động khôi phục lại nguyên trạng nếu quá trình sao chép gặp lỗi.
+  - **Dọn dẹp WAL/SHM cũ:** Tự động dọn dẹp các tệp `-wal` và `-shm` cũ tại thư mục đích để tránh SQLite nạp lại bộ nhớ đệm khung ghi cũ làm sai lệch dữ liệu phục hồi.
+  - Hỗ trợ biến môi trường `DATABASE_PATH` và cờ `--target-dir <path>` để khôi phục vào thư mục cô lập độc lập phục vụ kiểm thử / trích xuất dữ liệu mà không cần tắt máy chủ chính.
 
 ---
 

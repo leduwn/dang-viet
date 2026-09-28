@@ -88,28 +88,70 @@ AI_TIMEOUT_MS=12000
 
 ## 5. Quy trình Sao lưu & Phục hồi Dữ liệu An toàn
 
-### Sao lưu trực tuyến không gián đoạn
+### 5.1. Sao lưu trực tuyến không gián đoạn (Online Zero-Downtime Backup)
 
 ```powershell
 npm run backup
 ```
 
-*Tạo bản chụp nguyên tử nhất quán (crash-consistent) bằng lệnh SQLite `VACUUM INTO` trong thư mục `backups/backup-<timestamp>` kèm tệp `dangviet.db`, thư mục `content/`, kiểm định ngay với `PRAGMA integrity_check` và lập `manifest.json`.*
+*Cơ chế:*
+- Sử dụng trực tiếp `VACUUM INTO` của SQLite để tạo bản chụp snapshot nguyên tử, không làm nghẽn các tác vụ đọc/ghi đang chạy.
+- Tự động chạy `PRAGMA integrity_check` trên tệp sao lưu để đảm bảo snapshot hoàn chỉnh.
+- Tính toán mã băm mật mã **SHA-256** của tệp `dangviet.db` và lưu kèm vào `manifest.json`.
+- Sao lưu toàn bộ thư mục `content/` văn hóa đi kèm.
+- Thư mục sao lưu đặt tại `backups/backup-<timestamp>/`.
 
-### Phục hồi vào thư mục thử nghiệm độc lập
+### 5.2. Kiểm tra trạng thái máy chủ trước khi phục hồi (Windows PowerShell)
+
+Trước khi khôi phục trực tiếp lên cơ sở dữ liệu chính, bắt buộc phải tắt máy chủ Fastify để tránh hỏng tệp SQLite và xung đột bộ nhớ chia sẻ.
 
 ```powershell
-node scripts/restore.mjs backups/backup-<timestamp> --target-dir ./test-restore-data
+# Kiểm tra máy chủ có đang lắng nghe tại cổng 3001 hay không:
+Test-NetConnection -ComputerName 127.0.0.1 -Port 3001
+
+# Xem tiến trình đang chiếm dụng cổng 3001:
+Get-NetTCPConnection -LocalPort 3001 -ErrorAction SilentlyContinue | Select-Object LocalAddress, LocalPort, OwningProcess, State
+
+# Dừng máy chủ trên Windows bằng PowerShell:
+Stop-Process -Id (Get-NetTCPConnection -LocalPort 3001).OwningProcess -Force
 ```
 
-### Phục hồi đè lên dữ liệu chính
+### 5.3. Phục hồi dữ liệu an toàn (Safe Restore)
+
+#### Cách A: Phục hồi đè lên cơ sở dữ liệu chính (Yêu cầu server đã dừng)
 
 ```powershell
-# Phục hồi từ bản sao lưu gần nhất (khi server đã tắt):
+# Phục hồi từ bản sao lưu mới nhất trong thư mục backups/:
 npm run restore
 
-# Hoặc chỉ định một thư mục sao lưu cụ thể:
-node scripts/restore.mjs backups/backup-<timestamp>
+# Hoặc chỉ định rõ thư mục sao lưu cần phục hồi:
+node scripts/restore.mjs backups/backup-2026-09-28T...
+```
+
+*Quy trình bảo vệ tự động của `restore.mjs`:*
+1. **Kiểm tra máy chủ:** Nếu phát hiện server đang chạy trên cổng 3001 (hoặc `PORT` cấu hình), lập tức **từ chối** và dừng với mã lỗi 1, đưa ra hướng dẫn chi tiết.
+2. **Xác thực mã băm SHA-256:** So khớp mã băm tệp sao lưu với `manifest.json`. Nếu tệp bị hỏng hoặc sửa đổi, từ chối khôi phục.
+3. **Kiểm tra tính toàn vẹn:** Chạy `PRAGMA integrity_check` trên tệp sao lưu trước khi chạm vào đích.
+4. **Staging Rollback:** Tạo bản sao lưu dự phòng cho thư mục đích vào `.staging_rollback_<timestamp>`. Nếu quá trình khôi phục gặp sự cố, tự động hoàn tác (rollback) trạng thái ban đầu.
+5. **Dọn dẹp tệp nhật ký WAL/SHM:** Loại bỏ các tệp `-wal` và `-shm` cũ để tránh SQLite nạp lại bộ nhớ tạm cũ làm sai lệch dữ liệu.
+6. **Tuân thủ `DATABASE_PATH`:** Tự động đọc và định vị file SQLite theo biến môi trường `DATABASE_PATH`.
+
+#### Cách B: Phục hồi vào thư mục riêng biệt để kiểm thử / trích xuất dữ liệu
+
+Không cần tắt máy chủ chính khi dùng cờ `--target-dir`:
+
+```powershell
+node scripts/restore.mjs backups/backup-2026-09-28T... --target-dir ./test-restored-data
+```
+
+### 5.4. Chạy kiểm thử tự động quy trình di chuyển schema & sao lưu/khôi phục
+
+```powershell
+# Kiểm thử cơ chế migration nguyên tử, rollback và bảo toàn dữ liệu:
+node scripts/test-migrations.mjs
+
+# Kiểm thử sao lưu, phục hồi, xác thực SHA-256, từ chối server đang chạy và dọn dẹp WAL/SHM:
+node scripts/test-backup-restore.mjs
 ```
 
 ---

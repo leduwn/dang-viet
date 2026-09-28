@@ -69,8 +69,17 @@ npm run test
 
 # Kiểm thử chuyên sâu hệ thống (Hoàn tác đa cấp tuần tự, OCC, Khóa, AI Parser, Backup)
 node scripts/test-harden.mjs
+
+# Kiểm thử di chuyển lược đồ nguyên tử, rollback và bảo toàn dữ liệu
+node scripts/test-migrations.mjs
+
+# Kiểm thử sao lưu, phục hồi an toàn, mã băm SHA-256, từ chối server đang chạy và dọn WAL/SHM
+node scripts/test-backup-restore.mjs
+
+# Kiểm thử tích hợp AI và rào chắn trích dẫn tư liệu văn hóa đã kiểm chứng
+node scripts/test-ai-culture.mjs
 ```
-*Bộ kiểm thử `scripts/test-harden.mjs` xác minh chi tiết 5 nhóm kịch bản: chuỗi 3 sửa - 3 hoàn tác liên tiếp - 1 sửa mới, chống vượt khóa `force: true`, từ chối phụ kiện ngoài catalog, chống duplicate command ID, xử lý xung đột 409 khi lệnh gửi đồng thời, lọc lệnh của AI qua parser và kiểm chứng phục hồi an toàn.*
+*Bộ kiểm thử xác minh chi tiết toàn diện: chuỗi 3 sửa - 3 hoàn tác liên tiếp - 1 sửa mới, chống vượt khóa `force: true`, từ chối phụ kiện ngoài catalog, chống duplicate command ID, xử lý xung đột 409 khi lệnh gửi đồng thời, lọc lệnh của AI qua parser, dừng server khi migration lỗi, chặn ghi đè database khi server đang chạy, xác thực mã băm SHA-256 của bản sao lưu, và bảo đảm AI chỉ trích dẫn thẻ văn hóa đã kiểm chứng.*
 
 ### 5. Khởi động ứng dụng
 ```bash
@@ -108,6 +117,7 @@ AI_TIMEOUT_MS=12000
 - [Tiến độ & Nhật ký các mốc](docs/PROGRESS.md)
 - [Kiến trúc hệ thống chi tiết](docs/ARCHITECTURE.md)
 - [Cẩm nang vận hành & Triển khai](docs/RUNBOOK.md)
+- [Khảo cứu nguồn gốc tư liệu văn hóa](docs/CULTURAL_SOURCES.md)
 
 ---
 

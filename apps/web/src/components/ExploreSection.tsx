@@ -18,6 +18,14 @@ export const ExploreSection: React.FC<ExploreSectionProps> = ({
   onSelectEvent,
   onApplyPreset,
 }) => {
+  const [cultureFilter, setCultureFilter] = React.useState<'published' | 'all'>('published');
+
+  const displayedCards = React.useMemo(() => {
+    if (cultureFilter === 'published') {
+      return cultureCards.filter((c) => c.status === 'published');
+    }
+    return cultureCards;
+  }, [cultureCards, cultureFilter]);
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '3rem' }}>
       {/* 1. Hero Introduction */}
@@ -284,20 +292,57 @@ export const ExploreSection: React.FC<ExploreSectionProps> = ({
 
       {/* 4. Verified Cultural Knowledge Cards */}
       <section>
-        <div style={{ marginBottom: '1.5rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-            <BookOpen size={20} className="text-accent-red" />
-            <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.6rem', color: 'var(--text-primary)' }}>
-              Tư liệu văn hóa đã kiểm chứng
-            </h3>
+        <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '1rem' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+              <BookOpen size={20} className="text-accent-red" />
+              <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.6rem', color: 'var(--text-primary)' }}>
+                Tư liệu văn hóa & Nguồn kiểm chứng
+              </h3>
+            </div>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+              Các cứ liệu lịch sử, ấn phẩm, số trang và hiện vật bảo tàng được đối soát độc lập
+            </p>
           </div>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-            Các cứ liệu lịch sử, nhân vật, ấn phẩm và hiện vật bảo tàng được xác thực nguồn gốc
-          </p>
+
+          <div style={{ display: 'flex', gap: '0.5rem', background: 'var(--bg-subtle)', padding: '0.25rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-light)' }}>
+            <button
+              onClick={() => setCultureFilter('published')}
+              style={{
+                padding: '0.4rem 0.8rem',
+                borderRadius: 'var(--radius-sm)',
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                background: cultureFilter === 'published' ? 'white' : 'transparent',
+                color: cultureFilter === 'published' ? 'var(--accent-red)' : 'var(--text-muted)',
+                boxShadow: cultureFilter === 'published' ? 'var(--shadow-sm)' : 'none',
+                border: 'none',
+                cursor: 'pointer',
+              }}
+            >
+              Đã kiểm chứng ({cultureCards.filter((c) => c.status === 'published').length})
+            </button>
+            <button
+              onClick={() => setCultureFilter('all')}
+              style={{
+                padding: '0.4rem 0.8rem',
+                borderRadius: 'var(--radius-sm)',
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                background: cultureFilter === 'all' ? 'white' : 'transparent',
+                color: cultureFilter === 'all' ? 'var(--accent-red)' : 'var(--text-muted)',
+                boxShadow: cultureFilter === 'all' ? 'var(--shadow-sm)' : 'none',
+                border: 'none',
+                cursor: 'pointer',
+              }}
+            >
+              Tất cả tư liệu ({cultureCards.length})
+            </button>
+          </div>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem' }}>
-          {cultureCards.map((card) => (
+          {displayedCards.map((card) => (
             <div
               key={card.id}
               style={{

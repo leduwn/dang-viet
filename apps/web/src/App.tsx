@@ -46,7 +46,7 @@ export const App: React.FC = () => {
         const [metaData, initialLook, cultureData, lookbookData, aiStat] = await Promise.all([
           fetchMeta(),
           fetchLook('look_default_01'),
-          fetchCultureCards('published'),
+          fetchCultureCards('all'),
           fetchLookbook(),
           fetchAIStatus(),
         ]);

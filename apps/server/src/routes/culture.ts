@@ -4,7 +4,7 @@ import { dbRepo } from '../db.js';
 export const cultureRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/culture', async (request) => {
     const { status } = request.query as { status?: string };
-    const filter = status === 'all' ? 'all' : 'published';
+    const filter = status || 'published';
     const cards = dbRepo.getCultureCards(filter);
     return cards;
   });

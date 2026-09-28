@@ -62,54 +62,45 @@ export class MockAIAdapter implements AIAdapter {
     if (text.includes('giải thích') || text.includes('nguồn') || text.includes('lịch sử') || text.includes('văn hóa') || text.includes('tại sao')) {
       const cards = dbRepo.getCultureCards('published');
 
-      if (text.includes('raglan') || text.includes('nách') || text.includes('dung đakao')) {
-        const c = cards.find((x) => x.slug.includes('raglan'));
+      if (text.includes('trạch xá') || text.includes('tay trong tay ngoài') || text.includes('bảo tàng lịch sử') || text.includes('hà thành')) {
+        const c = cards.find((x) => x.slug.includes('trach-xa') || x.slug.includes('ha-thanh'));
         if (c) {
-          reply = `Về kỹ thuật tay raglan: ${c.summary}\n\n${c.content}`;
+          reply = `Về tà Áo dài Hà thành và kỹ nghệ may đo Trạch Xá: ${c.summary}\n\n${c.content}`;
           citations.push({ title: c.title, source: c.sourceName, ref: c.sourceEvidence });
         }
-      } else if (text.includes('lemur') || text.includes('cát tường') || text.includes('tân thời')) {
-        const c = cards.find((x) => x.slug.includes('lemur'));
+      } else if (text.includes('ngũ thân') || text.includes('năm thân') || text.includes('tiền thân') || text.includes('minh mạng') || text.includes('nguyễn phúc khoát')) {
+        const c = cards.find((x) => x.slug.includes('ngu-than') || x.slug.includes('ngu_than'));
         if (c) {
-          reply = `Về cuộc cách tân áo dài Lemur: ${c.summary}\n\n${c.content}`;
-          citations.push({ title: c.title, source: c.sourceName, ref: c.sourceEvidence });
-        }
-      } else if (text.includes('ngũ thân') || text.includes('năm thân') || text.includes('tiền thân')) {
-        const c = cards.find((x) => x.slug.includes('ngu_than'));
-        if (c) {
-          reply = `Về nguồn gốc áo ngũ thân: ${c.summary}\n\n${c.content}`;
+          reply = `Về định chế Áo ngũ thân lập lĩnh thời Nguyễn: ${c.summary}\n\n${c.content}`;
           citations.push({ title: c.title, source: c.sourceName, ref: c.sourceEvidence });
         }
       } else if (text.includes('lụa') || text.includes('vạn phúc') || text.includes('chất liệu')) {
-        const c = cards.find((x) => x.slug.includes('van_phuc') || x.slug.includes('lua'));
+        const c = cards.find((x) => x.slug.includes('van-phuc') || x.slug.includes('van_phuc') || x.slug.includes('lua'));
         if (c) {
-          reply = `Về làng lụa Vạn Phúc - Hà Đông: ${c.summary}\n\n${c.content}`;
+          reply = `Về di sản dệt lụa Vạn Phúc - Hà Đông: ${c.summary}\n\n${c.content}`;
           citations.push({ title: c.title, source: c.sourceName, ref: c.sourceEvidence });
         }
-      } else if (text.includes('mấn') || text.includes('khăn đóng') || text.includes('đội đầu')) {
-        const c = cards.find((x) => x.slug.includes('man') || x.slug.includes('khan_dong'));
-        if (c) {
-          reply = `Về khăn đóng và mấn lụa: ${c.summary}\n\n${c.content}`;
-          citations.push({ title: c.title, source: c.sourceName, ref: c.sourceEvidence });
-        }
+      } else if (text.includes('raglan') || text.includes('lemur') || text.includes('cát tường') || text.includes('khăn đóng') || text.includes('mấn') || text.includes('gấm')) {
+        // Explicitly unverified topics currently in review
+        reply = 'Hiện tại kho tư liệu văn hóa đã kiểm chứng (trạng thái published) chưa có đủ dẫn chứng xác thực độc lập cho câu hỏi này (các tư liệu liên quan hiện đang ở trạng thái thẩm định - review). Trợ lý xin phép không trích dẫn thông tin chưa kiểm chứng.';
       } else {
-        // Default cultural overview for current look
-        const c1 = cards.find((x) => x.slug.includes('ngu_than'));
-        const c2 = cards.find((x) => x.slug.includes('lua'));
-        if (c1 || c2) {
-          reply = `Bộ phối hiện tại lấy cảm hứng từ cấu trúc áo dài truyền thống với phom dáng chuẩn mực. Tà áo dài kết nối di sản áo ngũ thân cung đình với sự cách tân thanh thoát.`;
-          if (c1) citations.push({ title: c1.title, source: c1.sourceName, ref: c1.sourceEvidence });
-          if (c2) citations.push({ title: c2.title, source: c2.sourceName, ref: c2.sourceEvidence });
+        // Default cultural overview for current look using published cards only
+        const cNguThan = cards.find((x) => x.slug.includes('ngu-than') || x.slug.includes('ngu_than'));
+        const cLua = cards.find((x) => x.slug.includes('van-phuc') || x.slug.includes('lua'));
+        if (cNguThan || cLua) {
+          reply = `Bộ phối hiện tại kế thừa cấu trúc áo dài truyền thống với phom dáng chuẩn mực, kết nối di sản áo ngũ thân lập lĩnh thời Nguyễn với kỹ nghệ dệt may Việt Nam.`;
+          if (cNguThan) citations.push({ title: cNguThan.title, source: cNguThan.sourceName, ref: cNguThan.sourceEvidence });
+          if (cLua) citations.push({ title: cLua.title, source: cLua.sourceName, ref: cLua.sourceEvidence });
         }
       }
 
-      if (!reply || citations.length === 0) {
+      if (!reply || (citations.length === 0 && !reply.includes('chưa có đủ dẫn chứng'))) {
         reply = 'Hiện tại kho tư liệu văn hóa đã kiểm chứng (trạng thái published) chưa có đủ dẫn chứng xác thực độc lập cho câu hỏi này (các tư liệu liên quan hiện đang ở trạng thái thẩm định - review). Trợ lý xin phép không trích dẫn thông tin chưa kiểm chứng.';
       }
 
       return {
         reply,
-        citations,
+        citations: citations.length > 0 ? citations : undefined,
         mode: 'mock',
         model: 'dangviet-rules-v1',
       };

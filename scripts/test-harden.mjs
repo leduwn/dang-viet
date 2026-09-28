@@ -13,8 +13,12 @@ const BASE_URL = 'http://127.0.0.1:3001/api';
 // Helper to make API requests
 async function api(path, options = {}) {
   const url = `${BASE_URL}${path}`;
+  const headers = { ...(options.headers || {}) };
+  if (options.body) {
+    headers['Content-Type'] = 'application/json';
+  }
   const res = await fetch(url, {
-    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+    headers,
     ...options,
   });
   const data = await res.json().catch(() => null);
@@ -460,9 +464,9 @@ try {
   // =========================================================================
   console.log('--- TEST 4: KIỂM CHỨNG DỮ LIỆU VĂN HÓA & PHÂN ĐỊNH TRẠNG THÁI REVIEW ---');
 
-  // Kiểm tra chỉ có 0 thẻ published sau khi kiểm chứng
+  // Kiểm tra 3 thẻ published sau khi kiểm chứng nguồn độc lập (Bảo tàng LSVN, TTXVN, Ngàn năm áo mũ)
   const pubCards = await api('/culture?status=published');
-  assert.strictEqual(pubCards.data.length, 0, 'Sau kiểm chứng, 0 thẻ đạt tiêu chuẩn published');
+  assert.strictEqual(pubCards.data.length, 3, 'Sau kiểm chứng, có đúng 3 thẻ đạt tiêu chuẩn published');
 
   const reviewCards = await api('/culture?status=review');
   assert.strictEqual(reviewCards.data.length, 6, 'Chính xác 6 thẻ ở trạng thái review chờ thẩm định nguồn');

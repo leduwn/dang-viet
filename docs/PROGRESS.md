@@ -135,3 +135,50 @@
   ```powershell
   node scripts/test-harden.mjs
   ```
+
+---
+
+## Mốc 8: Kiên cố hóa Khởi động Di chuyển Dữ liệu, Phục hồi An toàn & Xuất bản 3 Thẻ Văn hóa Kiểm chứng Chân thực
+
+- **Trạng thái:** Hoàn thành 100% (Đã xác minh toàn bộ trên Windows)
+- **Các thành phần đã triển khai:**
+  - **Di chuyển lược đồ nguyên tử & Ngắt khởi động khi gặp lỗi (Atomic Migration Abort):**
+    - Sửa `runPendingMigrations` trong `apps/server/src/db.ts`: Mỗi tệp di chuyển được bọc trong giao dịch nguyên tử `BEGIN IMMEDIATE` ... `COMMIT` kèm thao tác ghi nhận vào bảng `schema_migrations`.
+    - Bất kỳ lỗi SQL nào đều kích hoạt `ROLLBACK`, in tên tệp lỗi và quăng ngoại lệ làm dừng tiến trình khởi động máy chủ Fastify (`process.exit(1)`).
+    - Loại bỏ hoàn toàn việc nuốt lỗi (bỏ qua `duplicate column name`), đảm bảo lược đồ cơ sở dữ liệu không bao giờ ở trạng thái nửa vời.
+    - Bảo toàn 100% dữ liệu looks, look_revisions và lookbook khi nâng cấp cơ sở dữ liệu có sẵn.
+    - Bộ kiểm thử độc lập: `scripts/test-migrations.mjs` (4 bài kiểm thử: chạy sạch 001/002, chạy lại không trùng lặp, rollback khi lỗi cố ý, nâng cấp bảo toàn dữ liệu).
+  - **Khôi phục an toàn chống ghi đè khi Server đang chạy & Mã băm SHA-256 (Safe Restore & Verification):**
+    - Sửa `scripts/restore.mjs`: Loại bỏ kiểm tra lock bằng `fs.openSync`. Bổ sung kiểm tra kết nối cổng mạng TCP thực tế (`checkServerRunning`) trên cổng 3001/biến môi trường để phát hiện máy chủ đang chạy trên Windows.
+    - Từ chối ngay việc ghi đè lên database chính nếu máy chủ đang chạy, in thông điệp hướng dẫn chi tiết cách tắt server hoặc dùng cờ `--target-dir`.
+    - Xác thực cấu trúc `manifest.json` và kiểm tra mã băm SHA-256 của tệp `dangviet.db` trước khi chạm vào đích đến.
+    - Kiểm tra `PRAGMA integrity_check` của SQLite trên tệp sao lưu.
+    - Cơ chế **Staging Rollback**: Tạo bản lưu dự phòng `.staging_rollback_<timestamp>` cho đích đến trước khi chép đè, tự động khôi phục nếu xảy ra lỗi giữa chừng.
+    - Tự động dọn dẹp các tệp `-wal` và `-shm` cũ tại thư mục đích để tránh nạp bộ đệm lỗi thời.
+    - Tôn trọng cấu hình `DATABASE_PATH` và cho phép khôi phục sang thư mục riêng bằng `--target-dir <path>`.
+    - Bộ kiểm thử độc lập: `scripts/test-backup-restore.mjs` (6 bước kiểm tra toàn diện).
+  - **Xuất bản 3 Thẻ Tri thức Văn hóa Đã Kiểm chứng Chân thực (Published Culture Cards):**
+    - Nghiên cứu và bổ sung 3 thẻ văn hóa đạt tiêu chuẩn `published` với nguồn kiểm chứng độc lập:
+      1. `card_verified_lich_su_ao_dai`: Tư liệu Bảo tàng Lịch sử Quốc gia và kỹ nghệ may đo Trạch Xá (URL sống, HTTP 200).
+      2. `card_verified_lua_van_phuc`: Báo ảnh Việt Nam - TTXVN & Bộ VHTTDL (Quyết định 2969/QĐ-BVHTTDL ngày 10/09/2014, URL sống, HTTP 200).
+      3. `card_verified_ngu_than_dinh_che`: Sách khảo cứu *Ngàn năm áo mũ*, nhà nghiên cứu Trần Quang Đức (NXB Tri thức & Nhã Nam, 2013, ISBN 978-604-908-724-4, Chương V, tr. 377-380).
+    - Giữ nguyên 6 thẻ chưa đủ bằng chứng ở trạng thái `review` và 1 thẻ ở `draft` để đảm bảo tính minh bạch học thuật tuyệt đối.
+    - Cập nhật nhật ký kiểm chứng chi tiết tại `docs/CULTURAL_SOURCES.md`.
+    - Giao diện `apps/web/src/components/ExploreSection.tsx`: Bổ sung bộ lọc chuyển đổi ("Đã kiểm chứng (3)" vs "Tất cả tư liệu (10)"), hiển thị huy hiệu xác thực, trích dẫn chi tiết số trang sách/quyết định và đường dẫn liên kết ngoài `<ExternalLink />` đến nguồn gốc.
+  - **Rào chắn Trích dẫn của AI (AI Citation Guardrails):**
+    - `MockAIAdapter` và `NineRouterAdapter` chỉ được phép trích dẫn các thẻ ở trạng thái `published`.
+    - Khi người dùng hỏi về các chủ đề đang ở trạng thái `review` (như tay raglan 1960 Dung Đakao, áo dài Lemur Cát Tường 1934, mấn khăn đóng), AI từ chối đưa trích dẫn và thông báo trung thực rằng tư liệu đang trong diện thẩm định học thuật.
+    - `apps/server/src/ai/parser.ts`: Tự động loại bỏ mọi trích dẫn giả mạo hoặc trỏ vào các thẻ chưa kiểm chứng từ đầu ra của mô hình LLM.
+    - Bộ kiểm thử độc lập: `scripts/test-ai-culture.mjs` (6 kịch bản kiểm thử bảo vệ trích dẫn).
+  - **Cập nhật tài liệu vận hành:**
+    - `docs/RUNBOOK.md` cập nhật hướng dẫn lệnh kiểm tra và dừng server bằng PowerShell trên Windows.
+- **Lệnh kiểm tra:**
+  ```powershell
+  node scripts/test-migrations.mjs
+  node scripts/test-backup-restore.mjs
+  node scripts/test-ai-culture.mjs
+  node scripts/test-harden.mjs
+  npm run test
+  npm run check
+  npm run build
+  ```

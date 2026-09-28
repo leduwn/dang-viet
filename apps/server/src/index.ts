@@ -24,8 +24,26 @@ await fastify.register(cors, {
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
 });
 
-// Initialize DB check
-getDb();
+// Allow empty JSON body on POST/PUT requests
+fastify.removeContentTypeParser('application/json');
+fastify.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
+  try {
+    const text = typeof body === 'string' ? body.trim() : '';
+    const json = text.length > 0 ? JSON.parse(text) : {};
+    done(null, json);
+  } catch (err: any) {
+    err.statusCode = 400;
+    done(err, undefined);
+  }
+});
+
+// Initialize DB check and run migrations
+try {
+  getDb();
+} catch (err: any) {
+  console.error('[FATAL] Không thể khởi động server do lỗi cơ sở dữ liệu/migration:', err.message);
+  process.exit(1);
+}
 
 // Register API Routes
 await fastify.register(healthRoutes, { prefix: '/api' });

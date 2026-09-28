@@ -13,6 +13,7 @@ import {
 import { type AIAdapter } from './adapter.js';
 import { MockAIAdapter } from './mock-adapter.js';
 import { parseModelChatOutput, parseModelDesignOutput } from './parser.js';
+import { dbRepo } from '../db.js';
 
 export class NineRouterAdapter implements AIAdapter {
   private fallbackMock = new MockAIAdapter();
@@ -119,6 +120,11 @@ export class NineRouterAdapter implements AIAdapter {
     }));
 
     try {
+      const publishedCards = dbRepo.getCultureCards('published');
+      const cardsContext = publishedCards.length > 0
+        ? publishedCards.map((c) => `- "${c.title}" (Nguồn: ${c.sourceName} - ${c.sourceAuthor}): ${c.summary}`).join('\n')
+        : 'Hiện chưa có thẻ văn hóa nào ở trạng thái published.';
+
       const systemPrompt = `Bạn là Trợ lý Dáng Việt, chuyên gia tư vấn Việt phục truyền thống và phong cách remix đương đại.
 Nhiệm vụ: Trả lời người dùng lịch thiệp bằng tiếng Việt, gợi ý phối đồ chuẩn xác và trả về JSON có cấu trúc.
 
@@ -140,7 +146,11 @@ QUY TẮC BẮT BUỘC:
 4. Danh mục kiểu tay hợp lệ: ${VALID_SLEEVES.join(', ')}.
 5. Danh mục vải hợp lệ: ${VALID_FABRICS.join(', ')}.
 6. Danh mục họa tiết hợp lệ: ${VALID_PATTERNS.join(', ')}.
-7. Định dạng phản hồi: BẮT BUỘC trả về một đối tượng JSON duy nhất (có thể bọc trong \`\`\`json ... \`\`\`):
+7. NGUYÊN TẮC TRÍCH DẪN VĂN HÓA:
+Chỉ được phép trích dẫn thông tin từ danh mục tư liệu văn hóa đã kiểm chứng (published) sau đây:
+${cardsContext}
+Nghiêm cấm bịa nguồn, không tự suy diễn hoặc dẫn các nguồn chưa kiểm chứng. Nếu câu hỏi nằm ngoài các tư liệu đã kiểm chứng trên hoặc hỏi về các chủ đề đang thẩm định (như kỹ thuật raglan, áo dài Lemur, mấn khăn đóng, gấm Huế), BẮT BUỘC phải trả lời: "Hiện chưa đủ thông tin văn hóa đã kiểm chứng để khẳng định điều này." và không đưa citations.
+8. Định dạng phản hồi: BẮT BUỘC trả về một đối tượng JSON duy nhất (có thể bọc trong \`\`\`json ... \`\`\`):
 {
   "reply": "Nội dung phản hồi tư vấn cho người dùng",
   "explanation": "Giải thích thẩm mỹ hoặc nguồn gốc văn hóa",
@@ -149,6 +159,9 @@ QUY TẮC BẮT BUỘC:
       "action": "SET_PRIMARY_COLOR" | "SET_PANTS_COLOR" | "SET_COLLAR" | "SET_SLEEVE" | "SET_FABRIC" | "SET_PATTERN" | "TOGGLE_ACCESSORY" | "SET_ACCESSORIES" | "SET_EVENT" | "SET_STYLE" | "RESET_OUTFIT",
       "payload": { ... }
     }
+  ],
+  "citations": [
+    { "title": "Tên thẻ văn hóa khớp với danh mục trên", "source": "Tên nguồn" }
   ]
 }
 Nếu người dùng chỉ hỏi han hoặc không yêu cầu chỉnh sửa trang phục, để mảng "actions": [].`;

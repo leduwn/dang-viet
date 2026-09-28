@@ -34,13 +34,23 @@ for (const file of files) {
   const version = path.basename(file, '.sql');
   if (!appliedVersions.has(version)) {
     console.log(`[MIGRATION] Áp dụng ${file}...`);
-    const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf-8');
-    db.exec(sql);
-    db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(
-      version,
-      new Date().toISOString()
-    );
-    console.log(`[OK] Đã áp dụng migration: ${version}`);
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf-8');
+      db.exec(sql);
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(
+        version,
+        new Date().toISOString()
+      );
+      db.exec('COMMIT');
+      console.log(`[OK] Đã áp dụng migration: ${version}`);
+    } catch (err) {
+      try {
+        db.exec('ROLLBACK');
+      } catch {}
+      console.error(`[FAIL] Lỗi khi áp dụng migration ${file}: ${err.message}`);
+      process.exit(1);
+    }
   } else {
     console.log(`[SKIP] Migration ${version} đã được áp dụng trước đó`);
   }
@@ -78,7 +88,7 @@ if (fs.existsSync(cultureCardsFile)) {
       c.sourceAuthor,
       c.sourceUrl || '',
       c.sourceEvidence,
-      c.status || 'published',
+      c.status || 'review',
       c.createdAt || new Date().toISOString()
     );
   }

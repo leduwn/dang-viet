@@ -1,5 +1,47 @@
 [
   {
+    "id": "card_verified_lich_su_ao_dai",
+    "slug": "ao-dai-ha-thanh-va-nghe-may-trach-xa",
+    "title": "Tà Áo dài Hà thành và kỹ nghệ may đo Trạch Xá",
+    "category": "lich_su",
+    "summary": "Tư liệu hiện vật Bảo tàng Lịch sử Quốc gia và làng nghề Trạch Xá (Ứng Hòa, Hà Nội) ghi nhận tiến trình phát triển của Áo dài và kỹ thuật may đo 'tay trong tay ngoài' độc đáo.",
+    "content": "Theo tư liệu chuyên đề trưng bày tại Bảo tàng Lịch sử Quốc gia, tà áo dài truyền thống gắn liền với dòng chảy lịch sử Thăng Long - Hà Nội. Đóng góp quan trọng vào phom dáng áo dài là làng nghề may Trạch Xá (xã Hòa Lâm, huyện Ứng Hòa, Hà Nội) với bề dày hơn 1.000 năm lịch sử lập làng may từ thời Tiền Lê. Nghệ nhân Trạch Xá nổi danh với kỹ thuật khâu tay 'tay trong tay ngoài' (mũi kim bên ngoài giấu chỉ gần như vô hình, mũi kim bên trong đều tăm tắp), tà áo khi buông xuống thẳng đứng, không gợn sóng, giữ trọn vẻ thướt tha, trang nhã của người phụ nữ Tràng An qua nhiều thế hệ.",
+    "sourceName": "Bảo tàng Lịch sử Quốc gia - Chuyên mục Di sản Văn hóa",
+    "sourceAuthor": "Hà An (Bài viết chuyên đề theo tư liệu Bảo tàng Lịch sử Quốc gia)",
+    "sourceUrl": "https://baotanglichsu.vn/vi/Articles/3091/76718/net-ha-thanh-ke-chuyen-ha-noi-qua-ta-ao-dai-va-nhung-chiec-xe-co.html",
+    "sourceEvidence": "Bài viết chuyên đề xuất bản ngày 11/09/2026 trên cổng thông tin Bảo tàng Lịch sử Quốc gia; kiểm chứng URL hoạt động (HTTP 200); tư liệu ghi nhận làng nghề may Trạch Xá và hiện vật áo dài truyền thống.",
+    "status": "published",
+    "createdAt": "2026-09-28T00:00:00Z"
+  },
+  {
+    "id": "card_verified_lua_van_phuc",
+    "slug": "di-san-det-lua-van-phuc-ha-dong-chinh-thuc",
+    "title": "Di sản dệt lụa Vạn Phúc - Hà Đông: Nghề truyền thống và phom dáng Áo dài",
+    "category": "chat_lieu",
+    "summary": "Làng lụa Vạn Phúc (Hà Đông) là Di sản văn hóa phi vật thể quốc gia; tơ tằm Vạn Phúc tạo độ rủ mềm, thoáng mát và tôn dáng chuẩn mực cho Áo dài Việt Nam.",
+    "content": "Làng lụa Vạn Phúc (phường Vạn Phúc, quận Hà Đông, Hà Nội) là một trong những cái nôi dệt lụa tơ tằm cổ xưa nhất Việt Nam, được Bộ Văn hóa, Thể thao và Du lịch đưa vào Danh mục Di sản văn hóa phi vật thể Quốc gia (theo Quyết định số 2969/QĐ-BVHTTDL ngày 10/09/2014). Tơ tằm Vạn Phúc dệt từ 100% sợi tự nhiên với hoa văn truyền thống nổi tiếng như Vân (mây trời), Cúc, Thọ, Song hạc. Đặc tính của lụa Vạn Phúc là mềm mại, óng ả tự nhiên dưới ánh sáng nhờ tiết diện phản quang của sợi tơ tằm, giữ nhiệt ấm vào mùa đông và thoáng mát vào mùa hè. Nhờ độ rủ tự nhiên không tích điện, lụa Vạn Phúc là chất liệu kinh điển tạo nên tà áo dài bay bổng, kín đáo mà duyên dáng.",
+    "sourceName": "Báo ảnh Việt Nam - Thông tấn xã Việt Nam & Bộ Văn hóa, Thể thao và Du lịch",
+    "sourceAuthor": "Ngân Hà (Bài viết), Khánh Long (Ảnh) - Thông tấn xã Việt Nam",
+    "sourceUrl": "https://vietnam.vnanet.vn/vietnamese/long-form/lang-nghe-lua-van-phuc-doi-moi-sang-tao-de-phat-trien-468288.html",
+    "sourceEvidence": "Bài viết chuyên đề ngày 06/03/2026 của Báo ảnh Việt Nam (Thông tấn xã Việt Nam); trích lục Quyết định 2969/QĐ-BVHTTDL ngày 10/09/2014 ghi danh Di sản phi vật thể Quốc gia; kiểm chứng URL hoạt động (HTTP 200).",
+    "status": "published",
+    "createdAt": "2026-09-28T00:00:00Z"
+  },
+  {
+    "id": "card_verified_ngu_than_dinh_che",
+    "slug": "dinh-che-ao-ngu-than-lap-linh-trieu-nguyen",
+    "title": "Định chế Áo ngũ thân lập lĩnh thời Nguyễn: Cội nguồn cấu trúc Áo dài",
+    "category": "lich_su",
+    "summary": "Nghiên cứu 'Ngàn năm áo mũ' xác định sắc dụ chúa Nguyễn Phúc Khoát (1744) và cải cách vua Minh Mạng (1827-1837) đã chuẩn hóa áo ngũ thân lập lĩnh làm y phục chính thức.",
+    "content": "Theo công trình khảo cứu 'Ngàn năm áo mũ' của nhà nghiên cứu Trần Quang Đức, y phục áo dài truyền thống có tiền thân trực tiếp từ áo ngũ thân cổ đứng (lập lĩnh). Năm 1744, chúa Vũ Vương Nguyễn Phúc Khoát ban sắc dụ cải cách trang phục tại xứ Đàng Trong để phân định phong hóa với Đàng Ngoài, quy định thường phục cài khuy bên phải, nẹp cổ đứng. Đến triều vua Minh Mạng, qua các đợt cải cách trang phục quy mô lớn từ năm 1827 đến năm 1837, triều đình ban sắc lệnh thống nhất quy chế y phục từ Nam chí Bắc, chính thức đưa áo ngũ thân lập lĩnh trở thành thường phục chuẩn tắc của toàn dân. Cấu trúc năm thân gồm bốn thân lớn bên ngoài tượng trưng cho tứ thân phụ mẫu và một thân con (thân thứ năm) lót kín đáo bên trong che chắn ngực, đi cùng năm chiếc khuy tượng trưng cho ngũ thường (Nhân, Lễ, Nghĩa, Trí, Tín).",
+    "sourceName": "Sách nghiên cứu 'Ngàn năm áo mũ' (NXB Tri thức & Nhã Nam, 2013, ISBN 978-604-908-724-4)",
+    "sourceAuthor": "Trần Quang Đức",
+    "sourceUrl": "",
+    "sourceEvidence": "Chương V: 'Trang phục triều Nguyễn', tiểu mục 'Thường phục thế kỷ 18-19', trang 377-380, NXB Tri thức & Nhã Nam, Hà Nội, 2013; đối chiếu tư liệu Đại Nam thực lục tiền biên và Đại Nam thực lục chính biên.",
+    "status": "published",
+    "createdAt": "2026-09-28T00:00:00Z"
+  },
+  {
     "id": "card_ngu_than_tien_than",
     "slug": "ao-ngu-than-tien-than-ao-dai",
     "title": "Áo ngũ thân: Tiền thân cấu trúc của Áo dài hiện đại",
