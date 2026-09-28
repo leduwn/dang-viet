@@ -1,0 +1,16 @@
+[
+  { "hex": "#F8F5EE", "name": "Trắng sứ ngà", "family": "white" },
+  { "hex": "#FFFFFF", "name": "Trắng tinh khôi", "family": "white" },
+  { "hex": "#B83A24", "name": "Đỏ son hoàng gia", "family": "red" },
+  { "hex": "#D1495B", "name": "Đỏ thắm hoa đào", "family": "red" },
+  { "hex": "#E5A93C", "name": "Vàng hoàng yến", "family": "yellow" },
+  { "hex": "#F4D06F", "name": "Vàng mỡ gà", "family": "yellow" },
+  { "hex": "#1F4E5B", "name": "Xanh cố đô trầm", "family": "blue" },
+  { "hex": "#70A9A1", "name": "Xanh thiên thanh", "family": "blue" },
+  { "hex": "#2E8B7A", "name": "Xanh ngọc bích", "family": "green" },
+  { "hex": "#8EA604", "name": "Xanh cốm non", "family": "green" },
+  { "hex": "#E8A598", "name": "Hồng sen phấn", "family": "pink" },
+  { "hex": "#5D3A68", "name": "Tím huế trầm", "family": "purple" },
+  { "hex": "#6E473B", "name": "Nâu đất phù sa", "family": "neutral" },
+  { "hex": "#1E1B18", "name": "Đen tuyền dạ hội", "family": "black" }
+]

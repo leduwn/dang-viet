@@ -1,0 +1,206 @@
+[
+  {
+    "id": "preset_ky_yeu_thanh_xuan",
+    "title": "Thanh xuân trắng sứ",
+    "eventId": "ky_yeu",
+    "styleId": "thanh_lich",
+    "config": {
+      "garmentType": "aodai",
+      "primaryColor": { "hex": "#F8F5EE", "name": "Trắng sứ ngà", "family": "white" },
+      "pantsColor": { "hex": "#FFFFFF", "name": "Trắng tinh khôi", "family": "white" },
+      "collarStyle": "traditional_high",
+      "sleeveStyle": "traditional_long",
+      "fabric": "silk_ha_dong",
+      "pattern": "lotus",
+      "accessories": ["chuoi_ngoc", "non_la"]
+    },
+    "explanation": "Tôn vinh vẻ đẹp trong sáng của nữ sinh Việt Nam với sắc trắng sứ ngà dệt lụa Vạn Phúc, kết hợp nón lá Bài thơ duyên dáng và chuỗi ngọc trai thanh lịch chuẩn mực."
+  },
+  {
+    "id": "preset_ky_yeu_thien_thanh",
+    "title": "Sớm mai Thiên thanh",
+    "eventId": "ky_yeu",
+    "styleId": "tuoi_tre",
+    "config": {
+      "garmentType": "aodai",
+      "primaryColor": { "hex": "#70A9A1", "name": "Xanh thiên thanh", "family": "blue" },
+      "pantsColor": { "hex": "#F8F5EE", "name": "Trắng sứ ngà", "family": "white" },
+      "collarStyle": "boat",
+      "sleeveStyle": "raglan",
+      "fabric": "voile_chiffon",
+      "pattern": "plain",
+      "accessories": ["quat_xep", "tui_coi"]
+    },
+    "explanation": "Sắc xanh da trời buổi sớm tạo cảm giác tươi mới, tà áo voan bay bổng cùng tay raglan ôm vai, điểm xuyết quạt lụa và túi cói mộc mạc."
+  },
+  {
+    "id": "preset_ky_yeu_tinh_gian",
+    "title": "Kỷ yếu Tinh giản",
+    "eventId": "ky_yeu",
+    "styleId": "toi_gian",
+    "config": {
+      "garmentType": "aodai",
+      "primaryColor": { "hex": "#FFFFFF", "name": "Trắng tinh khôi", "family": "white" },
+      "pantsColor": { "hex": "#1E1B18", "name": "Đen tuyền dạ hội", "family": "black" },
+      "collarStyle": "round",
+      "sleeveStyle": "traditional_long",
+      "fabric": "linen_modern",
+      "pattern": "plain",
+      "accessories": ["non_la"]
+    },
+    "explanation": "Áo dài trắng phối quần đen mang nét đẹp cổ điển đầu thế kỷ 20, chất liệu đũi tự nhiên tạo phom rủ tự nhiên, không phô trương nhưng ấn tượng sâu lắng."
+  },
+  {
+    "id": "preset_ky_yeu_hong_sen",
+    "title": "Hồng phấn Nữ sinh",
+    "eventId": "ky_yeu",
+    "styleId": "tuoi_tre",
+    "config": {
+      "garmentType": "aodai",
+      "primaryColor": { "hex": "#E8A598", "name": "Hồng sen phấn", "family": "pink" },
+      "pantsColor": { "hex": "#F8F5EE", "name": "Trắng sứ ngà", "family": "white" },
+      "collarStyle": "round",
+      "sleeveStyle": "elbow",
+      "fabric": "silk_ha_dong",
+      "pattern": "plain",
+      "accessories": ["chuoi_ngoc", "tui_coi"]
+    },
+    "explanation": "Sắc hồng sen phấn ngọt ngào phù hợp không gian chụp ảnh sân trường, tay lửng tiện cử động tạo vẻ ngoài rạng ngời và tràn đầy sức sống."
+  },
+  {
+    "id": "preset_tet_son_do",
+    "title": "Son Đỏ Khai Xuân",
+    "eventId": "choi_tet",
+    "styleId": "thanh_lich",
+    "config": {
+      "garmentType": "aodai",
+      "primaryColor": { "hex": "#B83A24", "name": "Đỏ son hoàng gia", "family": "red" },
+      "pantsColor": { "hex": "#E5A93C", "name": "Vàng hoàng yến", "family": "yellow" },
+      "collarStyle": "traditional_high",
+      "sleeveStyle": "traditional_long",
+      "fabric": "brocade_hue",
+      "pattern": "cloud",
+      "accessories": ["man_truyen_thong", "quat_xep"]
+    },
+    "explanation": "Sắc đỏ son phối vàng hoàng yến là bảng màu kinh điển ngày Tết Việt, chất gấm Huế dệt vân mây cát tường đem lại phúc khí và vận may trọn năm."
+  },
+  {
+    "id": "preset_tet_hoang_yen",
+    "title": "Hoàng Yến Đón Lộc",
+    "eventId": "choi_tet",
+    "styleId": "tuoi_tre",
+    "config": {
+      "garmentType": "aodai",
+      "primaryColor": { "hex": "#E5A93C", "name": "Vàng hoàng yến", "family": "yellow" },
+      "pantsColor": { "hex": "#F8F5EE", "name": "Trắng sứ ngà", "family": "white" },
+      "collarStyle": "boat",
+      "sleeveStyle": "elbow",
+      "fabric": "silk_ha_dong",
+      "pattern": "crane",
+      "accessories": ["quat_xep", "tui_coi"]
+    },
+    "explanation": "Màu vàng của hoa mai phương Nam tượng trưng cho thịnh vượng, họa tiết hạc bay thanh thoát cùng tay lửng năng động khi du xuân chúc Tết."
+  },
+  {
+    "id": "preset_tet_ngoc_bich",
+    "title": "Ngọc Bích Du Xuân",
+    "eventId": "choi_tet",
+    "styleId": "thanh_lich",
+    "config": {
+      "garmentType": "aodai",
+      "primaryColor": { "hex": "#2E8B7A", "name": "Xanh ngọc bích", "family": "green" },
+      "pantsColor": { "hex": "#F8F5EE", "name": "Trắng sứ ngà", "family": "white" },
+      "collarStyle": "traditional_high",
+      "sleeveStyle": "raglan",
+      "fabric": "brocade_hue",
+      "pattern": "lotus",
+      "accessories": ["man_truyen_thong", "chuoi_ngoc"]
+    },
+    "explanation": "Màu ngọc bích sang trọng mát lành, mang hàm ý bình an, kết hợp mấn đội đầu và chuỗi ngọc tạo nên diện mạo quý phái khi đi lễ chùa đầu năm."
+  },
+  {
+    "id": "preset_tet_co_do",
+    "title": "Cố Đô Tự Tại",
+    "eventId": "choi_tet",
+    "styleId": "toi_gian",
+    "config": {
+      "garmentType": "aodai",
+      "primaryColor": { "hex": "#1F4E5B", "name": "Xanh cố đô trầm", "family": "blue" },
+      "pantsColor": { "hex": "#1E1B18", "name": "Đen tuyền dạ hội", "family": "black" },
+      "collarStyle": "round",
+      "sleeveStyle": "traditional_long",
+      "fabric": "linen_modern",
+      "pattern": "plain",
+      "accessories": ["tui_coi", "guoc_moc"]
+    },
+    "explanation": "Dành cho những bạn trẻ yêu vẻ đẹp tĩnh lặng, sắc xanh trầm phối quần đen mang chiều sâu mỹ thuật, tôn vinh nét tự tại khoan thai ngày xuân."
+  },
+  {
+    "id": "preset_le_hoi_lam_di_san",
+    "title": "Sắc Lam Di Sản",
+    "eventId": "ngay_hoi_truong",
+    "styleId": "thanh_lich",
+    "config": {
+      "garmentType": "aodai",
+      "primaryColor": { "hex": "#1F4E5B", "name": "Xanh cố đô trầm", "family": "blue" },
+      "pantsColor": { "hex": "#F4D06F", "name": "Vàng mỡ gà", "family": "yellow" },
+      "collarStyle": "traditional_high",
+      "sleeveStyle": "traditional_long",
+      "fabric": "brocade_hue",
+      "pattern": "cloud",
+      "accessories": ["man_truyen_thong", "quat_xep"]
+    },
+    "explanation": "Sự kết hợp vương giả giữa xanh cố đô và vàng mỡ gà, mô phỏng trang phục dạ yến triều đình xưa, vô cùng nổi bật khi trình diễn văn hóa."
+  },
+  {
+    "id": "preset_le_hoi_gen_z_remix",
+    "title": "Gen Z Remix Kỷ Hà",
+    "eventId": "ngay_hoi_truong",
+    "styleId": "tuoi_tre",
+    "config": {
+      "garmentType": "aodai",
+      "primaryColor": { "hex": "#2E8B7A", "name": "Xanh ngọc bích", "family": "green" },
+      "pantsColor": { "hex": "#E8A598", "name": "Hồng sen phấn", "family": "pink" },
+      "collarStyle": "v_neck",
+      "sleeveStyle": "slit",
+      "fabric": "voile_chiffon",
+      "pattern": "geometric_genz",
+      "accessories": ["quat_xep", "tui_coi"]
+    },
+    "explanation": "Đột phá phong cách với bảng màu color-block tương phản xanh ngọc và hồng phấn, cổ chữ V cùng tà tay xẻ tạo nhịp chuyển động phá cách đầy tự tin."
+  },
+  {
+    "id": "preset_le_hoi_dat_phu_sa",
+    "title": "Đất Phù Sa Mộc",
+    "eventId": "ngay_hoi_truong",
+    "styleId": "toi_gian",
+    "config": {
+      "garmentType": "aodai",
+      "primaryColor": { "hex": "#6E473B", "name": "Nâu đất phù sa", "family": "neutral" },
+      "pantsColor": { "hex": "#F8F5EE", "name": "Trắng sứ ngà", "family": "white" },
+      "collarStyle": "round",
+      "sleeveStyle": "elbow",
+      "fabric": "linen_modern",
+      "pattern": "plain",
+      "accessories": ["tui_coi", "guoc_moc"]
+    },
+    "explanation": "Tông nâu mộc gắn với văn hóa dân gian đồng bằng Bắc Bộ và Nam Bộ, kết hợp guốc mộc và túi cói tôn vinh vẻ đẹp nguồn cội chất phác."
+  },
+  {
+    "id": "preset_le_hoi_tim_hue",
+    "title": "Tím Huế Hoàng Hôn",
+    "eventId": "ngay_hoi_truong",
+    "styleId": "thanh_lich",
+    "config": {
+      "garmentType": "aodai",
+      "primaryColor": { "hex": "#5D3A68", "name": "Tím huế trầm", "family": "purple" },
+      "pantsColor": { "hex": "#FFFFFF", "name": "Trắng tinh khôi", "family": "white" },
+      "collarStyle": "traditional_high",
+      "sleeveStyle": "traditional_long",
+      "fabric": "silk_ha_dong",
+      "pattern": "lotus",
+      "accessories": ["chuoi_ngoc", "non_la"]
+    },
+    "explanation": "Sắc tím mực xứ Huế trứ danh, biểu tượng cho lòng thủy chung son sắt và nét e ấp duyên thầm, kết hợp chuỗi ngọc và nón bài thơ tạo dấu ấn văn hóa sâu đậm."
+  }
+]

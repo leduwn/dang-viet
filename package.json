@@ -1,0 +1,28 @@
+{
+  "name": "dang-viet",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Dáng Việt - Khám phá Việt phục, tạo nên dáng riêng",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "doctor": "node scripts/doctor.mjs",
+    "setup": "node scripts/setup.mjs",
+    "dev:server": "npm --workspace=@dangviet/server run dev",
+    "dev:web": "npm --workspace=@dangviet/web run dev",
+    "dev": "concurrently -n \"server,web\" -c \"blue,green\" \"npm run dev:server\" \"npm run dev:web\"",
+    "build:packages": "npm --workspace=@dangviet/contracts run build && npm --workspace=@dangviet/domain run build",
+    "build": "npm run build:packages && npm --workspace=@dangviet/server run build && npm --workspace=@dangviet/web run build",
+    "check": "npm --workspace=@dangviet/contracts run check && npm --workspace=@dangviet/domain run check && npm --workspace=@dangviet/server run check && npm --workspace=@dangviet/web run check",
+    "start": "node apps/server/dist/index.js",
+    "backup": "node scripts/backup.mjs",
+    "restore": "node scripts/restore.mjs",
+    "test": "node scripts/test-flow.mjs"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "typescript": "^5.6.2"
+  }
+}

@@ -1,0 +1,20 @@
+[
+  {
+    "id": "thanh_lich",
+    "name": "Thanh lịch",
+    "tagline": "Trang nhã, tôn dáng và phảng phất nét cổ điển cung đình",
+    "description": "Ưu tiên tỷ lệ hài hòa, cổ cao truyền thống hoặc cổ tròn kín đáo, chất liệu lụa tơ tằm mềm mại, phụ kiện chuẩn mực như mấn lụa, chuỗi ngọc trai hoặc quạt xếp."
+  },
+  {
+    "id": "tuoi_tre",
+    "name": "Tươi trẻ",
+    "tagline": "Năng động Gen Z, phối màu tương phản ngẫu hứng và phụ kiện cá tính",
+    "description": "Thử nghiệm tay áo lửng/tay xẻ, gam màu rực rỡ hoặc pastel tươi mới, kết hợp túi cói đan mây, kính râm thời trang hoặc nón lá mini vẽ tay."
+  },
+  {
+    "id": "toi_gian",
+    "name": "Tối giản",
+    "tagline": "Đường nét khúc chiết, sắc màu đơn sắc mộc mạc và phụ kiện tinh gọn",
+    "description": "Tập trung vào phom dáng áo dài thuần khiết, vải đũi tự nhiên hoặc lụa trơn không hoa văn cầu kỳ, tạo cảm giác an tĩnh và tự tại."
+  }
+]

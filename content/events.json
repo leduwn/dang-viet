@@ -1,0 +1,26 @@
+[
+  {
+    "id": "ky_yeu",
+    "name": "Chụp ảnh kỷ yếu",
+    "description": "Lưu giữ khoảnh khắc thanh xuân học đường, thanh thuần, trang trọng nhưng vẫn tươi tắn và năng động.",
+    "culturalContext": "Áo dài trắng nữ sinh bắt đầu phổ biến từ thập niên 1950-1960 tại trường Đồng Khánh, Gia Long, trở thành biểu tượng tinh khôi của tuổi học trò Việt Nam. Khi chụp kỷ yếu, trang phục thể hiện sự tiếp nối văn hóa giữa truyền thống và sự trưởng thành.",
+    "recommendedStyles": ["thanh_lich", "tuoi_tre", "toi_gian"],
+    "colorPalettes": ["Trắng tinh khôi", "Xanh pastel", "Hồng phấn"]
+  },
+  {
+    "id": "choi_tet",
+    "name": "Đi chơi Tết",
+    "description": "Dạo phố xuân, chúc Tết gia đình, lễ chùa đầu năm, mang năng lượng rực rỡ, may mắn và ấm cúng.",
+    "culturalContext": "Tết Nguyên Đán là thời khắc giao mùa, người Việt chuộng các sắc đỏ son, vàng hoàng yến, xanh ngọc bích biểu trưng cho phúc lộc, hưng thịnh và ước vọng năm mới an khang.",
+    "recommendedStyles": ["tuoi_tre", "thanh_lich"],
+    "colorPalettes": ["Đỏ son hoàng gia", "Vàng hoàng yến", "Xanh ngọc bích", "Hồng thắm"]
+  },
+  {
+    "id": "ngay_hoi_truong",
+    "name": "Ngày hội văn hóa ở trường",
+    "description": "Giao lưu văn hóa, trình diễn nghệ thuật học đường, thể hiện cá tính Gen Z tự tin kết nối di sản.",
+    "culturalContext": "Không gian lễ hội trường học khuyến khích sự thử nghiệm trang phục truyền thống mang hơi thở thời đại: phối màu tương phản, họa tiết cách điệu, phụ kiện đương đại.",
+    "recommendedStyles": ["tuoi_tre", "thanh_lich", "toi_gian"],
+    "colorPalettes": ["Xanh trầm cố đô", "Tím hoàng hôn", "Cam đất nung", "Xanh chàm"]
+  }
+]

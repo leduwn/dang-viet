@@ -1,0 +1,42 @@
+:root {
+  /* Palette - Định hướng thị giác Dáng Việt */
+  --bg-primary: #FAF8F5;        /* Trắng ngà tự nhiên */
+  --bg-surface: #FFFFFF;        /* Bề mặt thẻ trắng sáng */
+  --bg-subtle: #F3EFE9;         /* Nền phụ dịu mắt */
+  --bg-overlay: rgba(30, 27, 24, 0.4);
+
+  --text-primary: #1E1B18;      /* Chữ tối sắc nét */
+  --text-secondary: #544E49;    /* Chữ phụ */
+  --text-muted: #857E77;        /* Chữ mờ / chú thích */
+  --text-inverse: #FFFFFF;
+
+  --accent-red: #B83A24;        /* Đỏ son hoàng gia / gạch nung */
+  --accent-red-hover: #9E301D;
+  --accent-red-soft: #F9EBE8;
+
+  --accent-blue: #1F4E5B;       /* Xanh cố đô trầm */
+  --accent-blue-hover: #163B45;
+  --accent-blue-soft: #E8F0F2;
+
+  --accent-gold: #C28B2E;       /* Vàng hoàng yến cổ điển */
+  --accent-gold-soft: #FDF6E9;
+
+  --border-light: #EBE5DB;
+  --border-medium: #D8D0C3;
+  --border-focus: #B83A24;
+
+  --shadow-sm: 0 1px 3px rgba(30, 27, 24, 0.05);
+  --shadow-md: 0 4px 12px rgba(30, 27, 24, 0.08);
+  --shadow-lg: 0 12px 28px rgba(30, 27, 24, 0.12);
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-full: 9999px;
+
+  --font-serif: "Playfair Display", Georgia, serif;
+  --font-sans: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+
+  --transition-fast: 150ms ease;
+  --transition-normal: 250ms ease;
+}

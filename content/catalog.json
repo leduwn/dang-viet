@@ -1,0 +1,71 @@
+{
+  "collars": [
+    { "id": "traditional_high", "name": "Cổ cao truyền thống", "description": "Cao 3-4cm, kín đáo, chuẩn mực trang phục cổ điển" },
+    { "id": "round", "name": "Cổ tròn thanh thoát", "description": "Tạo cảm giác nhẹ nhõm, khoe đường xương quai xanh" },
+    { "id": "boat", "name": "Cổ thuyền kiêu sa", "description": "Mở rộng ngang vai, phóng khoáng và hiện đại" },
+    { "id": "v_neck", "name": "Cổ V cách tân", "description": "Tạo hiệu ứng thanh mảnh, phong cách Gen Z đương đại" }
+  ],
+  "sleeves": [
+    { "id": "traditional_long", "name": "Tay dài truyền thống", "description": "Dài chạm cổ tay, mềm mại ôm theo cánh tay" },
+    { "id": "raglan", "name": "Tay raglan kinh điển", "description": "Cắt nối từ cổ chéo xuống nách, phom áo chuẩn Sài Gòn thập niên 60" },
+    { "id": "elbow", "name": "Tay lửng tươi trẻ", "description": "Dài vừa qua khuỷu tay, năng động cho các hoạt động ngoài trời" },
+    { "id": "slit", "name": "Tay xẻ cách điệu", "description": "Tà tay xẻ tà nhẹ, tạo nhịp chuyển động bay bổng" }
+  ],
+  "fabrics": [
+    { "id": "silk_ha_dong", "name": "Lụa Vạn Phúc - Hà Đông", "description": "Mềm mại, óng ánh tự nhiên, thấm hút mồ hôi tốt, di sản dệt lụa hơn ngàn năm" },
+    { "id": "brocade_hue", "name": "Gấm hoa triều đình Huế", "description": "Dày dặn, hoa văn chìm nổi trang trọng, giữ dáng áo đứng chuẩn mực" },
+    { "id": "voile_chiffon", "name": "Tơ voan bồng bềnh", "description": "Bay bổng, nhẹ mát, tạo lớp chuyển màu trong trẻo khi đón gió" },
+    { "id": "linen_modern", "name": "Đũi tơ tự nhiên cách tân", "description": "Mộc mạc, thoáng khí, phong cách bền vững thân thiện môi trường" }
+  ],
+  "patterns": [
+    { "id": "plain", "name": "Vải trơn thuần khiết", "description": "Tôn trọn vẹn màu sắc tự nhiên và đường nét phom dáng" },
+    { "id": "lotus", "name": "Họa tiết Hoa sen", "description": "Biểu tượng thanh bạch, thuần khiết trong mỹ thuật cổ Việt" },
+    { "id": "cloud", "name": "Họa tiết Vân mây ngũ sắc", "description": "Mô phỏng áng mây triều Nguyễn, tượng trưng cho cát tường, bình an" },
+    { "id": "crane", "name": "Họa tiết Chim hạc phi thiên", "description": "Biểu trưng cho thanh cao, trường thọ và khát vọng vươn lên" },
+    { "id": "geometric_genz", "name": "Kỷ hà Gen Z Remix", "description": "Đường nét đồ họa đương đại phối cùng kết cấu hoa văn cổ" }
+  ],
+  "accessories": [
+    {
+      "id": "man_truyen_thong",
+      "name": "Mấn lụa đội đầu",
+      "category": "headwear",
+      "description": "Vấn tròn bọc vải lụa hoặc gấm, tôn đường nét khuôn mặt Việt",
+      "culturalNote": "Xuất phát từ khăn đóng/khăn vấn ngũ thân thời Nguyễn, sau được biến tấu thành mấn đội nhanh."
+    },
+    {
+      "id": "non_la",
+      "name": "Nón lá Bài thơ",
+      "category": "headwear",
+      "description": "Nón lá chằm tỉ mỉ từ lá cọ phơi sương, soi lên thấy cảnh trí và câu thơ ẩn",
+      "culturalNote": "Vật dụng che nắng mưa quen thuộc gắn liền tà áo dài trong thơ ca và hội họa."
+    },
+    {
+      "id": "chuoi_ngoc",
+      "name": "Chuỗi ngọc trai",
+      "category": "jewelry",
+      "description": "Vòng cổ hạt ngọc trắng ánh xà cừ, tạo điểm nhấn kiêu sa ở cổ áo",
+      "culturalNote": "Phụ kiện thanh lịch thịnh hành từ đầu thế kỷ 20 trong giới tân thời Hà Nội, Sài Gòn."
+    },
+    {
+      "id": "quat_xep",
+      "name": "Quạt xếp lụa tre",
+      "category": "handheld",
+      "description": "Nan tre vót nhẵn bọc lụa mỏng dệt thủ công làng Chàng Sơn",
+      "culturalNote": "Vật phẩm thanh tao dùng tạo duyên khi giao tiếp và chụp hình nghệ thuật."
+    },
+    {
+      "id": "tui_coi",
+      "name": "Túi cói đan mộc",
+      "category": "bag",
+      "description": "Túi sợi cói tự nhiên dệt tay từ Nga Sơn, phom tròn hoặc hộp mộc mạc",
+      "culturalNote": "Chi tiết kết nối thủ công mỹ nghệ truyền thống với lối sống bền vững của Gen Z."
+    },
+    {
+      "id": "guoc_moc",
+      "name": "Guốc mộc quai nhung",
+      "category": "footwear",
+      "description": "Đế gỗ tiện thủ công phủ sơn bóng, quai vải nhung êm ái",
+      "culturalNote": "Âm thanh tiếng guốc mộc gõ nhịp trên ngõ phố gắn liền ký ức văn hóa đô thị xưa."
+    }
+  ]
+}
