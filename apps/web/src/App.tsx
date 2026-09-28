@@ -37,36 +37,64 @@ export const App: React.FC = () => {
   const [compareData, setCompareData] = useState<{ lookA: any; lookB: any } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [viewingDesignTitle, setViewingDesignTitle] = useState<string | null>(null);
 
-  // Initialize data on mount
+  // Helper: Guard against stale responses overwriting newer displayed revision
+  const updateLookSafe = (newLook: Look) => {
+    setLook((prev) => {
+      if (!prev) return newLook;
+      if (newLook.revision < prev.revision) {
+        console.warn(`Bỏ qua phản hồi cũ: revision ${newLook.revision} < đang hiển thị ${prev.revision}`);
+        return prev;
+      }
+      return newLook;
+    });
+  };
+
+  // Initialize data on mount: Core data first, AI status decoupled
   useEffect(() => {
     async function init() {
       try {
         setIsLoading(true);
-        const [metaData, initialLook, cultureData, lookbookData, aiStat] = await Promise.all([
+        const [metaData, initialLook, cultureData, lookbookData] = await Promise.all([
           fetchMeta(),
           fetchLook('look_default_01'),
           fetchCultureCards('all'),
           fetchLookbook(),
-          fetchAIStatus(),
         ]);
 
         setMeta(metaData);
         setLook(initialLook);
         setCultureCards(cultureData);
         setLookbookItems(lookbookData);
-        setAiStatus(aiStat);
+        setIsLoading(false);
+
+        // Fetch AI status independently so AI slowness/offline never blocks the UI
+        fetchAIStatus()
+          .then((stat) => setAiStatus(stat))
+          .catch((aiErr) => {
+            console.warn('AI status fetch warning:', aiErr);
+            setAiStatus({
+              configured: false,
+              endpointConnected: false,
+              modelVerified: false,
+              mode: 'mock',
+              provider: 'Offline / Không kết nối',
+              model: 'dangviet-rules-v1',
+              capabilities: { textChat: true, structuredCommands: true, imageGen: false },
+              message: 'Không thể kết nối dịch vụ AI. Đang chạy Chế độ mô phỏng an toàn.',
+            });
+          });
       } catch (err: any) {
         console.error('Initialization error:', err);
         setLoadError(err.message || 'Không thể kết nối đến máy chủ API Dáng Việt');
-      } finally {
         setIsLoading(false);
       }
     }
     init();
   }, []);
 
-  // 1. Dispatch Command with revision verification
+  // 1. Dispatch Command with revision verification & conflict recovery
   const handleDispatchCommand = async (action: CommandAction, payload: any) => {
     if (!look) return;
     const commandId = crypto.randomUUID();
@@ -81,13 +109,30 @@ export const App: React.FC = () => {
 
     try {
       const result = await sendCommand(command);
-      setLook(result.look);
+      updateLookSafe(result.look);
+
+      // Manage viewing design title state
+      if (action === 'APPLY_DESIGN') {
+        setViewingDesignTitle(payload.title || 'Thiết kế');
+      } else if (action === 'RESET_OUTFIT') {
+        setViewingDesignTitle(null);
+      } else {
+        setViewingDesignTitle((prev) => {
+          if (!prev) return null;
+          if (!prev.includes('(đã chỉnh sửa)')) return `${prev} (đã chỉnh sửa)`;
+          return prev;
+        });
+      }
     } catch (err: any) {
       console.error('Command error:', err);
-      if (err.status === 409 || err.code === 'REVISION_CONFLICT') {
-        alert(`Xung đột phiên bản: Trạng thái trên giao diện (v${look.revision}) không khớp với phiên bản máy chủ. Đang tự động tải lại phiên bản mới nhất...`);
+      if (err.status === 409) {
         const freshLook = await fetchLook(look.id);
-        setLook(freshLook);
+        updateLookSafe(freshLook);
+        if (err.code === 'DUPLICATE_COMMAND_ID') {
+          alert('Lệnh đã được ghi nhận trước đó (DUPLICATE_COMMAND_ID). Đã đồng bộ lại trạng thái mới nhất.');
+        } else {
+          alert(`Xung đột phiên bản (REVISION_CONFLICT): Trạng thái trên giao diện không khớp với máy chủ. Đã tự động tải lại phiên bản v${freshLook.revision}.`);
+        }
       } else {
         alert(`Lỗi thực hiện lệnh: ${err.message}`);
       }
@@ -99,11 +144,12 @@ export const App: React.FC = () => {
     if (!look) return;
     try {
       const res = await undoLook(look.id);
-      setLook(res.look);
+      updateLookSafe(res.look);
+      setViewingDesignTitle((prev) => (prev ? `${prev} (đã hoàn tác)` : null));
     } catch (err: any) {
       alert(`Lỗi hoàn tác: ${err.message}`);
       const freshLook = await fetchLook(look.id);
-      setLook(freshLook);
+      updateLookSafe(freshLook);
     }
   };
 
@@ -129,40 +175,58 @@ export const App: React.FC = () => {
 
     try {
       await saveToLookbook(newItem);
-      const updated = await fetchLookbook();
-      setLookbookItems(updated);
-      alert('Đã lưu thành công bộ phối vào Lookbook!');
+      try {
+        const updated = await fetchLookbook();
+        setLookbookItems(updated);
+        alert('Đã lưu thành công bộ phối vào Lookbook!');
+      } catch (refetchErr: any) {
+        console.error('Refetch lookbook error:', refetchErr);
+        alert('Đã lưu thành công bộ phối vào cơ sở dữ liệu, nhưng chưa thể làm mới danh sách hiển thị. Vui lòng tải lại trang.');
+      }
     } catch (err: any) {
       alert(`Lỗi lưu Lookbook: ${err.message}`);
+      throw err;
     }
   };
 
-  // 5. Ask AI with Command Execution Loop
-  const handleAskAI = async (message: string) => {
+  // 5. Ask AI with Command Execution Loop & strict sequential failure reporting
+  const handleAskAI = async (message: string, history: Array<{ role: 'user' | 'assistant'; content: string }>) => {
     if (!look) throw new Error('Chưa tải bộ phối');
-    const res = await sendAIChat(look.id, message, []);
+    const res = await sendAIChat(look.id, message, history);
 
-    // If AI generated valid commands, dispatch them sequentially!
+    let commandsStatus: 'none' | 'planned' | 'all_applied' | 'partially_applied' | 'failed' = 'none';
+
     if (res.commands && res.commands.length > 0) {
-      let currentRev = look.revision;
-      let updatedLook = look;
+      commandsStatus = 'planned';
+      const totalCmds = res.commands.length;
+      let appliedCount = 0;
 
-      try {
-        for (const cmd of res.commands) {
-          cmd.expectedRevision = currentRev;
+      for (let i = 0; i < totalCmds; i++) {
+        const cmd = res.commands[i];
+        try {
+          // Do NOT mutate cmd.expectedRevision! Keep exact planned revision from server
           const cmdRes = await sendCommand(cmd);
-          updatedLook = cmdRes.look;
-          currentRev = cmdRes.newRevision;
+          updateLookSafe(cmdRes.look);
+          appliedCount++;
+        } catch (err: any) {
+          console.error(`AI plan command ${i + 1}/${totalCmds} failed:`, err);
+          if (appliedCount > 0) {
+            commandsStatus = 'partially_applied';
+            alert(`Chỉ áp dụng thành công ${appliedCount}/${totalCmds} lệnh từ AI. Lỗi tại lệnh thứ ${i + 1}: ${err.message}`);
+          } else {
+            commandsStatus = 'failed';
+            alert(`Không thể áp dụng lệnh từ AI (0/${totalCmds}): ${err.message}`);
+          }
+          if (err.status === 409) {
+            const freshLook = await fetchLook(look.id);
+            updateLookSafe(freshLook);
+          }
+          break; // Stop execution loop on first failure
         }
-        setLook(updatedLook);
-      } catch (err: any) {
-        if (err.status === 409 || err.code === 'REVISION_CONFLICT') {
-          alert(`Lệnh do AI đề xuất bị hủy do xung đột phiên bản. Đang đồng bộ lại trạng thái mới nhất từ máy chủ...`);
-          const freshLook = await fetchLook(look.id);
-          setLook(freshLook);
-        } else {
-          alert(`Không thể áp dụng lệnh từ AI: ${err.message}`);
-        }
+      }
+
+      if (appliedCount === totalCmds) {
+        commandsStatus = 'all_applied';
       }
     }
 
@@ -170,14 +234,21 @@ export const App: React.FC = () => {
       reply: res.reply,
       explanation: res.explanation,
       citations: res.citations,
+      mode: res.mode,
+      model: res.model,
+      commandsStatus,
     };
   };
 
   // 6. Delete Lookbook item
   const handleDeleteLookbookItem = async (id: string) => {
     if (!window.confirm('Bạn có chắc muốn xóa bộ phối này khỏi Lookbook?')) return;
-    await deleteFromLookbook(id);
-    setLookbookItems((prev) => prev.filter((x) => x.id !== id));
+    try {
+      await deleteFromLookbook(id);
+      setLookbookItems((prev) => prev.filter((x) => x.id !== id));
+    } catch (err: any) {
+      alert(`Lỗi khi xóa mục Lookbook: ${err.message}`);
+    }
   };
 
   // 7. Open Compare Modal for two presets or looks
@@ -258,6 +329,7 @@ export const App: React.FC = () => {
             onOpenCompare={handleOpenStudioCompare}
             onAskAI={handleAskAI}
             isLoading={false}
+            viewingDesignTitle={viewingDesignTitle}
           />
         )}
 
@@ -268,25 +340,36 @@ export const App: React.FC = () => {
             onRequestDesign={async (prompt, eventId, styleId) => {
               return requestAIDesign({ prompt, eventId: eventId as any, styleId: styleId as any, baseLookId: look.id });
             }}
-            onSaveDesignToLookbook={async (title, config, explanation) => {
+            onSaveDesignToLookbook={async (title, config, explanation, eventId, styleId) => {
               const newItem: LookbookItem = {
                 id: `lookbook_design_${Date.now()}`,
                 title,
                 lookId: look.id,
                 revision: look.revision,
                 snapshotConfig: config,
-                eventId: look.eventId,
-                styleId: look.styleId,
+                eventId: (eventId || look.eventId) as any,
+                styleId: (styleId || look.styleId) as any,
                 notes: explanation,
                 createdAt: new Date().toISOString(),
               };
               await saveToLookbook(newItem);
-              const updated = await fetchLookbook();
-              setLookbookItems(updated);
+              try {
+                const updated = await fetchLookbook();
+                setLookbookItems(updated);
+              } catch (refetchErr) {
+                console.error('Refetch lookbook failed:', refetchErr);
+                throw new Error('Đã lưu thiết kế vào cơ sở dữ liệu nhưng chưa thể làm mới danh sách Lookbook');
+              }
             }}
-            onApplyToStudio={(config, title, explanation) => {
+            onApplyToStudio={(config, title, explanation, eventId, styleId) => {
               setCurrentTab('studio');
-              handleDispatchCommand('APPLY_DESIGN', { config, title, explanation });
+              handleDispatchCommand('APPLY_DESIGN', {
+                config,
+                title,
+                explanation,
+                eventId: eventId as any,
+                styleId: styleId as any,
+              });
             }}
           />
         )}
@@ -300,6 +383,8 @@ export const App: React.FC = () => {
                 config: item.snapshotConfig,
                 title: item.title,
                 explanation: item.notes,
+                eventId: item.eventId,
+                styleId: item.styleId,
               });
             }}
             onDeleteItem={handleDeleteLookbookItem}

@@ -6,4 +6,7 @@ build/
 *.log
 data/
 backups/
+restored/
+*-scratch/
+.staging_*
 .DS_Store

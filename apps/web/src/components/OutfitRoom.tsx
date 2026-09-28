@@ -31,8 +31,12 @@ interface OutfitRoomProps {
   onReset: () => Promise<void>;
   onSaveLookbook: () => Promise<void>;
   onOpenCompare: () => void;
-  onAskAI: (message: string) => Promise<{ reply: string; explanation?: string; citations?: any[] }>;
+  onAskAI: (
+    message: string,
+    history: Array<{ role: 'user' | 'assistant'; content: string }>
+  ) => Promise<{ reply: string; explanation?: string; citations?: any[]; mode: 'mock' | 'live'; model: string; commandsStatus?: string }>;
   isLoading: boolean;
+  viewingDesignTitle?: string | null;
 }
 
 export const OutfitRoom: React.FC<OutfitRoomProps> = ({
@@ -48,15 +52,29 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
   onOpenCompare,
   onAskAI,
   isLoading,
+  viewingDesignTitle,
 }) => {
   const [chatInput, setChatInput] = useState('');
-  const [chatHistory, setChatHistory] = useState<Array<{ role: 'user' | 'assistant'; text: string; citations?: any[] }>>([
+  const [chatHistory, setChatHistory] = useState<
+    Array<{
+      role: 'user' | 'assistant';
+      text: string;
+      citations?: any[];
+      mode?: 'mock' | 'live';
+      model?: string;
+      commandsStatus?: string;
+    }>
+  >([
     {
       role: 'assistant',
       text: 'Xin chào! Mình là trợ lý Dáng Việt. Bạn có thể nói những yêu cầu như "Đổi quần sang màu trắng", "Thêm nón lá", "Phối cho mình bộ đi chơi Tết", hoặc "Giải thích nguồn gốc tay raglan" nhé!',
+      mode: 'mock',
+      model: 'dangviet-rules-v1',
     },
   ]);
   const [isAiThinking, setIsAiThinking] = useState(false);
+  const [isMutating, setIsMutating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [notification, setNotification] = useState<string | null>(null);
   const [mobileTab, setMobileTab] = useState<'customize' | 'ai'>('customize');
 
@@ -65,30 +83,70 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
     setTimeout(() => setNotification(null), 3000);
   };
 
+  const handleCommand = async (action: CommandAction, payload: any) => {
+    if (isMutating || isLoading) return;
+    setIsMutating(true);
+    try {
+      await onDispatchCommand(action, payload);
+    } finally {
+      setIsMutating(false);
+    }
+  };
+
   const handleToggleLock = async (field: keyof LockState) => {
-    await onDispatchCommand('TOGGLE_LOCK', { field });
-    showNotification(look.locks[field] ? `Đã mở khóa ${field}` : `Đã khóa ${field}`);
+    if (isMutating || isLoading) return;
+    setIsMutating(true);
+    try {
+      await onDispatchCommand('TOGGLE_LOCK', { field });
+      showNotification(look.locks[field] ? `Đã mở khóa ${field}` : `Đã khóa ${field}`);
+    } finally {
+      setIsMutating(false);
+    }
+  };
+
+  const handleSaveLookbookAction = async () => {
+    if (isSaving || isMutating || isLoading) return;
+    setIsSaving(true);
+    try {
+      await onSaveLookbook();
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleSendChat = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!chatInput.trim() || isAiThinking) return;
+    if (!chatInput.trim() || isAiThinking || isMutating) return;
 
     const userMsg = chatInput.trim();
     setChatInput('');
-    setChatHistory((prev) => [...prev, { role: 'user', text: userMsg }]);
+    const nextHistory = [...chatHistory, { role: 'user' as const, text: userMsg }];
+    setChatHistory(nextHistory);
     setIsAiThinking(true);
 
+    // Send actual session history to server (only user/assistant roles)
+    const historyPayload = nextHistory.slice(-6).map((h) => ({
+      role: h.role,
+      content: h.text,
+    }));
+
     try {
-      const res = await onAskAI(userMsg);
+      const res = await onAskAI(userMsg, historyPayload);
       setChatHistory((prev) => [
         ...prev,
-        { role: 'assistant', text: res.reply, citations: res.citations },
+        {
+          role: 'assistant',
+          text: res.reply,
+          citations: res.citations,
+          mode: res.mode,
+          model: res.model,
+          commandsStatus: res.commandsStatus,
+        },
       ]);
     } catch (err: any) {
       setChatHistory((prev) => [
         ...prev,
-        { role: 'assistant', text: `Có lỗi xảy ra: ${err.message}` },
+        { role: 'assistant', text: `Có lỗi xảy ra: ${err.message}`, mode: 'mock', model: 'error' },
       ]);
     } finally {
       setIsAiThinking(false);
@@ -155,7 +213,8 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
               {events.map((ev) => (
                 <button
                   key={ev.id}
-                  onClick={() => onDispatchCommand('SET_EVENT', { eventId: ev.id })}
+                  disabled={isMutating || isLoading}
+                  onClick={() => handleCommand('SET_EVENT', { eventId: ev.id })}
                   style={{
                     padding: '0.65rem 0.85rem',
                     borderRadius: 'var(--radius-md)',
@@ -166,6 +225,8 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
                     textAlign: 'left',
                     fontSize: '0.88rem',
                     transition: 'all var(--transition-fast)',
+                    cursor: (isMutating || isLoading) ? 'not-allowed' : 'pointer',
+                    opacity: (isMutating || isLoading) ? 0.7 : 1,
                   }}
                 >
                   {ev.name}
@@ -191,7 +252,8 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
               {styles.map((st) => (
                 <button
                   key={st.id}
-                  onClick={() => onDispatchCommand('SET_STYLE', { styleId: st.id })}
+                  disabled={isMutating || isLoading}
+                  onClick={() => handleCommand('SET_STYLE', { styleId: st.id })}
                   style={{
                     padding: '0.6rem 0.3rem',
                     borderRadius: 'var(--radius-md)',
@@ -201,6 +263,8 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
                     fontWeight: look.styleId === st.id ? 700 : 500,
                     fontSize: '0.8rem',
                     textAlign: 'center',
+                    cursor: (isMutating || isLoading) ? 'not-allowed' : 'pointer',
+                    opacity: (isMutating || isLoading) ? 0.7 : 1,
                   }}
                 >
                   {st.name}
@@ -247,7 +311,7 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
           >
             <button
               onClick={onUndo}
-              disabled={look.revision <= 1 || isLoading}
+              disabled={look.revision <= 1 || isLoading || isMutating}
               style={{
                 padding: '0.6rem',
                 borderRadius: 'var(--radius-md)',
@@ -260,6 +324,7 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
                 justifyContent: 'center',
                 gap: '0.4rem',
                 border: '1px solid var(--border-light)',
+                cursor: (look.revision <= 1 || isLoading || isMutating) ? 'not-allowed' : 'pointer',
               }}
             >
               <RotateCcw size={15} />
@@ -268,7 +333,7 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
 
             <button
               onClick={onReset}
-              disabled={isLoading}
+              disabled={isLoading || isMutating}
               style={{
                 padding: '0.6rem',
                 borderRadius: 'var(--radius-md)',
@@ -281,6 +346,7 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
                 justifyContent: 'center',
                 gap: '0.4rem',
                 border: '1px solid var(--border-light)',
+                cursor: (isLoading || isMutating) ? 'not-allowed' : 'pointer',
               }}
             >
               <Sparkles size={15} />
@@ -288,11 +354,8 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
             </button>
 
             <button
-              onClick={async () => {
-                await onSaveLookbook();
-                showNotification('Đã lưu vào Lookbook thành công!');
-              }}
-              disabled={isLoading}
+              onClick={handleSaveLookbookAction}
+              disabled={isLoading || isMutating || isSaving}
               style={{
                 padding: '0.6rem',
                 borderRadius: 'var(--radius-md)',
@@ -304,14 +367,17 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '0.4rem',
+                opacity: isSaving ? 0.7 : 1,
+                cursor: (isLoading || isMutating || isSaving) ? 'not-allowed' : 'pointer',
               }}
             >
               <BookmarkPlus size={15} />
-              <span>Lưu Lookbook</span>
+              <span>{isSaving ? 'Đang lưu...' : 'Lưu Lookbook'}</span>
             </button>
 
             <button
               onClick={onOpenCompare}
+              disabled={isLoading || isMutating}
               style={{
                 padding: '0.6rem',
                 borderRadius: 'var(--radius-md)',
@@ -323,6 +389,7 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '0.4rem',
+                cursor: (isLoading || isMutating) ? 'not-allowed' : 'pointer',
               }}
             >
               <GitCompare size={15} />
@@ -357,6 +424,7 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
               display: 'flex',
               gap: '0.4rem',
               alignItems: 'center',
+              flexWrap: 'wrap',
             }}
           >
             <span
@@ -371,6 +439,22 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
             >
               {look.title}
             </span>
+
+            {viewingDesignTitle && (
+              <span
+                style={{
+                  padding: '0.2rem 0.65rem',
+                  borderRadius: 'var(--radius-full)',
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  background: 'var(--accent-blue-soft)',
+                  color: 'var(--accent-blue)',
+                  border: '1px solid var(--accent-blue)',
+                }}
+              >
+                Đang xem thiết kế: {viewingDesignTitle}
+              </span>
+            )}
           </div>
 
           {/* SVG Visualizer */}
@@ -455,11 +539,12 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '0.4rem' }}>
                 {colors.map((c) => {
                   const isSelected = look.config.primaryColor.hex.toLowerCase() === c.hex.toLowerCase();
+                  const isDisabled = look.locks.primaryColor || isMutating || isLoading;
                   return (
                     <button
                       key={c.hex}
-                      disabled={look.locks.primaryColor}
-                      onClick={() => onDispatchCommand('SET_PRIMARY_COLOR', { color: c })}
+                      disabled={isDisabled}
+                      onClick={() => handleCommand('SET_PRIMARY_COLOR', { color: c })}
                       title={c.name}
                       aria-label={`Chọn màu áo ${c.name}`}
                       style={{
@@ -469,8 +554,8 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
                         background: c.hex,
                         border: isSelected ? '3px solid var(--accent-red)' : '1px solid #D8D0C3',
                         boxShadow: isSelected ? '0 0 0 2px var(--bg-surface)' : 'none',
-                        cursor: look.locks.primaryColor ? 'not-allowed' : 'pointer',
-                        opacity: look.locks.primaryColor ? 0.6 : 1,
+                        cursor: isDisabled ? 'not-allowed' : 'pointer',
+                        opacity: isDisabled ? 0.5 : 1,
                         position: 'relative',
                         display: 'flex',
                         alignItems: 'center',
@@ -493,6 +578,7 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
                   Màu quần: <span style={{ color: 'var(--accent-blue)', fontWeight: 600 }}>{look.config.pantsColor.name}</span>
                 </label>
                 <button
+                  disabled={isMutating || isLoading}
                   onClick={() => handleToggleLock('pantsColor')}
                   title={look.locks.pantsColor ? 'Mở khóa màu quần' : 'Khóa màu quần'}
                   style={{
@@ -502,6 +588,7 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
                     fontSize: '0.72rem',
                     color: look.locks.pantsColor ? 'var(--accent-red)' : 'var(--text-muted)',
                     fontWeight: 600,
+                    cursor: (isMutating || isLoading) ? 'not-allowed' : 'pointer',
                   }}
                 >
                   {look.locks.pantsColor ? <Lock size={13} /> : <Unlock size={13} />}
@@ -512,11 +599,12 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '0.4rem' }}>
                 {colors.map((c) => {
                   const isSelected = look.config.pantsColor.hex.toLowerCase() === c.hex.toLowerCase();
+                  const isDisabled = look.locks.pantsColor || isMutating || isLoading;
                   return (
                     <button
                       key={c.hex}
-                      disabled={look.locks.pantsColor}
-                      onClick={() => onDispatchCommand('SET_PANTS_COLOR', { color: c })}
+                      disabled={isDisabled}
+                      onClick={() => handleCommand('SET_PANTS_COLOR', { color: c })}
                       title={c.name}
                       aria-label={`Chọn màu quần ${c.name}`}
                       style={{
@@ -526,8 +614,8 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
                         background: c.hex,
                         border: isSelected ? '3px solid var(--accent-blue)' : '1px solid #D8D0C3',
                         boxShadow: isSelected ? '0 0 0 2px var(--bg-surface)' : 'none',
-                        cursor: look.locks.pantsColor ? 'not-allowed' : 'pointer',
-                        opacity: look.locks.pantsColor ? 0.6 : 1,
+                        cursor: isDisabled ? 'not-allowed' : 'pointer',
+                        opacity: isDisabled ? 0.5 : 1,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -550,8 +638,8 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
                 </label>
                 <select
                   value={look.config.collarStyle}
-                  disabled={look.locks.collarStyle}
-                  onChange={(e) => onDispatchCommand('SET_COLLAR', { collarStyle: e.target.value })}
+                  disabled={look.locks.collarStyle || isMutating || isLoading}
+                  onChange={(e) => handleCommand('SET_COLLAR', { collarStyle: e.target.value })}
                   style={{
                     width: '100%',
                     padding: '0.45rem',
@@ -559,6 +647,7 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
                     border: '1px solid var(--border-medium)',
                     background: 'var(--bg-subtle)',
                     fontSize: '0.8rem',
+                    cursor: (look.locks.collarStyle || isMutating || isLoading) ? 'not-allowed' : 'pointer',
                   }}
                 >
                   {catalog.collars.map((col: any) => (
@@ -573,8 +662,8 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
                 </label>
                 <select
                   value={look.config.sleeveStyle}
-                  disabled={look.locks.sleeveStyle}
-                  onChange={(e) => onDispatchCommand('SET_SLEEVE', { sleeveStyle: e.target.value })}
+                  disabled={look.locks.sleeveStyle || isMutating || isLoading}
+                  onChange={(e) => handleCommand('SET_SLEEVE', { sleeveStyle: e.target.value })}
                   style={{
                     width: '100%',
                     padding: '0.45rem',
@@ -582,6 +671,7 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
                     border: '1px solid var(--border-medium)',
                     background: 'var(--bg-subtle)',
                     fontSize: '0.8rem',
+                    cursor: (look.locks.sleeveStyle || isMutating || isLoading) ? 'not-allowed' : 'pointer',
                   }}
                 >
                   {catalog.sleeves.map((slv: any) => (
@@ -599,8 +689,8 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
                 </label>
                 <select
                   value={look.config.fabric}
-                  disabled={look.locks.fabric}
-                  onChange={(e) => onDispatchCommand('SET_FABRIC', { fabric: e.target.value })}
+                  disabled={look.locks.fabric || isMutating || isLoading}
+                  onChange={(e) => handleCommand('SET_FABRIC', { fabric: e.target.value })}
                   style={{
                     width: '100%',
                     padding: '0.45rem',
@@ -608,6 +698,7 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
                     border: '1px solid var(--border-medium)',
                     background: 'var(--bg-subtle)',
                     fontSize: '0.8rem',
+                    cursor: (look.locks.fabric || isMutating || isLoading) ? 'not-allowed' : 'pointer',
                   }}
                 >
                   {catalog.fabrics.map((fab: any) => (
@@ -622,8 +713,8 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
                 </label>
                 <select
                   value={look.config.pattern}
-                  disabled={look.locks.pattern}
-                  onChange={(e) => onDispatchCommand('SET_PATTERN', { pattern: e.target.value })}
+                  disabled={look.locks.pattern || isMutating || isLoading}
+                  onChange={(e) => handleCommand('SET_PATTERN', { pattern: e.target.value })}
                   style={{
                     width: '100%',
                     padding: '0.45rem',
@@ -631,6 +722,7 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
                     border: '1px solid var(--border-medium)',
                     background: 'var(--bg-subtle)',
                     fontSize: '0.8rem',
+                    cursor: (look.locks.pattern || isMutating || isLoading) ? 'not-allowed' : 'pointer',
                   }}
                 >
                   {catalog.patterns.map((pat: any) => (
@@ -647,6 +739,7 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
                   Phụ kiện đi kèm ({accessoriesSet.size})
                 </label>
                 <button
+                  disabled={isMutating || isLoading}
                   onClick={() => handleToggleLock('accessories')}
                   style={{
                     display: 'flex',
@@ -655,6 +748,7 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
                     fontSize: '0.72rem',
                     color: look.locks.accessories ? 'var(--accent-red)' : 'var(--text-muted)',
                     fontWeight: 600,
+                    cursor: (isMutating || isLoading) ? 'not-allowed' : 'pointer',
                   }}
                 >
                   {look.locks.accessories ? <Lock size={13} /> : <Unlock size={13} />}
@@ -665,11 +759,12 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.4rem' }}>
                 {catalog.accessories.map((acc: any) => {
                   const isChecked = accessoriesSet.has(acc.id);
+                  const isDisabled = look.locks.accessories || isMutating || isLoading;
                   return (
                     <button
                       key={acc.id}
-                      disabled={look.locks.accessories}
-                      onClick={() => onDispatchCommand('TOGGLE_ACCESSORY', { accessoryId: acc.id })}
+                      disabled={isDisabled}
+                      onClick={() => handleCommand('TOGGLE_ACCESSORY', { accessoryId: acc.id })}
                       style={{
                         padding: '0.45rem 0.6rem',
                         borderRadius: 'var(--radius-sm)',
@@ -682,6 +777,8 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
+                        cursor: isDisabled ? 'not-allowed' : 'pointer',
+                        opacity: isDisabled ? 0.5 : 1,
                       }}
                     >
                       <span>{acc.name}</span>
@@ -741,6 +838,36 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
                     lineHeight: 1.45,
                   }}
                 >
+                  {item.role === 'assistant' && (
+                    <div style={{ display: 'flex', gap: '0.35rem', marginBottom: '0.3rem', flexWrap: 'wrap' }}>
+                      <span
+                        style={{
+                          fontSize: '0.68rem',
+                          padding: '0.1rem 0.4rem',
+                          borderRadius: 'var(--radius-full)',
+                          background: item.mode === 'live' ? 'var(--accent-blue-soft)' : 'var(--accent-red-soft)',
+                          color: item.mode === 'live' ? 'var(--accent-blue)' : 'var(--accent-red)',
+                          fontWeight: 700,
+                        }}
+                      >
+                        {item.mode === 'live' ? `[Live: ${item.model}]` : `[Mô phỏng: ${item.model || 'Mock'}]`}
+                      </span>
+                      {item.commandsStatus && item.commandsStatus !== 'none' && (
+                        <span
+                          style={{
+                            fontSize: '0.68rem',
+                            padding: '0.1rem 0.4rem',
+                            borderRadius: 'var(--radius-full)',
+                            background: item.commandsStatus === 'all_applied' ? '#E8F5E9' : item.commandsStatus === 'partially_applied' ? '#FFF3E0' : '#FFEBEE',
+                            color: item.commandsStatus === 'all_applied' ? '#2E7D32' : item.commandsStatus === 'partially_applied' ? '#E65100' : '#C62828',
+                            fontWeight: 600,
+                          }}
+                        >
+                          Lệnh: {item.commandsStatus === 'all_applied' ? 'Đã áp dụng toàn bộ' : item.commandsStatus === 'partially_applied' ? 'Áp dụng một phần' : item.commandsStatus === 'failed' ? 'Thất bại' : 'Đã lên kế hoạch'}
+                        </span>
+                      )}
+                    </div>
+                  )}
                   <p>{item.text}</p>
                   {item.citations && item.citations.length > 0 && (
                     <div

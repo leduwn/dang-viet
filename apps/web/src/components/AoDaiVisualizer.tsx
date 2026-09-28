@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useId } from 'react';
 import { type GarmentConfig, type AccessoryId } from '@dangviet/contracts';
 
 interface AoDaiVisualizerProps {
@@ -12,10 +12,14 @@ export const AoDaiVisualizer: React.FC<AoDaiVisualizerProps> = ({
   className = '',
   size = 'lg',
 }) => {
+  const rawId = useId();
+  const uid = rawId.replace(/[:]/g, '');
+
   const primaryHex = config.primaryColor?.hex || '#B83A24';
   const pantsHex = config.pantsColor?.hex || '#FFFFFF';
   const collar = config.collarStyle || 'traditional_high';
   const sleeve = config.sleeveStyle || 'traditional_long';
+  const fabric = config.fabric || 'silk_van_phuc';
   const pattern = config.pattern || 'plain';
   const accessories = new Set<AccessoryId>(config.accessories || []);
 
@@ -27,6 +31,9 @@ export const AoDaiVisualizer: React.FC<AoDaiVisualizerProps> = ({
     md: { width: 280, height: 500 },
     lg: { width: 380, height: 660 },
   }[size];
+
+  // Fabric-specific visual treatments
+  const fabricSheenOpacity = fabric === 'silk_ha_dong' ? 0.35 : fabric === 'voile_chiffon' ? 0.15 : fabric === 'brocade_hue' ? 0.28 : 0.08;
 
   return (
     <div
@@ -53,22 +60,35 @@ export const AoDaiVisualizer: React.FC<AoDaiVisualizerProps> = ({
       >
         <defs>
           {/* Subtle lighting gradient on silk */}
-          <linearGradient id="silkSheen" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.15" />
-            <stop offset="45%" stopColor="#FFFFFF" stopOpacity="0.0" />
-            <stop offset="70%" stopColor="#000000" stopOpacity="0.06" />
-            <stop offset="100%" stopColor="#000000" stopOpacity="0.14" />
+          <linearGradient id={`${uid}-silkSheen`} x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#FFFFFF" stopOpacity={fabricSheenOpacity} />
+            <stop offset="40%" stopColor="#FFFFFF" stopOpacity="0.0" />
+            <stop offset="75%" stopColor="#000000" stopOpacity="0.06" />
+            <stop offset="100%" stopColor="#000000" stopOpacity={fabric === 'brocade_hue' ? 0.28 : 0.14} />
           </linearGradient>
 
           {/* Pants shadow between legs */}
-          <linearGradient id="pantsFold" x1="0%" y1="0%" x2="100%" y2="0%">
+          <linearGradient id={`${uid}-pantsFold`} x1="0%" y1="0%" x2="100%" y2="0%">
             <stop offset="0%" stopColor="#000000" stopOpacity="0.0" />
             <stop offset="50%" stopColor="#000000" stopOpacity="0.08" />
             <stop offset="100%" stopColor="#000000" stopOpacity="0.0" />
           </linearGradient>
 
+          {/* Fabric Weave: Brocade Texture */}
+          <pattern id={`${uid}-fabric-brocade`} width="24" height="24" patternUnits="userSpaceOnUse">
+            <g fill="none" stroke="#D4AF37" strokeWidth="0.6" opacity="0.35">
+              <path d="M 0 12 L 12 0 L 24 12 L 12 24 Z" />
+              <circle cx="12" cy="12" r="2.5" fill="#D4AF37" fillOpacity="0.25" />
+            </g>
+          </pattern>
+
+          {/* Fabric Weave: Linen Texture */}
+          <pattern id={`${uid}-fabric-linen`} width="8" height="8" patternUnits="userSpaceOnUse">
+            <path d="M 0 2 L 8 2 M 2 0 L 2 8 M 0 6 L 8 6 M 6 0 L 6 8" stroke="#FFFFFF" strokeWidth="0.4" opacity="0.18" />
+          </pattern>
+
           {/* Pattern Def: Lotus */}
-          <pattern id="pattern-lotus" width="70" height="70" patternUnits="userSpaceOnUse">
+          <pattern id={`${uid}-pattern-lotus`} width="70" height="70" patternUnits="userSpaceOnUse">
             <g fill="none" stroke="#FFFFFF" strokeWidth="1.2" opacity="0.32">
               <path d="M 35 15 C 28 25, 20 35, 35 50 C 50 35, 42 25, 35 15 Z" />
               <path d="M 35 30 C 20 32, 15 42, 28 50" />
@@ -78,7 +98,7 @@ export const AoDaiVisualizer: React.FC<AoDaiVisualizerProps> = ({
           </pattern>
 
           {/* Pattern Def: Cloud */}
-          <pattern id="pattern-cloud" width="90" height="60" patternUnits="userSpaceOnUse">
+          <pattern id={`${uid}-pattern-cloud`} width="90" height="60" patternUnits="userSpaceOnUse">
             <g fill="none" stroke="#FFFFFF" strokeWidth="1.2" opacity="0.3">
               <path d="M 15 35 Q 25 15 45 25 Q 65 15 75 35 Q 85 45 65 50 L 25 50 Q 5 45 15 35 Z" />
               <path d="M 35 32 Q 45 28 55 35" />
@@ -86,7 +106,7 @@ export const AoDaiVisualizer: React.FC<AoDaiVisualizerProps> = ({
           </pattern>
 
           {/* Pattern Def: Crane */}
-          <pattern id="pattern-crane" width="100" height="100" patternUnits="userSpaceOnUse">
+          <pattern id={`${uid}-pattern-crane`} width="100" height="100" patternUnits="userSpaceOnUse">
             <g fill="none" stroke="#FFFFFF" strokeWidth="1.2" opacity="0.32">
               <path d="M 30 65 L 50 45 L 80 50 L 55 58 Z" />
               <path d="M 50 45 L 40 25 L 35 28 L 45 45" />
@@ -95,7 +115,7 @@ export const AoDaiVisualizer: React.FC<AoDaiVisualizerProps> = ({
           </pattern>
 
           {/* Pattern Def: Geometric Gen Z */}
-          <pattern id="pattern-geometric" width="50" height="50" patternUnits="userSpaceOnUse">
+          <pattern id={`${uid}-pattern-geometric`} width="50" height="50" patternUnits="userSpaceOnUse">
             <g fill="none" stroke="#FFFFFF" strokeWidth="1.2" opacity="0.3">
               <polygon points="25,5 45,25 25,45 5,25" />
               <circle cx="25" cy="25" r="5" />
@@ -103,17 +123,17 @@ export const AoDaiVisualizer: React.FC<AoDaiVisualizerProps> = ({
           </pattern>
 
           {/* Floor ground reflection */}
-          <radialGradient id="floorGlow" cx="50%" cy="50%" r="50%">
+          <radialGradient id={`${uid}-floorGlow`} cx="50%" cy="50%" r="50%">
             <stop offset="0%" stopColor="#1E1B18" stopOpacity="0.08" />
             <stop offset="100%" stopColor="#1E1B18" stopOpacity="0.0" />
           </radialGradient>
         </defs>
 
         {/* 1. Floor shadow / aura */}
-        <ellipse cx="200" cy="655" rx="120" ry="14" fill="url(#floorGlow)" />
+        <ellipse cx="200" cy="655" rx="120" ry="14" fill={`url(#${uid}-floorGlow)`} />
 
         {/* 2. LAYER QUẦN (SILK PANTS) */}
-        <g id="layer-pants">
+        <g id={`${uid}-layer-pants`}>
           {/* Left leg */}
           <path
             d="M 175 330
@@ -137,17 +157,17 @@ export const AoDaiVisualizer: React.FC<AoDaiVisualizerProps> = ({
           {/* Pants sheen and fold shading */}
           <path
             d="M 142 630 L 188 632 L 212 632 L 258 630 L 235 430 L 200 340 L 165 430 Z"
-            fill="url(#pantsFold)"
+            fill={`url(#${uid}-pantsFold)`}
           />
           <path
             d="M 142 630 L 188 632 L 212 632 L 258 630 L 235 430 L 200 340 L 165 430 Z"
-            fill="url(#silkSheen)"
+            fill={`url(#${uid}-silkSheen)`}
           />
         </g>
 
         {/* Footwear: Guốc mộc */}
         {hasAccessory('guoc_moc') && (
-          <g id="accessory-guoc-moc">
+          <g id={`${uid}-accessory-guoc-moc`}>
             {/* Left wooden shoe */}
             <path d="M 152 630 L 178 631 L 175 640 L 150 639 Z" fill="#8C533E" />
             <path d="M 154 628 Q 165 624 176 629" stroke="#1E1B18" strokeWidth="3" fill="none" />
@@ -158,19 +178,21 @@ export const AoDaiVisualizer: React.FC<AoDaiVisualizerProps> = ({
         )}
 
         {/* 3. LAYER TÀ SAU ÁO DÀI (BACK FLAP) */}
-        <g id="layer-back-flap">
+        <g id={`${uid}-layer-back-flap`}>
           <path
             d="M 168 280
                Q 148 420 140 605
                L 260 605
                Q 252 420 232 280 Z"
             fill={primaryHex}
-            style={{ filter: 'brightness(0.92)' }}
+            style={{
+              filter: fabric === 'voile_chiffon' ? 'brightness(0.96) opacity(0.92)' : 'brightness(0.92)',
+            }}
           />
         </g>
 
         {/* 4. SILHOUETTE NHÂN VẬT (BODY & FACE) */}
-        <g id="layer-character">
+        <g id={`${uid}-layer-character`}>
           {/* Neck */}
           <path d="M 188 120 L 188 150 L 212 150 L 212 120 Z" fill="#FCECE6" />
 
@@ -203,7 +225,7 @@ export const AoDaiVisualizer: React.FC<AoDaiVisualizerProps> = ({
         </g>
 
         {/* 5. LAYER TAY ÁO (SLEEVES) */}
-        <g id="layer-sleeves">
+        <g id={`${uid}-layer-sleeves`}>
           {sleeve === 'traditional_long' && (
             <>
               {/* Left long sleeve */}
@@ -271,7 +293,7 @@ export const AoDaiVisualizer: React.FC<AoDaiVisualizerProps> = ({
         </g>
 
         {/* 6. LAYER THÂN VÀ TÀ TRƯỚC ÁO DÀI (FRONT BODICE & FLAP) */}
-        <g id="layer-front-bodice-flap">
+        <g id={`${uid}-layer-front-bodice-flap`}>
           {/* Main front bodice and front flap with feminine contour */}
           <path
             d="M 172 150
@@ -285,36 +307,50 @@ export const AoDaiVisualizer: React.FC<AoDaiVisualizerProps> = ({
             fill={primaryHex}
           />
 
+          {/* Fabric specific weave texture */}
+          {fabric === 'brocade_hue' && (
+            <path
+              d="M 172 150 L 168 185 Q 166 225 174 275 Q 162 420 152 595 L 248 595 Q 238 420 226 275 Q 234 225 232 185 L 228 150 Z"
+              fill={`url(#${uid}-fabric-brocade)`}
+            />
+          )}
+          {fabric === 'linen_modern' && (
+            <path
+              d="M 172 150 L 168 185 Q 166 225 174 275 Q 162 420 152 595 L 248 595 Q 238 420 226 275 Q 234 225 232 185 L 228 150 Z"
+              fill={`url(#${uid}-fabric-linen)`}
+            />
+          )}
+
           {/* Pattern overlay if configured */}
           {pattern === 'lotus' && (
             <path
               d="M 172 150 L 168 185 Q 166 225 174 275 Q 162 420 152 595 L 248 595 Q 238 420 226 275 Q 234 225 232 185 L 228 150 Z"
-              fill="url(#pattern-lotus)"
+              fill={`url(#${uid}-pattern-lotus)`}
             />
           )}
           {pattern === 'cloud' && (
             <path
               d="M 172 150 L 168 185 Q 166 225 174 275 Q 162 420 152 595 L 248 595 Q 238 420 226 275 Q 234 225 232 185 L 228 150 Z"
-              fill="url(#pattern-cloud)"
+              fill={`url(#${uid}-pattern-cloud)`}
             />
           )}
           {pattern === 'crane' && (
             <path
               d="M 172 150 L 168 185 Q 166 225 174 275 Q 162 420 152 595 L 248 595 Q 238 420 226 275 Q 234 225 232 185 L 228 150 Z"
-              fill="url(#pattern-crane)"
+              fill={`url(#${uid}-pattern-crane)`}
             />
           )}
           {pattern === 'geometric_genz' && (
             <path
               d="M 172 150 L 168 185 Q 166 225 174 275 Q 162 420 152 595 L 248 595 Q 238 420 226 275 Q 234 225 232 185 L 228 150 Z"
-              fill="url(#pattern-geometric)"
+              fill={`url(#${uid}-pattern-geometric)`}
             />
           )}
 
           {/* Fabric sheen lighting */}
           <path
             d="M 172 150 L 168 185 Q 166 225 174 275 Q 162 420 152 595 L 248 595 Q 238 420 226 275 Q 234 225 232 185 L 228 150 Z"
-            fill="url(#silkSheen)"
+            fill={`url(#${uid}-silkSheen)`}
           />
 
           {/* Waist slit indication (đường xẻ tà eo) */}
@@ -327,7 +363,7 @@ export const AoDaiVisualizer: React.FC<AoDaiVisualizerProps> = ({
         </g>
 
         {/* 7. LAYER CỔ ÁO (COLLAR STYLES) */}
-        <g id="layer-collar">
+        <g id={`${uid}-layer-collar`}>
           {collar === 'traditional_high' && (
             <g>
               {/* Standup mandarin collar 3cm */}
@@ -378,7 +414,7 @@ export const AoDaiVisualizer: React.FC<AoDaiVisualizerProps> = ({
         {/* 8. LAYER PHỤ KIỆN (ACCESSORIES) */}
         {/* Chuỗi ngọc trai (Necklace) */}
         {hasAccessory('chuoi_ngoc') && (
-          <g id="accessory-chuoi-ngoc">
+          <g id={`${uid}-accessory-chuoi-ngoc`}>
             <path
               d="M 188 156 Q 200 180 212 156"
               stroke="#FFFDF5"
@@ -392,7 +428,7 @@ export const AoDaiVisualizer: React.FC<AoDaiVisualizerProps> = ({
 
         {/* Mấn đội đầu (Headwear Mấn) */}
         {hasAccessory('man_truyen_thong') && (
-          <g id="accessory-man">
+          <g id={`${uid}-accessory-man`}>
             {/* Silk coiled circlet over hair */}
             <ellipse
               cx="200"
@@ -410,7 +446,7 @@ export const AoDaiVisualizer: React.FC<AoDaiVisualizerProps> = ({
 
         {/* Nón lá Bài thơ */}
         {hasAccessory('non_la') && (
-          <g id="accessory-non-la" transform="translate(45, 10) rotate(10 200 200)">
+          <g id={`${uid}-accessory-non-la`} transform="translate(45, 10) rotate(10 200 200)">
             {/* Conical hat held elegantly near shoulder */}
             <polygon
               points="285,210 355,275 225,275"
@@ -429,7 +465,7 @@ export const AoDaiVisualizer: React.FC<AoDaiVisualizerProps> = ({
 
         {/* Quạt xếp lụa thêu tay (Silk Fan) */}
         {hasAccessory('quat_xep') && (
-          <g id="accessory-quat-xep" transform="translate(110, 275)">
+          <g id={`${uid}-accessory-quat-xep`} transform="translate(110, 275)">
             {/* Semi-open traditional silk fan in hand */}
             <path
               d="M 40 40 L 0 5 Q 35 -15 80 5 Z"
@@ -450,7 +486,7 @@ export const AoDaiVisualizer: React.FC<AoDaiVisualizerProps> = ({
 
         {/* Túi cói đan mộc (Woven Bag) */}
         {hasAccessory('tui_coi') && (
-          <g id="accessory-tui-coi" transform="translate(115, 320)">
+          <g id={`${uid}-accessory-tui-coi`} transform="translate(115, 320)">
             {/* Straps */}
             <path d="M 15 0 Q 25 -25 35 0" stroke="#8C6D53" strokeWidth="2" fill="none" />
             {/* Round straw bag */}

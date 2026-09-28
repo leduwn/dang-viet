@@ -1,9 +1,9 @@
-import 'dotenv/config';
 import fs from 'node:fs';
 import path from 'node:path';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import fastifyStatic from '@fastify/static';
+import { getAppConfig, validateRequiredPaths } from './config.js';
 import { healthRoutes } from './routes/health.js';
 import { metaRoutes } from './routes/meta.js';
 import { lookRoutes } from './routes/looks.js';
@@ -12,9 +12,17 @@ import { cultureRoutes } from './routes/culture.js';
 import { aiRoutes } from './routes/ai.js';
 import { getDb } from './db.js';
 
+const appConfig = getAppConfig();
+try {
+  validateRequiredPaths(appConfig);
+} catch (err: any) {
+  console.error('[FATAL] Lỗi cấu hình đường dẫn tài nguyên:', err.message);
+  process.exit(1);
+}
+
 const fastify = Fastify({
   logger: {
-    level: process.env.LOG_LEVEL || 'info',
+    level: appConfig.logLevel,
   },
 });
 
@@ -54,17 +62,9 @@ await fastify.register(cultureRoutes, { prefix: '/api' });
 await fastify.register(aiRoutes, { prefix: '/api' });
 
 // Serve static frontend build if present
-const webDistPath = path.resolve('../web/dist');
-const altWebDistPath = path.resolve('apps/web/dist');
-const resolvedDist = fs.existsSync(webDistPath)
-  ? webDistPath
-  : fs.existsSync(altWebDistPath)
-  ? altWebDistPath
-  : null;
-
-if (resolvedDist) {
+if (fs.existsSync(appConfig.webDistDir)) {
   await fastify.register(fastifyStatic, {
-    root: resolvedDist,
+    root: appConfig.webDistDir,
     prefix: '/',
   });
 
@@ -76,13 +76,10 @@ if (resolvedDist) {
   });
 }
 
-const host = process.env.HOST || '127.0.0.1';
-const port = Number(process.env.PORT) || 3001;
-
 const start = async () => {
   try {
-    await fastify.listen({ port, host });
-    console.log(`[DÁNG VIỆT SERVER] Máy chủ API đang chạy tại http://${host}:${port}`);
+    await fastify.listen({ port: appConfig.port, host: appConfig.host });
+    console.log(`[DÁNG VIỆT SERVER] Máy chủ API đang chạy tại http://${appConfig.host}:${appConfig.port}`);
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);

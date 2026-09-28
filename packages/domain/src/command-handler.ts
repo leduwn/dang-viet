@@ -230,6 +230,8 @@ export function executeCommand(
 
       if (payload.title) nextTitle = String(payload.title);
       if (payload.explanation) nextExplanation = String(payload.explanation);
+      if (payload.eventId) nextEventId = payload.eventId as EventId;
+      if (payload.styleId) nextStyleId = payload.styleId as StyleId;
       break;
     }
 

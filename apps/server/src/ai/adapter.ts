@@ -12,6 +12,6 @@ export interface AIAdapter {
   generateStructuredDesign(
     req: StructuredDesignRequest,
     baseLook?: Look
-  ): Promise<{ config: GarmentConfig; title: string; explanation: string }>;
+  ): Promise<{ config: GarmentConfig; title: string; explanation: string; mode?: 'mock' | 'live'; model?: string }>;
   generateConceptImage(prompt: string): Promise<{ success: boolean; imageUrl?: string; message?: string }>;
 }

@@ -1,21 +1,45 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { execSync } from 'node:child_process';
 import { DatabaseSync } from 'node:sqlite';
+import { getAppConfig, validateRequiredPaths } from './config.mjs';
 
 console.log('--- DÁNG VIỆT - THIẾT LẬP CƠ SỞ DỮ LIỆU & DỮ LIỆU SEED (SETUP) ---');
 
-const dataDir = path.resolve('data');
+const config = getAppConfig();
+try {
+  validateRequiredPaths(config);
+} catch (err) {
+  console.error(err.message);
+  process.exit(1);
+}
+
+// 0. Ensure shared packages (contracts, domain) are built
+const contractsDist = path.join(config.projectRoot, 'packages', 'contracts', 'dist', 'index.js');
+const domainDist = path.join(config.projectRoot, 'packages', 'domain', 'dist', 'index.js');
+if (!fs.existsSync(contractsDist) || !fs.existsSync(domainDist)) {
+  console.log('[SETUP] Đang biên dịch các gói dùng chung (@dangviet/contracts, @dangviet/domain)...');
+  try {
+    execSync('npm run build:packages', { cwd: config.projectRoot, stdio: 'inherit' });
+    console.log('[OK] Đã biên dịch xong packages.');
+  } catch (err) {
+    console.error('[FAIL] Không thể biên dịch packages:', err.message);
+    process.exit(1);
+  }
+}
+
+const dataDir = path.dirname(config.databasePath);
 if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
   console.log(`[OK] Đã tạo thư mục lưu trữ: ${dataDir}`);
 }
 
-const dbPath = path.join(dataDir, 'dangviet.db');
+const dbPath = config.databasePath;
 const db = new DatabaseSync(dbPath);
 console.log(`[OK] Kết nối SQLite: ${dbPath}`);
 
 // 1. Run migrations
-const migrationsDir = path.resolve('migrations');
+const migrationsDir = config.migrationsDir;
 const files = fs.readdirSync(migrationsDir).filter((f) => f.endsWith('.sql')).sort();
 
 // Create schema_migrations table if not exists
@@ -57,7 +81,7 @@ for (const file of files) {
 }
 
 // 2. Seed culture cards
-const cultureCardsFile = path.resolve('content/culture-cards.json');
+const cultureCardsFile = path.join(config.contentDir, 'culture-cards.json');
 if (fs.existsSync(cultureCardsFile)) {
   const cards = JSON.parse(fs.readFileSync(cultureCardsFile, 'utf-8'));
   const upsertStmt = db.prepare(`

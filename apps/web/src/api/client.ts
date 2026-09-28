@@ -58,20 +58,25 @@ export async function sendCommand(command: CommandPayload): Promise<CommandResul
   return data;
 }
 
-export async function undoLook(lookId: string): Promise<{ success: boolean; look: Look; message: string }> {
+export async function undoLook(
+  lookId: string,
+  options?: { expectedRevision?: number; commandId?: string }
+): Promise<{ success: boolean; look: Look; message: string; remainingUndoSteps?: number }> {
   const res = await fetch(`${API_BASE}/looks/${lookId}/undo`, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(options || {}),
   });
   const data = await res.json();
   if (!res.ok) {
-    throw new Error(data.error || 'Lỗi hoàn tác');
+    throw new ApiError(data.error || 'Lỗi hoàn tác', res.status, data.code, data.currentRevision);
   }
   return data;
 }
 
 export async function fetchLookbook(): Promise<LookbookItem[]> {
   const res = await fetch(`${API_BASE}/lookbook`);
-  if (!res.ok) throw new Error(`Lỗi tải Lookbook: ${res.statusText}`);
+  if (!res.ok) throw new ApiError(`Lỗi tải Lookbook: ${res.statusText}`, res.status);
   return res.json();
 }
 
@@ -82,7 +87,7 @@ export async function saveToLookbook(item: LookbookItem): Promise<LookbookItem> 
     body: JSON.stringify(item),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Lỗi lưu Lookbook');
+  if (!res.ok) throw new ApiError(data.error || 'Lỗi lưu Lookbook', res.status, data.code);
   return data;
 }
 
@@ -90,25 +95,28 @@ export async function deleteFromLookbook(id: string): Promise<void> {
   const res = await fetch(`${API_BASE}/lookbook/${id}`, {
     method: 'DELETE',
   });
-  if (!res.ok) throw new Error('Lỗi xóa khỏi Lookbook');
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new ApiError(data.error || 'Lỗi xóa khỏi Lookbook', res.status);
+  }
 }
 
 export async function fetchCultureCards(status: string = 'published'): Promise<CultureCard[]> {
   const res = await fetch(`${API_BASE}/culture?status=${status}`);
-  if (!res.ok) throw new Error(`Lỗi tải thẻ văn hóa: ${res.statusText}`);
+  if (!res.ok) throw new ApiError(`Lỗi tải thẻ văn hóa: ${res.statusText}`, res.status);
   return res.json();
 }
 
 export async function fetchAIStatus(): Promise<AIStatus> {
   const res = await fetch(`${API_BASE}/ai/status`);
-  if (!res.ok) throw new Error(`Lỗi kiểm tra AI: ${res.statusText}`);
+  if (!res.ok) throw new ApiError(`Lỗi kiểm tra AI: ${res.statusText}`, res.status);
   return res.json();
 }
 
 export async function sendAIChat(
   lookId: string,
   message: string,
-  history: Array<{ role: string; content: string }>
+  history: Array<{ role: 'user' | 'assistant'; content: string }>
 ): Promise<AIChatResponse> {
   const res = await fetch(`${API_BASE}/ai/chat`, {
     method: 'POST',
@@ -116,19 +124,19 @@ export async function sendAIChat(
     body: JSON.stringify({ lookId, message, history }),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Lỗi gửi tin nhắn tới AI');
+  if (!res.ok) throw new ApiError(data.error || 'Lỗi gửi tin nhắn tới AI', res.status, data.code);
   return data;
 }
 
 export async function requestAIDesign(
   req: StructuredDesignRequest
-): Promise<{ config: GarmentConfig; title: string; explanation: string }> {
+): Promise<{ config: GarmentConfig; title: string; explanation: string; mode?: 'mock' | 'live'; model?: string }> {
   const res = await fetch(`${API_BASE}/ai/design`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(req),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Lỗi sinh thiết kế');
+  if (!res.ok) throw new ApiError(data.error || 'Lỗi sinh thiết kế', res.status, data.code);
   return data;
 }

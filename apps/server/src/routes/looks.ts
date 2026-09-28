@@ -60,15 +60,17 @@ export const lookRoutes: FastifyPluginAsync = async (fastify) => {
     return execution.result;
   });
 
-  // 4. Sequential Multi-level Undo (Transaction, monotonic revision)
+  // 4. Sequential Multi-level Undo (Transaction, monotonic revision, conflict protection)
   fastify.post('/looks/:id/undo', async (request, reply) => {
     const { id } = request.params as { id: string };
+    const body = (request.body as { expectedRevision?: number; commandId?: string } | undefined) || {};
 
-    const undoResult = dbRepo.executeUndoTransaction(id);
+    const undoResult = dbRepo.executeUndoTransaction(id, body);
     if (!undoResult.ok) {
       return reply.code(undoResult.statusCode).send({
         error: undoResult.error,
         code: undoResult.code,
+        currentRevision: undoResult.currentRevision,
       });
     }
 

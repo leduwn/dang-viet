@@ -10,9 +10,9 @@ import { Sparkles, BookmarkPlus, ArrowRight, Wand2, AlertCircle } from 'lucide-r
 interface DesignStudioProps {
   events: EventItem[];
   styles: StyleItem[];
-  onRequestDesign: (prompt: string, eventId: string, styleId: string) => Promise<{ config: GarmentConfig; title: string; explanation: string }>;
-  onSaveDesignToLookbook: (title: string, config: GarmentConfig, explanation: string) => Promise<void>;
-  onApplyToStudio: (config: GarmentConfig, title: string, explanation: string) => void;
+  onRequestDesign: (prompt: string, eventId: string, styleId: string) => Promise<{ config: GarmentConfig; title: string; explanation: string; mode?: 'mock' | 'live'; model?: string }>;
+  onSaveDesignToLookbook: (title: string, config: GarmentConfig, explanation: string, eventId: string, styleId: string) => Promise<void>;
+  onApplyToStudio: (config: GarmentConfig, title: string, explanation: string, eventId: string, styleId: string) => void;
 }
 
 export const DesignStudio: React.FC<DesignStudioProps> = ({
@@ -26,10 +26,13 @@ export const DesignStudio: React.FC<DesignStudioProps> = ({
   const [selectedEvent, setSelectedEvent] = useState<string>('ngay_hoi_truong');
   const [selectedStyle, setSelectedStyle] = useState<string>('tuoi_tre');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [currentDesign, setCurrentDesign] = useState<{
     title: string;
     config: GarmentConfig;
     explanation: string;
+    mode?: 'mock' | 'live';
+    model?: string;
   }>({
     title: 'Thiết kế Remix: Sen Ngọc & Hồng Phấn',
     config: {
@@ -53,23 +56,39 @@ export const DesignStudio: React.FC<DesignStudioProps> = ({
     try {
       const res = await onRequestDesign(prompt, selectedEvent, selectedStyle);
       setCurrentDesign(res);
-      setStatusMessage('Đã tạo thiết kế có cấu trúc mới thành công!');
-      setTimeout(() => setStatusMessage(null), 3000);
+      const modeLabel = res.mode === 'live' ? `[Model thực tế: ${res.model}]` : `[Mô phỏng: ${res.model || 'Mock'}]`;
+      setStatusMessage(`Đã tạo thiết kế có cấu trúc mới thành công! ${modeLabel}`);
+      setTimeout(() => setStatusMessage(null), 4000);
     } catch (err: any) {
-      setStatusMessage(`Lỗi: ${err.message}`);
+      setStatusMessage(`Lỗi sinh thiết kế: ${err.message}`);
     } finally {
       setIsGenerating(false);
     }
   };
 
   const handleSave = async () => {
-    await onSaveDesignToLookbook(currentDesign.title, currentDesign.config, currentDesign.explanation);
-    setStatusMessage('Đã lưu thiết kế vào Lookbook!');
-    setTimeout(() => setStatusMessage(null), 3000);
+    if (isSaving) return;
+    setIsSaving(true);
+    setStatusMessage(null);
+    try {
+      await onSaveDesignToLookbook(
+        currentDesign.title,
+        currentDesign.config,
+        currentDesign.explanation,
+        selectedEvent,
+        selectedStyle
+      );
+      setStatusMessage('Đã lưu thiết kế vào Lookbook!');
+      setTimeout(() => setStatusMessage(null), 3000);
+    } catch (err: any) {
+      setStatusMessage(`Lỗi lưu Lookbook: ${err.message}`);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
-    <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem 1.5rem', width: '100%' }}>
+    <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem 1.5rem', width: '100%', boxSizing: 'border-box' }}>
       {/* Studio Header */}
       <div style={{ marginBottom: '2rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
@@ -100,7 +119,7 @@ export const DesignStudio: React.FC<DesignStudioProps> = ({
       )}
 
       {/* Main Grid: Inputs on Left, Visual Mockup on Right */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '2rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: '2rem' }}>
         {/* Left: Design Prompt & Controls */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           <div
@@ -312,6 +331,7 @@ export const DesignStudio: React.FC<DesignStudioProps> = ({
           <div style={{ display: 'flex', gap: '0.75rem', width: '100%', marginTop: '1.25rem' }}>
             <button
               onClick={handleSave}
+              disabled={isSaving}
               style={{
                 flex: 1,
                 padding: '0.7rem',
@@ -324,14 +344,16 @@ export const DesignStudio: React.FC<DesignStudioProps> = ({
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '0.4rem',
+                opacity: isSaving ? 0.7 : 1,
+                cursor: isSaving ? 'not-allowed' : 'pointer',
               }}
             >
               <BookmarkPlus size={16} />
-              <span>Lưu vào Lookbook</span>
+              <span>{isSaving ? 'Đang lưu...' : 'Lưu vào Lookbook'}</span>
             </button>
 
             <button
-              onClick={() => onApplyToStudio(currentDesign.config, currentDesign.title, currentDesign.explanation)}
+              onClick={() => onApplyToStudio(currentDesign.config, currentDesign.title, currentDesign.explanation, selectedEvent, selectedStyle)}
               style={{
                 flex: 1,
                 padding: '0.7rem',

@@ -11,7 +11,7 @@ console.log(`[DB] Đã tải ${publishedCards.length} thẻ văn hóa ở trạn
 for (const c of publishedCards) {
   console.log(`  - [${c.slug}] ${c.title} (${c.sourceName})`);
 }
-assert.strictEqual(publishedCards.length, 3, 'Phải có chính xác 3 thẻ văn hóa ở trạng thái published');
+assert.strictEqual(publishedCards.length, 2, 'Phải có chính xác 2 thẻ văn hóa ở trạng thái published');
 
 const mockLook = {
   id: 'look_test_ai',
@@ -46,16 +46,14 @@ const mockLook = {
 
 const mockAI = new MockAIAdapter();
 
-// TEST 1: Query matching verified published card (Áo ngũ thân thời Nguyễn)
-console.log('\n[TEST 1] Hỏi về Áo ngũ thân (Có trong thẻ published: card_verified_ngu_than_dinh_che)...');
-const resNguThan = await mockAI.chat(mockLook, 'Hãy giải thích lịch sử nguồn gốc áo ngũ thân và dẫn nguồn');
-assert(resNguThan.reply.includes('Nguyễn Phúc Khoát') || resNguThan.reply.includes('Minh Mạng'), 'Phải chứa nội dung lịch sử định chế');
-assert(resNguThan.citations && resNguThan.citations.length > 0, 'Phải có citations');
-const cNguThan = resNguThan.citations[0];
-assert(cNguThan.title.includes('Áo ngũ thân'), 'Citation phải trỏ đúng thẻ Áo ngũ thân');
-assert(cNguThan.source.includes('Ngàn năm áo mũ'), 'Nguồn trích dẫn phải là sách Ngàn năm áo mũ');
-assert(cNguThan.ref.includes('trang 377-380'), 'Dẫn chứng phải ghi rõ số trang 377-380');
-console.log(' -> PASSED: Trích dẫn chính xác thẻ đã kiểm chứng kèm nguồn sách và số trang.\n');
+// TEST 1: Query matching verified published card (May đo Trạch Xá / Áo dài Hà thành)
+console.log('\n[TEST 1] Hỏi về Làng may Trạch Xá (Có trong thẻ published: card_verified_lich_su_ao_dai)...');
+const resTrachXa = await mockAI.chat(mockLook, 'Giải thích kỹ thuật may đo làng nghề Trạch Xá và tà áo dài Hà thành');
+assert(resTrachXa.citations && resTrachXa.citations.length > 0, 'Phải có citations');
+const cTrachXa = resTrachXa.citations[0];
+assert(cTrachXa.title.includes('Trạch Xá') || cTrachXa.title.includes('Hà thành'), 'Citation phải trỏ đúng thẻ Trạch Xá');
+assert(cTrachXa.source.includes('Bảo tàng Lịch sử Quốc gia'), 'Nguồn trích dẫn phải từ Bảo tàng Lịch sử Quốc gia');
+console.log(' -> PASSED: Trích dẫn chính xác tư liệu Bảo tàng Lịch sử Quốc gia.\n');
 
 // TEST 2: Query matching verified published card (Lụa Vạn Phúc)
 console.log('[TEST 2] Hỏi về Di sản dệt lụa Vạn Phúc (Có trong thẻ published: card_verified_lua_van_phuc)...');
@@ -67,14 +65,17 @@ assert(cLua.source.includes('Thông tấn xã Việt Nam') || cLua.source.includ
 assert(cLua.ref.includes('2969/QĐ-BVHTTDL'), 'Dẫn chứng phải có quyết định di sản quốc gia');
 console.log(' -> PASSED: Trích dẫn chính xác thẻ đã kiểm chứng kèm quyết định công nhận di sản.\n');
 
-// TEST 3: Query matching verified published card (May đo Trạch Xá / Áo dài Hà thành)
-console.log('[TEST 3] Hỏi về Làng may Trạch Xá (Có trong thẻ published: card_verified_lich_su_ao_dai)...');
-const resTrachXa = await mockAI.chat(mockLook, 'Giải thích kỹ thuật may đo làng nghề Trạch Xá');
-assert(resTrachXa.citations && resTrachXa.citations.length > 0, 'Phải có citations');
-const cTrachXa = resTrachXa.citations[0];
-assert(cTrachXa.title.includes('Trạch Xá') || cTrachXa.title.includes('Hà thành'), 'Citation phải trỏ đúng thẻ Trạch Xá');
-assert(cTrachXa.source.includes('Bảo tàng Lịch sử Quốc gia'), 'Nguồn trích dẫn phải từ Bảo tàng Lịch sử Quốc gia');
-console.log(' -> PASSED: Trích dẫn chính xác tư liệu Bảo tàng Lịch sử Quốc gia.\n');
+// TEST 3: Query about topic in 'review' (Áo ngũ thân thời Nguyễn - card_verified_ngu_than_dinh_che)
+console.log('[TEST 3] Hỏi về Áo ngũ thân (Thẻ đã chuyển về review chờ kiểm chứng số trang sách vật lý)...');
+const resNguThan = await mockAI.chat(mockLook, 'Hãy giải thích lịch sử nguồn gốc áo ngũ thân chúa Nguyễn Phúc Khoát');
+assert(
+  resNguThan.reply.includes('chưa có đủ dẫn chứng xác thực độc lập') ||
+  resNguThan.reply.includes('trạng thái thẩm định') ||
+  resNguThan.reply.includes('chưa đủ thông tin văn hóa đã kiểm chứng'),
+  'Phải thông báo rõ ràng là chưa đủ tư liệu kiểm chứng vì thẻ đang ở status=review'
+);
+assert(!resNguThan.citations || resNguThan.citations.length === 0, 'Tuyệt đối không được đưa citations khi thẻ ở review');
+console.log(' -> PASSED: AI từ chối khẳng định và không trích dẫn thẻ đang ở trạng thái review.\n');
 
 // TEST 4: Query about unverified topics currently in 'review' (e.g. Tay Raglan 1960 Dung Đakao)
 console.log('[TEST 4] Hỏi về kỹ thuật tay Raglan (Hiện đang ở trạng thái review chờ thẩm định)...');
@@ -103,7 +104,7 @@ console.log(' -> PASSED: Không bịa nguồn, từ chối khẳng định thôn
 // TEST 6: Parser filters fabricated citations from raw model output
 console.log('[TEST 6] Parser kiểm duyệt trích dẫn: Lọc bỏ citation bịa đặt, chỉ giữ citation published...');
 const rawModelOutputWithFakeCitation = JSON.stringify({
-  reply: 'Áo ngũ thân và gấm Huế rất đẹp.',
+  reply: 'Áo dài và lụa Hà Đông rất đẹp.',
   actions: [],
   citations: [
     { title: 'Tà Áo dài Hà thành và kỹ nghệ may đo Trạch Xá', source: 'Bảo tàng Lịch sử Quốc gia' },
@@ -117,6 +118,21 @@ assert(parsed.citations && parsed.citations.length === 1, 'Parser chỉ được
 assert.strictEqual(parsed.citations[0].title, 'Tà Áo dài Hà thành và kỹ nghệ may đo Trạch Xá');
 assert(!parsed.citations.some((c) => c.title.includes('Gấm hoa') || c.title.includes('tự chế')), 'Các citation bịa đặt phải bị loại bỏ');
 console.log(' -> PASSED: Parser bảo vệ nghiêm ngặt, loại bỏ hoàn toàn các citation bịa hoặc thuộc diện review.\n');
+
+// TEST 7: AI Status & Live Adapter mode inspection
+console.log('[TEST 7] Kiểm tra trạng thái AI Adapter (Mock mode & Live mode)...');
+const { NineRouterAdapter } = await import('../apps/server/dist/ai/nine-router-adapter.js');
+const nineRouter = new NineRouterAdapter();
+if (nineRouter.isConfigured()) {
+  const liveStatus = await nineRouter.getStatus();
+  console.log(` -> Live gateway status: configured=${liveStatus.configured}, endpointConnected=${liveStatus.endpointConnected}`);
+} else {
+  const mockStatus = await mockAI.getStatus();
+  assert.strictEqual(mockStatus.mode, 'mock');
+  assert.strictEqual(mockStatus.configured, false);
+  console.log(` -> Chế độ an toàn: ${mockStatus.provider} - mode=${mockStatus.mode}`);
+}
+console.log(' -> PASSED: Kiểm tra chế độ AI hoạt động minh bạch, đúng hợp đồng.\n');
 
 console.log('===============================================================================');
 console.log('  CHÚC MỪNG: TẤT CẢ CÁC BÀI KIỂM THỬ AI & VĂN HÓA ĐỀU ĐẠT CHUẨN XUẤT SẮC!');

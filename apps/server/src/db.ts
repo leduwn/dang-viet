@@ -7,12 +7,14 @@ import {
   type CultureCard,
   type CommandPayload,
   type CommandResult,
+  LookSchema,
 } from '@dangviet/contracts';
 import { executeCommand } from '@dangviet/domain';
+import { getAppConfig } from './config.js';
 
 let dbInstance: DatabaseSync | null = null;
 
-function runPendingMigrations(db: DatabaseSync): void {
+function runPendingMigrations(db: DatabaseSync, migrationsDir: string): void {
   // Ensure schema_migrations table exists
   db.exec(`
     CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -24,14 +26,9 @@ function runPendingMigrations(db: DatabaseSync): void {
   const appliedRows = db.prepare('SELECT version FROM schema_migrations').all() as Array<{ version: string }>;
   const appliedVersions = new Set(appliedRows.map((r) => r.version));
 
-  // Find migrations directory
-  const candidateDirs = [
-    path.resolve('migrations'),
-    path.resolve('../../migrations'),
-    path.resolve('../migrations'),
-  ];
-  const migrationsDir = candidateDirs.find((d) => fs.existsSync(d));
-  if (!migrationsDir) return;
+  if (!fs.existsSync(migrationsDir)) {
+    throw new Error(`[MIGRATION ERROR] Không tìm thấy thư mục migration tại: ${migrationsDir}`);
+  }
 
   const files = fs.readdirSync(migrationsDir).filter((f) => f.endsWith('.sql')).sort();
   for (const file of files) {
@@ -62,14 +59,12 @@ function runPendingMigrations(db: DatabaseSync): void {
   }
 }
 
-function syncCultureCardsFromDisk(db: DatabaseSync): void {
-  const candidatePaths = [
-    path.resolve('content/culture-cards.json'),
-    path.resolve('../../content/culture-cards.json'),
-    path.resolve('../content/culture-cards.json'),
-  ];
-  const cardsFile = candidatePaths.find((p) => fs.existsSync(p));
-  if (!cardsFile) return;
+function syncCultureCardsFromDisk(db: DatabaseSync, contentDir: string): void {
+  const cardsFile = path.join(contentDir, 'culture-cards.json');
+  if (!fs.existsSync(cardsFile)) {
+    console.warn(`[WARN] Không tìm thấy tệp culture-cards.json tại ${cardsFile}`);
+    return;
+  }
 
   try {
     const raw = fs.readFileSync(cardsFile, 'utf-8');
@@ -113,16 +108,25 @@ function syncCultureCardsFromDisk(db: DatabaseSync): void {
 
 export function getDb(): DatabaseSync {
   if (dbInstance) return dbInstance;
-  const dbPath = process.env.DATABASE_PATH || './data/dangviet.db';
-  const resolvedPath = path.resolve(dbPath);
+  const config = getAppConfig();
+  const resolvedPath = config.databasePath;
   const dir = path.dirname(resolvedPath);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
   dbInstance = new DatabaseSync(resolvedPath);
-  runPendingMigrations(dbInstance);
-  syncCultureCardsFromDisk(dbInstance);
+  runPendingMigrations(dbInstance, config.migrationsDir);
+  syncCultureCardsFromDisk(dbInstance, config.contentDir);
   return dbInstance;
+}
+
+export function closeDb(): void {
+  if (dbInstance) {
+    try {
+      dbInstance.close();
+    } catch {}
+    dbInstance = null;
+  }
 }
 
 export interface LookRow {
@@ -276,6 +280,18 @@ export const dbRepo = {
 
       const updatedLook = execution.result.look;
 
+      // 4b. Validate resulting Look state before writing to DB
+      const lookValidation = LookSchema.safeParse(updatedLook);
+      if (!lookValidation.success) {
+        db.exec('ROLLBACK');
+        return {
+          ok: false,
+          statusCode: 400,
+          code: 'INVALID_RESULTING_LOOK',
+          error: 'Cấu hình bộ phối kết quả không hợp lệ theo chuẩn schema',
+        };
+      }
+
       // 5. Update Undo Stack: Push previous state snapshot
       let undoStack: any[] = [];
       try {
@@ -375,12 +391,26 @@ export const dbRepo = {
    * Monotonically increments revision to prevent concurrency overwrites.
    */
   executeUndoTransaction(
-    lookId: string
-  ): { ok: true; result: { success: boolean; message: string; look: Look; remainingUndoSteps: number } } | { ok: false; statusCode: number; error: string; code?: string } {
+    lookId: string,
+    options: { expectedRevision?: number; commandId?: string } = {}
+  ): { ok: true; result: { success: boolean; message: string; look: Look; remainingUndoSteps: number } } | { ok: false; statusCode: number; error: string; code?: string; currentRevision?: number } {
     const db = getDb();
     db.exec('BEGIN IMMEDIATE');
 
     try {
+      if (options.commandId) {
+        const existingCmd = db.prepare('SELECT id FROM commands WHERE id = ?').get(options.commandId);
+        if (existingCmd) {
+          db.exec('ROLLBACK');
+          return {
+            ok: false,
+            statusCode: 409,
+            code: 'DUPLICATE_COMMAND_ID',
+            error: `Lệnh hoàn tác trùng lặp (Command ID: ${options.commandId})`,
+          };
+        }
+      }
+
       const row = db.prepare('SELECT * FROM looks WHERE id = ?').get(lookId) as LookRow | undefined;
       if (!row) {
         db.exec('ROLLBACK');
@@ -388,6 +418,18 @@ export const dbRepo = {
       }
 
       const currentLook = rowToLook(row);
+
+      if (options.expectedRevision !== undefined && options.expectedRevision !== currentLook.revision) {
+        db.exec('ROLLBACK');
+        return {
+          ok: false,
+          statusCode: 409,
+          code: 'REVISION_CONFLICT',
+          currentRevision: currentLook.revision,
+          error: `Xung đột phiên bản khi hoàn tác: yêu cầu revision ${options.expectedRevision} nhưng phiên bản hiện tại là ${currentLook.revision}`,
+        };
+      }
+
       let undoStack: any[] = [];
       try {
         if (row.undo_stack_json) {
@@ -421,6 +463,18 @@ export const dbRepo = {
         revision: newRevision,
         updatedAt: new Date().toISOString(),
       };
+
+      // Validate look schema
+      const validLook = LookSchema.safeParse(rolledBackLook);
+      if (!validLook.success) {
+        db.exec('ROLLBACK');
+        return {
+          ok: false,
+          statusCode: 500,
+          code: 'INVALID_ROLLBACK_STATE',
+          error: 'Trạng thái hoàn tác không hợp lệ theo chuẩn schema',
+        };
+      }
 
       // Persist rolled back state with updated undo stack
       db.prepare(`
@@ -462,6 +516,21 @@ export const dbRepo = {
         rolledBackLook.explanation,
         rolledBackLook.updatedAt
       );
+
+      // Record command if commandId provided
+      if (options.commandId) {
+        db.prepare(`
+          INSERT INTO commands (id, look_id, revision, action, payload_json, created_at)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `).run(
+          options.commandId,
+          rolledBackLook.id,
+          rolledBackLook.revision,
+          'UNDO',
+          JSON.stringify({ revertedToRevision: currentLook.revision }),
+          rolledBackLook.updatedAt
+        );
+      }
 
       db.exec('COMMIT');
 

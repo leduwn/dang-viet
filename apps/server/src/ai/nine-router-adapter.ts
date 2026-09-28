@@ -37,6 +37,8 @@ export class NineRouterAdapter implements AIAdapter {
     if (!this.isConfigured()) {
       return {
         configured: false,
+        endpointConnected: false,
+        modelVerified: false,
         mode: 'mock',
         provider: 'Mock / 9router (Chưa cấu hình API Key)',
         model: this.model,
@@ -62,19 +64,23 @@ export class NineRouterAdapter implements AIAdapter {
       if (response.ok) {
         return {
           configured: true,
+          endpointConnected: true,
+          modelVerified: false, // Connected to models endpoint, but functional chat test determines verified status
           mode: 'live',
           provider: '9router Live Gateway',
           model: this.model,
           capabilities: {
             textChat: true,
-            structuredCommands: true,
+            structuredCommands: false, // Do not mark structuredCommands functional merely on GET /models
             imageGen: false,
           },
-          message: 'Đã kết nối tới cổng 9router. Trạng thái kiểm chứng thực tế phụ thuộc phản hồi từng lượt gọi.',
+          message: 'Đã kết nối tới cổng 9router (/models). Trạng thái kiểm chứng tính năng lệnh có cấu trúc được xác thực qua từng lượt gọi thực tế.',
         };
       } else {
         return {
           configured: true,
+          endpointConnected: false,
+          modelVerified: false,
           mode: 'mock',
           provider: `9router (HTTP ${response.status})`,
           model: this.model,
@@ -89,6 +95,8 @@ export class NineRouterAdapter implements AIAdapter {
     } catch (err: any) {
       return {
         configured: true,
+        endpointConnected: false,
+        modelVerified: false,
         mode: 'mock',
         provider: '9router (Không thể kết nối mạng)',
         model: this.model,
@@ -203,6 +211,7 @@ Nếu người dùng chỉ hỏi han hoặc không yêu cầu chỉnh sửa tran
         citations: parsed.citations,
         mode: 'live',
         model: this.model,
+        commandsStatus: parsed.commands.length > 0 ? 'planned' : 'none',
       };
     } catch (err: any) {
       // Clear reporting: Do NOT pretend to be real AI when request fails
@@ -210,6 +219,7 @@ Nếu người dùng chỉ hỏi han hoặc không yêu cầu chỉnh sửa tran
         reply: `[Lỗi kết nối AI - Chuyển sang Chế độ mô phỏng]: Không thể kết nối tới mô hình AI (${err.message}). Lượt này không gọi được model thật.`,
         mode: 'mock',
         model: 'fallback-mock',
+        commandsStatus: 'none',
       };
     }
   }
@@ -217,7 +227,7 @@ Nếu người dùng chỉ hỏi han hoặc không yêu cầu chỉnh sửa tran
   async generateStructuredDesign(
     req: StructuredDesignRequest,
     baseLook?: Look
-  ): Promise<{ config: GarmentConfig; title: string; explanation: string }> {
+  ): Promise<{ config: GarmentConfig; title: string; explanation: string; mode?: 'mock' | 'live'; model?: string }> {
     if (!this.isConfigured()) {
       return this.fallbackMock.generateStructuredDesign(req, baseLook);
     }
@@ -278,13 +288,38 @@ BẮT BUỘC trả về định dạng JSON:
 
       const parsedDesign = parseModelDesignOutput(rawText, req.prompt);
       if (parsedDesign) {
-        return parsedDesign;
+        if (baseLook) {
+          if (baseLook.locks.primaryColor) parsedDesign.config.primaryColor = baseLook.config.primaryColor;
+          if (baseLook.locks.pantsColor) parsedDesign.config.pantsColor = baseLook.config.pantsColor;
+          if (baseLook.locks.collarStyle) parsedDesign.config.collarStyle = baseLook.config.collarStyle;
+          if (baseLook.locks.sleeveStyle) parsedDesign.config.sleeveStyle = baseLook.config.sleeveStyle;
+          if (baseLook.locks.fabric) parsedDesign.config.fabric = baseLook.config.fabric;
+          if (baseLook.locks.pattern) parsedDesign.config.pattern = baseLook.config.pattern;
+          if (baseLook.locks.accessories) {
+            parsedDesign.config.accessories = [...baseLook.config.accessories];
+          }
+        }
+        return {
+          ...parsedDesign,
+          mode: 'live',
+          model: this.model,
+        };
       }
 
-      // If parsing fails, fall back to mock
-      return this.fallbackMock.generateStructuredDesign(req, baseLook);
+      // If parsing fails, fall back to mock and label explicitly
+      const fallback = await this.fallbackMock.generateStructuredDesign(req, baseLook);
+      return {
+        ...fallback,
+        mode: 'mock',
+        model: 'fallback-mock',
+      };
     } catch {
-      return this.fallbackMock.generateStructuredDesign(req, baseLook);
+      const fallback = await this.fallbackMock.generateStructuredDesign(req, baseLook);
+      return {
+        ...fallback,
+        mode: 'mock',
+        model: 'fallback-mock',
+      };
     }
   }
 

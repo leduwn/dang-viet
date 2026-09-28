@@ -126,12 +126,39 @@ export const LookbookItemSchema = z.object({
   eventId: EventIdEnum,
   styleId: StyleIdEnum,
   notes: z.string().default(''),
+  designMetadata: z
+    .object({
+      mode: z.enum(['mock', 'live']).optional(),
+      model: z.string().optional(),
+      prompt: z.string().optional(),
+      generatedAt: z.string().optional(),
+    })
+    .optional(),
   createdAt: z.string(),
 });
 export type LookbookItem = z.infer<typeof LookbookItemSchema>;
 
+export const DesignObjectSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  config: GarmentConfigSchema,
+  eventId: EventIdEnum,
+  styleId: StyleIdEnum,
+  explanation: z.string(),
+  aiMetadata: z
+    .object({
+      mode: z.enum(['mock', 'live']).optional(),
+      model: z.string().optional(),
+      prompt: z.string().optional(),
+      generatedAt: z.string().optional(),
+    })
+    .optional(),
+  createdAt: z.string(),
+});
+export type DesignObject = z.infer<typeof DesignObjectSchema>;
+
 // ==========================================
-// 4. Command Architecture
+// 4. Command Architecture (Strict Discriminated Union)
 // ==========================================
 
 export const CommandActionEnum = z.enum([
@@ -152,14 +179,133 @@ export const CommandActionEnum = z.enum([
 ]);
 export type CommandAction = z.infer<typeof CommandActionEnum>;
 
-export const CommandPayloadSchema = z.object({
+const BaseCommandSchema = z.object({
   commandId: z.string().uuid(),
   lookId: z.string(),
   expectedRevision: z.number().int(),
-  action: CommandActionEnum,
-  payload: z.record(z.any()),
   timestamp: z.string(),
 });
+
+export const SetEventCommandSchema = BaseCommandSchema.extend({
+  action: z.literal('SET_EVENT'),
+  payload: z.object({
+    eventId: EventIdEnum,
+  }),
+});
+
+export const SetStyleCommandSchema = BaseCommandSchema.extend({
+  action: z.literal('SET_STYLE'),
+  payload: z.object({
+    styleId: StyleIdEnum,
+  }),
+});
+
+export const SetPrimaryColorCommandSchema = BaseCommandSchema.extend({
+  action: z.literal('SET_PRIMARY_COLOR'),
+  payload: z.object({
+    color: ColorSchema,
+  }),
+});
+
+export const SetPantsColorCommandSchema = BaseCommandSchema.extend({
+  action: z.literal('SET_PANTS_COLOR'),
+  payload: z.object({
+    color: ColorSchema,
+  }),
+});
+
+export const SetCollarCommandSchema = BaseCommandSchema.extend({
+  action: z.literal('SET_COLLAR'),
+  payload: z.object({
+    collarStyle: CollarStyleEnum,
+  }),
+});
+
+export const SetSleeveCommandSchema = BaseCommandSchema.extend({
+  action: z.literal('SET_SLEEVE'),
+  payload: z.object({
+    sleeveStyle: SleeveStyleEnum,
+  }),
+});
+
+export const SetFabricCommandSchema = BaseCommandSchema.extend({
+  action: z.literal('SET_FABRIC'),
+  payload: z.object({
+    fabric: FabricEnum,
+  }),
+});
+
+export const SetPatternCommandSchema = BaseCommandSchema.extend({
+  action: z.literal('SET_PATTERN'),
+  payload: z.object({
+    pattern: PatternEnum,
+  }),
+});
+
+export const ToggleAccessoryCommandSchema = BaseCommandSchema.extend({
+  action: z.literal('TOGGLE_ACCESSORY'),
+  payload: z.object({
+    accessoryId: AccessoryIdEnum,
+  }),
+});
+
+export const SetAccessoriesCommandSchema = BaseCommandSchema.extend({
+  action: z.literal('SET_ACCESSORIES'),
+  payload: z.object({
+    accessories: z.array(AccessoryIdEnum),
+  }),
+});
+
+export const ToggleLockCommandSchema = BaseCommandSchema.extend({
+  action: z.literal('TOGGLE_LOCK'),
+  payload: z.object({
+    field: z.enum(['primaryColor', 'pantsColor', 'collarStyle', 'sleeveStyle', 'fabric', 'pattern', 'accessories']),
+  }),
+});
+
+export const ApplyPresetCommandSchema = BaseCommandSchema.extend({
+  action: z.literal('APPLY_PRESET'),
+  payload: z.object({
+    presetId: z.string().optional(),
+    config: GarmentConfigSchema,
+    title: z.string().optional(),
+    explanation: z.string().optional(),
+  }),
+});
+
+export const ApplyDesignCommandSchema = BaseCommandSchema.extend({
+  action: z.literal('APPLY_DESIGN'),
+  payload: z.object({
+    designId: z.string().optional(),
+    config: GarmentConfigSchema,
+    title: z.string().optional(),
+    explanation: z.string().optional(),
+    eventId: EventIdEnum.optional(),
+    styleId: StyleIdEnum.optional(),
+  }),
+});
+
+export const ResetOutfitCommandSchema = BaseCommandSchema.extend({
+  action: z.literal('RESET_OUTFIT'),
+  payload: z.record(z.any()).optional().default({}),
+});
+
+export const CommandPayloadSchema = z.discriminatedUnion('action', [
+  SetEventCommandSchema,
+  SetStyleCommandSchema,
+  SetPrimaryColorCommandSchema,
+  SetPantsColorCommandSchema,
+  SetCollarCommandSchema,
+  SetSleeveCommandSchema,
+  SetFabricCommandSchema,
+  SetPatternCommandSchema,
+  ToggleAccessoryCommandSchema,
+  SetAccessoriesCommandSchema,
+  ToggleLockCommandSchema,
+  ApplyPresetCommandSchema,
+  ApplyDesignCommandSchema,
+  ResetOutfitCommandSchema,
+]);
 export type CommandPayload = z.infer<typeof CommandPayloadSchema>;
 
 export const CommandResultSchema = z.object({
@@ -200,6 +346,8 @@ export type CultureCard = z.infer<typeof CultureCardSchema>;
 
 export const AIStatusSchema = z.object({
   configured: z.boolean(),
+  endpointConnected: z.boolean().default(false),
+  modelVerified: z.boolean().default(false),
   mode: z.enum(['mock', 'live']),
   provider: z.string(),
   model: z.string(),
@@ -215,12 +363,14 @@ export type AIStatus = z.infer<typeof AIStatusSchema>;
 export const AIChatRequestSchema = z.object({
   lookId: z.string(),
   message: z.string().min(1, 'Tin nhắn không được để trống'),
-  history: z.array(
-    z.object({
-      role: z.enum(['user', 'assistant', 'system']),
-      content: z.string(),
-    })
-  ).default([]),
+  history: z
+    .array(
+      z.object({
+        role: z.enum(['user', 'assistant']),
+        content: z.string(),
+      })
+    )
+    .default([]),
 });
 export type AIChatRequest = z.infer<typeof AIChatRequestSchema>;
 
@@ -237,8 +387,9 @@ export const AIChatResponseSchema = z.object({
   commands: z.array(CommandPayloadSchema).optional(),
   citations: z.array(AICitationSchema).optional(),
   suggestedActionLabel: z.string().optional(),
-  mode: z.enum(['mock', 'live']).optional(),
-  model: z.string().optional(),
+  mode: z.enum(['mock', 'live']),
+  model: z.string(),
+  commandsStatus: z.enum(['none', 'planned', 'partially_applied', 'all_applied', 'failed']).optional(),
 });
 export type AIChatResponse = z.infer<typeof AIChatResponseSchema>;
 

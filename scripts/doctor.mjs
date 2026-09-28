@@ -1,9 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import net from 'node:net';
+import { getAppConfig } from './config.mjs';
 
 console.log('--- DÁNG VIỆT - KIỂM TRA MÔI TRƯỜNG (DOCTOR) ---');
 
+const config = getAppConfig();
+const root = config.projectRoot;
 let hasError = false;
 
 // 1. Node.js version
@@ -39,11 +42,12 @@ const requiredDirs = [
   'scripts',
   'docs',
 ];
-for (const dir of requiredDirs) {
-  if (fs.existsSync(dir)) {
-    console.log(`[OK] Thư mục: ${dir}`);
+for (const relDir of requiredDirs) {
+  const fullPath = path.join(root, relDir);
+  if (fs.existsSync(fullPath)) {
+    console.log(`[OK] Thư mục: ${relDir}`);
   } else {
-    console.error(`[FAIL] Thiếu thư mục: ${dir}`);
+    console.error(`[FAIL] Thiếu thư mục: ${relDir} (tại ${fullPath})`);
     hasError = true;
   }
 }
@@ -58,17 +62,18 @@ const requiredFiles = [
   'content/culture-cards.json',
   'migrations/001_initial.sql',
 ];
-for (const f of requiredFiles) {
-  if (fs.existsSync(f)) {
-    console.log(`[OK] Tệp dữ liệu: ${f}`);
+for (const relFile of requiredFiles) {
+  const fullPath = path.join(root, relFile);
+  if (fs.existsSync(fullPath)) {
+    console.log(`[OK] Tệp dữ liệu: ${relFile}`);
   } else {
-    console.error(`[FAIL] Thiếu tệp: ${f}`);
+    console.error(`[FAIL] Thiếu tệp: ${relFile} (tại ${fullPath})`);
     hasError = true;
   }
 }
 
 // 5. Check ports
-function checkPort(port) {
+function checkPort(port, host = '127.0.0.1') {
   return new Promise((resolve) => {
     const server = net.createServer();
     server.once('error', (err) => {
@@ -78,17 +83,18 @@ function checkPort(port) {
       server.close();
       resolve({ port, free: true });
     });
-    server.listen(port, '127.0.0.1');
+    server.listen(port, host);
   });
 }
 
-const p3001 = await checkPort(3001);
+const serverPort = config.port;
+const pServer = await checkPort(serverPort, config.host);
 const p5173 = await checkPort(5173);
 
-if (p3001.free) {
-  console.log('[OK] Cổng 3001 (Server API) khả dụng');
+if (pServer.free) {
+  console.log(`[OK] Cổng ${serverPort} (Server API) khả dụng`);
 } else {
-  console.log(`[WARN] Cổng 3001 đang bận (${p3001.error}), kiểm tra nếu tiến trình cũ đang chạy`);
+  console.log(`[WARN] Cổng ${serverPort} đang bận (${pServer.error}), kiểm tra nếu tiến trình cũ đang chạy`);
 }
 
 if (p5173.free) {

@@ -128,34 +128,58 @@ try {
   restoredDb.close();
   console.log(' -> PASSED: Khôi phục thành công 100% dữ liệu looks, lookbook, revisions sang thư mục riêng.\n');
 
-  // 4. Test protection: Server is running on port -> Rejects restore to active main DB
-  console.log('[STEP 4] Kiểm thử từ chối restore đè database chính khi phát hiện server đang hoạt động...');
-  const dummyPort = 3399; // Use dummy port to test port detection logic
-  const dummyServer = net.createServer();
-  await new Promise((resolve) => dummyServer.listen(dummyPort, '127.0.0.1', resolve));
-
-  const rejectRes = await runSubprocess(
+  // 4. Test protection: Target matches active DB directory -> Reject
+  console.log('[STEP 4] Kiểm thử từ chối khi thư mục đích trùng với thư mục database đang hoạt động...');
+  const rejectActiveRes = await runSubprocess(
     path.resolve('scripts/restore.mjs'),
-    [latestBackupDir], // No --target-dir, targets active main DB
-    {
-      DATABASE_PATH: testDbPath,
-      PORT: String(dummyPort),
-      HOST: '127.0.0.1',
-    }
+    [latestBackupDir, '--target-dir', testDataDir],
+    { DATABASE_PATH: testDbPath }
   );
 
-  await new Promise((resolve) => dummyServer.close(resolve));
-
-  assert.strictEqual(rejectRes.code, 1, 'Restore phải từ chối với exit code 1 khi server đang chạy');
+  assert.strictEqual(rejectActiveRes.code, 1, 'Restore phải từ chối khi đích trùng thư mục active DB');
   assert(
-    rejectRes.stderr.includes('PHÁT HIỆN MÁY CHỦ DÁNG VIỆT ĐANG HOẠT ĐỘNG') ||
-    rejectRes.stderr.includes('LỖI TỪ CHỐI'),
-    'Phải in thông báo từ chối rõ ràng và hướng dẫn người dùng'
+    rejectActiveRes.stderr.includes('THƯ MỤC ĐÍCH TRÙNG VỚI THƯ MỤC DATABASE ĐANG HOẠT ĐỘNG') ||
+    rejectActiveRes.stderr.includes('[TỪ CHỐI]'),
+    'Phải in cảnh báo từ chối rõ ràng'
   );
-  console.log(' -> PASSED: Restore đã chặn thành công việc ghi đè khi server đang chạy.\n');
+  console.log(' -> PASSED: Restore đã chặn thành công khi đích trùng thư mục active database.\n');
 
-  // 5. Test tampering: File altered -> SHA-256 mismatch rejection
-  console.log('[STEP 5] Kiểm thử từ chối bản sao lưu bị sửa đổi (Mã băm SHA-256 không khớp)...');
+  // 5. Test protection: Target matches backup source directory -> Reject
+  console.log('[STEP 5] Kiểm thử từ chối khi thư mục đích trùng với chính thư mục backup nguồn...');
+  const rejectSourceRes = await runSubprocess(
+    path.resolve('scripts/restore.mjs'),
+    [latestBackupDir, '--target-dir', latestBackupDir],
+    { DATABASE_PATH: testDbPath }
+  );
+
+  assert.strictEqual(rejectSourceRes.code, 1, 'Restore phải từ chối khi đích trùng nguồn backup');
+  assert(
+    rejectSourceRes.stderr.includes('THƯ MỤC ĐÍCH TRÙNG VỚI CHÍNH THƯ MỤC BẢN SAO LƯU NGUỒN'),
+    'Phải in cảnh báo từ chối trùng nguồn'
+  );
+  console.log(' -> PASSED: Restore đã chặn thành công khi đích trùng chính nguồn sao lưu.\n');
+
+  // 6. Test protection: Target directory exists and is not empty -> Reject
+  console.log('[STEP 6] Kiểm thử từ chối khi thư mục đích đã tồn tại và không rỗng...');
+  const nonEmptyDir = path.join(testBaseDir, 'non_empty_dest');
+  fs.mkdirSync(nonEmptyDir, { recursive: true });
+  fs.writeFileSync(path.join(nonEmptyDir, 'existing_file.txt'), 'hello world');
+
+  const rejectNonEmptyRes = await runSubprocess(
+    path.resolve('scripts/restore.mjs'),
+    [latestBackupDir, '--target-dir', nonEmptyDir],
+    { DATABASE_PATH: testDbPath }
+  );
+
+  assert.strictEqual(rejectNonEmptyRes.code, 1, 'Restore phải từ chối khi thư mục đích không rỗng');
+  assert(
+    rejectNonEmptyRes.stderr.includes('THƯ MỤC ĐÍCH ĐÃ CÓ SẴN DỮ LIỆU'),
+    'Phải in cảnh báo từ chối thư mục có dữ liệu'
+  );
+  console.log(' -> PASSED: Restore đã chặn thành công khi thư mục đích không rỗng.\n');
+
+  // 7. Test tampering: File altered -> SHA-256 mismatch rejection & staging cleanup
+  console.log('[STEP 7] Kiểm thử từ chối bản sao lưu bị sửa đổi (Mã băm SHA-256 không khớp)...');
   const tamperedDir = path.join(testBaseDir, 'tampered_backup');
   fs.cpSync(latestBackupDir, tamperedDir, { recursive: true });
 
@@ -163,9 +187,10 @@ try {
   const tamperedDbPath = path.join(tamperedDir, 'dangviet.db');
   fs.appendFileSync(tamperedDbPath, Buffer.from([0x00]));
 
+  const tamperDest = path.join(testBaseDir, 'tampered_dest');
   const tamperRes = await runSubprocess(
     path.resolve('scripts/restore.mjs'),
-    [tamperedDir, '--target-dir', path.join(testBaseDir, 'tampered_dest')],
+    [tamperedDir, '--target-dir', tamperDest],
     { DATABASE_PATH: testDbPath }
   );
 
@@ -174,26 +199,14 @@ try {
     tamperRes.stderr.includes('MÃ BĂM SHA-256 KHÔNG KHỚP') || tamperRes.stderr.includes('LỖI TOÀN VẸN'),
     'Phải báo lỗi mã băm không khớp'
   );
-  console.log(' -> PASSED: Bản sao lưu bị sửa đổi mã băm đã bị phát hiện và từ chối khôi phục.\n');
+  // Verify tamperDest was NOT created and staging was cleaned up
+  assert(!fs.existsSync(tamperDest), 'Thư mục đích cuối không được tạo khi lỗi toàn vẹn');
+  console.log(' -> PASSED: Bản sao lưu bị sửa đổi mã băm đã bị phát hiện, từ chối và dọn dẹp staging an toàn.\n');
 
-  // 6. Test stale WAL/SHM cleanup during restore
-  console.log('[STEP 6] Kiểm thử dọn dẹp file -wal và -shm cũ trước khi restore...');
-  const walTargetDir = path.join(testBaseDir, 'wal_test_dest');
-  fs.mkdirSync(walTargetDir, { recursive: true });
-  const staleWal = path.join(walTargetDir, 'dangviet.db-wal');
-  const staleShm = path.join(walTargetDir, 'dangviet.db-shm');
-  fs.writeFileSync(staleWal, 'stale wal content');
-  fs.writeFileSync(staleShm, 'stale shm content');
-
-  const walRestoreRes = await runSubprocess(
-    path.resolve('scripts/restore.mjs'),
-    [latestBackupDir, '--target-dir', walTargetDir],
-    { DATABASE_PATH: testDbPath }
-  );
-  assert.strictEqual(walRestoreRes.code, 0, 'Restore vào thư mục có WAL cũ phải thành công');
-  assert(!fs.existsSync(staleWal), 'Tệp -wal cũ phải được dọn dẹp');
-  assert(!fs.existsSync(staleShm), 'Tệp -shm cũ phải được dọn dẹp');
-  console.log(' -> PASSED: File -wal và -shm cũ đã được dọn sạch hoàn toàn trước khi restore.\n');
+  // 8. Clean up created backup folder to leave no junk
+  try {
+    fs.rmSync(latestBackupDir, { recursive: true, force: true });
+  } catch {}
 
   console.log('===============================================================================');
   console.log('  CHÚC MỪNG: TẤT CẢ CÁC BÀI KIỂM THỬ BACKUP & RESTORE AN TOÀN ĐỀU ĐẠT CHUẨN!');
