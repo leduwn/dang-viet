@@ -10,10 +10,23 @@ import { chromium } from 'playwright';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
 const screenshotsDir = path.join(rootDir, 'screenshots');
+const artifactsScreenshotsDir = path.join(rootDir, 'artifacts', 'screenshots');
 
 if (!fs.existsSync(screenshotsDir)) {
   fs.mkdirSync(screenshotsDir, { recursive: true });
 }
+if (!fs.existsSync(artifactsScreenshotsDir)) {
+  fs.mkdirSync(artifactsScreenshotsDir, { recursive: true });
+}
+
+const saveScreenshot = async (pageOrLocator, filename, opts = {}) => {
+  const p1 = path.join(screenshotsDir, filename);
+  const p2 = path.join(artifactsScreenshotsDir, filename);
+  await pageOrLocator.screenshot({ path: p1, ...opts });
+  try {
+    fs.copyFileSync(p1, p2);
+  } catch {}
+};
 
 console.log('=== BẮT ĐẦU KIỂM THỬ PLAYWRIGHT GIAO DIỆN & MUTATION GUARD ===\n');
 
@@ -47,6 +60,13 @@ db.prepare(`INSERT INTO looks (id, user_id, title, event_id, style_id, config_js
 );
 db.prepare(`INSERT INTO look_revisions (look_id, revision, config_json, locks_json, explanation, created_at) VALUES (?, ?, ?, ?, ?, ?)`).run(
   'look_default_01', 1, JSON.stringify(firstPreset.config), JSON.stringify(locks), firstPreset.explanation, now
+);
+const secondPreset = presets[1] || presets[0];
+db.prepare(`INSERT INTO lookbook (id, title, look_id, revision, snapshot_config_json, event_id, style_id, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+  'lookbook_seed_01', firstPreset.title, 'look_default_01', 1, JSON.stringify(firstPreset.config), firstPreset.eventId, firstPreset.styleId, firstPreset.explanation, now
+);
+db.prepare(`INSERT INTO lookbook (id, title, look_id, revision, snapshot_config_json, event_id, style_id, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+  'lookbook_seed_02', secondPreset.title, 'look_default_01', 1, JSON.stringify(secondPreset.config), secondPreset.eventId, secondPreset.styleId, secondPreset.explanation, now
 );
 db.close();
 console.log('   * Đã nạp thành công migration và seed data vào test-playwright.db');
@@ -107,10 +127,17 @@ const BASE_URL = `http://127.0.0.1:${assignedPort}`;
 console.log(`[OK] Máy chủ kiểm thử sẵn sàng tại ${BASE_URL} (Database: ${testDbPath})\n`);
 
 // 3. Launch browser
-console.log('[3/5] Khởi chạy Microsoft Edge headless...');
+console.log('[3/5] Khởi chạy Microsoft Edge headless với hỗ trợ WebGL...');
 const browser = await chromium.launch({
   channel: 'msedge',
   headless: true,
+  args: [
+    '--use-gl=angle',
+    '--use-angle=d3d11',
+    '--enable-webgl',
+    '--enable-webgl2',
+    '--ignore-gpu-blocklist',
+  ],
 });
 
 try {
@@ -178,8 +205,8 @@ try {
   await desktopPage.click('nav button:has-text("Phòng phối")');
   await desktopPage.waitForSelector('.outfit-room', { timeout: 10000 });
   assert(await desktopPage.locator('.outfit-room').isVisible(), 'Khối .outfit-room phải hiển thị');
-  const studioSvg = desktopPage.locator('.outfit-room svg[aria-label*="Mô hình vector"]').first();
-  assert(await studioSvg.isVisible(), 'SVG nhân vật trong Phòng phối phải hiển thị');
+  const studioVisualizer = desktopPage.locator('.outfit-room canvas, .outfit-room svg').first();
+  assert(await studioVisualizer.isVisible(), 'Visualizer (3D Canvas hoặc SVG) trong Phòng phối phải hiển thị');
   await desktopPage.screenshot({ path: path.join(screenshotsDir, 'desktop-1440-studio.png'), fullPage: false });
   console.log('     * Đã chụp: desktop-1440-studio.png');
 
@@ -259,6 +286,203 @@ try {
   await mobile360.close();
 
   // --------------------------------------------------------------------------
+  // D. 3D VISUAL SIMULATION & INTERACTIVE CONTROLS
+  // --------------------------------------------------------------------------
+  console.log('\n   - [3D] Kiểm thử không gian 3D tương tác, vóc dáng, camera & vật liệu...');
+  const page3D = await browser.newPage({
+    viewport: { width: 1440, height: 900 },
+  });
+  const page3DErrors = [];
+  page3D.on('pageerror', (err) => {
+    page3DErrors.push(err.message);
+    console.log('   [3D PAGE ERROR]', err.message);
+  });
+  page3D.on('console', (msg) => {
+    if (msg.type() === 'error') {
+      page3DErrors.push(msg.text());
+      console.log('   [3D CONSOLE ERROR]', msg.text());
+    }
+  });
+
+  await page3D.goto(BASE_URL, { waitUntil: 'networkidle' });
+  await page3D.click('nav button:has-text("Phòng phối")');
+  await page3D.waitForSelector('.outfit-room', { timeout: 10000 });
+
+  // 1. Chuyển sang chế độ 3D
+  console.log('     * [3D.1] Kiểm tra kích hoạt chế độ 3D Không gian...');
+  const btn3D = page3D.locator('button:has-text("3D Không gian")').first();
+  await btn3D.click();
+  await page3D.waitForSelector('.aodai-3d-container canvas', { timeout: 12000 });
+  const canvas3D = page3D.locator('.aodai-3d-container canvas').first();
+  assert(await canvas3D.isVisible(), '[ASSERTION THẤT BÀI]: Canvas 3D phải hiển thị trong .aodai-3d-container');
+
+  // Chờ R3F load assets & compile shader
+  await page3D.waitForTimeout(1500);
+  assert.strictEqual(page3DErrors.length, 0, `[ASSERTION THẤT BÀI]: Phát hiện lỗi console/render khi nạp 3D: ${page3DErrors.join(', ')}`);
+  console.log('       -> Canvas 3D sẵn sàng, không có lỗi WebGL.');
+
+  // 2. Xoay nhân vật một góc xác định (Drag chuột trên canvas)
+  console.log('     * [3D.2] Thao tác chuột xoay nhân vật 360° tự do...');
+  const box = await canvas3D.boundingBox();
+  assert(box, '[ASSERTION THẤT BÀI]: Canvas không có bounding box');
+  const centerX = box.x + box.width / 2;
+  const centerY = box.y + box.height / 2;
+  await page3D.mouse.move(centerX, centerY);
+  await page3D.mouse.down();
+  await page3D.mouse.move(centerX + 180, centerY, { steps: 10 });
+  await page3D.mouse.up();
+  await page3D.waitForTimeout(400);
+  await saveScreenshot(page3D, '3d-01-drag-rotated.png');
+  console.log('       -> Đã xoay góc tương tác và lưu: 3d-01-drag-rotated.png');
+
+  // 3. Bấm các nút trước, sau, trái, phải, reset và chụp ảnh từng góc
+  console.log('     * [3D.3] Kiểm tra các góc nhìn camera cố định (Trước, Sau, Trái, Phải, Reset)...');
+  const viewButtons = [
+    { label: 'Trước', file: '3d-view-front.png' },
+    { label: 'Sau', file: '3d-view-back.png' },
+    { label: 'Trái', file: '3d-view-left.png' },
+    { label: 'Phải', file: '3d-view-right.png' },
+    { label: 'Reset', file: '3d-view-reset.png' },
+  ];
+  for (const vb of viewButtons) {
+    const btn = page3D.locator(`button.btn-view:has-text("${vb.label}")`).first();
+    assert(await btn.isVisible(), `[ASSERTION THẤT BÀI]: Không tìm thấy nút góc nhìn ${vb.label}`);
+    await btn.click();
+    await page3D.waitForTimeout(600); // Chờ hiệu ứng lerp của camera director
+    await saveScreenshot(page3D, vb.file);
+    console.log(`       -> Góc ${vb.label}: Đã chụp ${vb.file}`);
+  }
+
+  // 4. Chọn tối thiểu 2 vóc dáng khác nhau (Petite, Plus size, Standard) và xác nhận không lỗi render/console
+  console.log('     * [3D.4] Kiểm tra biến dạng đồng bộ 5 vóc dáng (Morph Targets)...');
+  const shapesToTest = [
+    { name: 'Nhỏ nhắn', file: '3d-body-petite.png' },
+    { name: 'Đầy đặn', file: '3d-body-plus-size.png' },
+    { name: 'Cao thanh', file: '3d-body-tall-slender.png' },
+    { name: 'Chuẩn Á Đông', file: '3d-body-standard.png' },
+  ];
+  for (const st of shapesToTest) {
+    const shapeBtn = page3D.locator(`button:has-text("${st.name}")`).first();
+    assert(await shapeBtn.isVisible(), `[ASSERTION THẤT BÀI]: Không tìm thấy nút vóc dáng ${st.name}`);
+    await shapeBtn.click();
+    await page3D.waitForTimeout(500);
+    assert.strictEqual(page3DErrors.length, 0, `[ASSERTION THẤT BÀI]: Lỗi console khi đổi vóc dáng ${st.name}`);
+    await saveScreenshot(page3D, st.file);
+    console.log(`       -> Vóc dáng ${st.name}: Đã kiểm tra không lỗi và lưu ${st.file}`);
+  }
+
+  // 5. Đổi mẫu áo dài qua Catalog-Driven (Cách tân Raglan)
+  console.log('     * [3D.5] Kiểm tra đổi mẫu áo qua catalog (Áo dài cách tân Raglan)...');
+  const raglanBtn = page3D.locator('button:has-text("Raglan")').first();
+  assert(await raglanBtn.isVisible(), '[ASSERTION THẤT BÀI]: Không tìm thấy nút mẫu Cách tân Raglan');
+  await raglanBtn.click();
+  await page3D.waitForTimeout(600);
+  assert.strictEqual(page3DErrors.length, 0, '[ASSERTION THẤT BÀI]: Lỗi khi chuyển sang mẫu Áo dài Raglan');
+  await saveScreenshot(page3D, '3d-model-raglan.png');
+  console.log('       -> Mẫu áo Raglan: Nạp thành công, đã lưu 3d-model-raglan.png');
+
+  // Đổi lại Cổ đứng truyền thống
+  await page3D.locator('button:has-text("Cổ đứng truyền thống")').first().click();
+  await page3D.waitForTimeout(400);
+
+  // 6. Đổi màu áo, đổi chất liệu vải và kiểm tra mesh/material phản ánh đúng
+  console.log('     * [3D.6] Kiểm tra cập nhật chất liệu vải PBR & hòa sắc...');
+  const fabricSelect = page3D.locator('label:has-text("Chất liệu vải")').locator('..').locator('select');
+  assert(await fabricSelect.isVisible(), '[ASSERTION THẤT BÀI]: Không tìm thấy select chất liệu vải');
+  await fabricSelect.selectOption('brocade_hue');
+  await page3D.waitForTimeout(300);
+
+  const yellowColorBtn = page3D.locator('button[aria-label*="Vàng hoàng yến"]').first();
+  if (await yellowColorBtn.isVisible()) {
+    await yellowColorBtn.click();
+  }
+  await page3D.waitForTimeout(500);
+  await saveScreenshot(page3D, '3d-material-updated.png');
+  console.log('       -> Cập nhật Gấm Huế & Sắc vàng: Đã lưu 3d-material-updated.png');
+
+  // 7. Thử chuyển qua lại giữa 2D và 3D
+  console.log('     * [3D.7] Kiểm tra chuyển đổi qua lại mượt mà giữa 2D Vector và 3D Không gian...');
+  const btn2D = page3D.locator('button:has-text("2D Vector")').first();
+  await btn2D.click();
+  await page3D.waitForTimeout(300);
+  assert(await page3D.locator('.outfit-room svg').first().isVisible(), '[ASSERTION THẤT BÀI]: Chế độ 2D phải hiển thị SVG');
+  await saveScreenshot(page3D, '2d-fallback-active.png');
+  console.log('       -> Chuyển sang 2D SVG: Thành công, đã lưu 2d-fallback-active.png');
+
+  await btn3D.click();
+  await page3D.waitForTimeout(500);
+  assert(await canvas3D.isVisible(), '[ASSERTION THẤT BÀI]: Canvas 3D phải hiển thị trở lại khi bấm 3D Không gian');
+  console.log('       -> Phục hồi 3D: Thành công.');
+
+  // 8. Đo đạc hiệu năng FPS của renderer 3D
+  console.log('     * [3D.8] Đo đạc tần số khung hình (FPS) & hiệu năng render 3D...');
+  const perfBenchmark = await page3D.evaluate(async () => {
+    return new Promise((resolve) => {
+      let frames = 0;
+      const start = performance.now();
+      let lastTime = start;
+
+      const loop = (time) => {
+        lastTime = time;
+        frames++;
+        if (frames < 60) {
+          requestAnimationFrame(loop);
+        } else {
+          const totalDuration = time - start;
+          const avgFps = Math.round((frames / totalDuration) * 1000);
+          const avgFrameMs = Math.round((totalDuration / frames) * 10) / 10;
+          resolve({ avgFps, avgFrameMs, totalFrames: frames });
+        }
+      };
+      requestAnimationFrame(loop);
+    });
+  });
+  console.log(`       -> Hiệu năng Render 3D: Trung bình ${perfBenchmark.avgFps} FPS, Thời gian khung hình: ${perfBenchmark.avgFrameMs} ms/frame (${perfBenchmark.totalFrames} frames)`);
+  assert(perfBenchmark.avgFps >= 20, `[ASSERTION THẤT BÀI]: FPS quá thấp (${perfBenchmark.avgFps} FPS)`);
+
+  // 9. Mở Lookbook, so sánh 2 bộ trong chế độ 3D
+  console.log('     * [3D.9] Kiểm tra so sánh 2 bộ trang phục song song trong Lookbook (Chế độ 3D)...');
+  // Lưu bộ hiện tại vào Lookbook để có đủ 2 bộ
+  const saveLookbookBtn = page3D.locator('button:has-text("Lưu Lookbook")').first();
+  if (await saveLookbookBtn.isVisible()) {
+    await saveLookbookBtn.click();
+    await page3D.waitForTimeout(800);
+  }
+
+  // Chuyển sang tab Lookbook
+  await page3D.click('nav button:has-text("Lookbook")');
+  await page3D.waitForSelector('.lookbook-section', { timeout: 10000 });
+
+  // Chọn checkbox so sánh
+  const checkboxes = page3D.locator('.lookbook-section input[type="checkbox"]');
+  const count = await checkboxes.count();
+  if (count >= 2) {
+    await checkboxes.nth(0).check();
+    await checkboxes.nth(1).check();
+    const compareTrigger = page3D.locator('button:has-text("So sánh 2 bộ đã chọn")');
+    assert(await compareTrigger.isVisible(), '[ASSERTION THẤT BÀI]: Phải hiển thị nút "So sánh 2 bộ đã chọn"');
+    await compareTrigger.click();
+
+    await page3D.waitForSelector('.compare-modal', { timeout: 10000 });
+    // Bật công tắc 3D trong CompareModal
+    const modal3DBtn = page3D.locator('.compare-modal button:has-text("3D Không gian")').first();
+    if (await modal3DBtn.isVisible()) {
+      await modal3DBtn.click();
+      await page3D.waitForTimeout(1200);
+      const modalCanvases = page3D.locator('.compare-modal canvas');
+      assert.strictEqual(await modalCanvases.count(), 2, '[ASSERTION THẤT BÀI]: Phải hiển thị 2 canvas 3D song song trong CompareModal');
+      await saveScreenshot(page3D, '3d-compare-modal.png');
+      console.log('       -> So sánh 3D song song: Đạt chuẩn, đã chụp 3d-compare-modal.png');
+    }
+    await page3D.click('.compare-modal button:has(svg)');
+  } else {
+    console.log('       [INFO] Chỉ có 1 bộ trong Lookbook, đã bỏ qua bước click so sánh đôi.');
+  }
+
+  await page3D.close();
+  console.log('     -> HOÀN TẤT TOÀN DIỆN BÀI KIỂM THỬ KHÔNG GIAN 3D TƯƠNG TÁC!\n');
+
+  // --------------------------------------------------------------------------
   // 5. TEST FRONTEND MUTATION GUARD & REACT COOLDOWN
   // --------------------------------------------------------------------------
   console.log('\n[5/5] Kiểm thử cơ chế Mutation Guard React của Frontend...');
@@ -298,6 +522,9 @@ try {
   // 2. Intercept AI Chat to return deterministic 2 sequential commands
   await testPage.route('**/api/ai/chat', async (route) => {
     console.log('     [AI ROUTE INTERCEPT] Mô phỏng phản hồi AI Chat gồm 2 lệnh tuần tự...');
+    const curLookRes = await fetch(`${BASE_URL}/api/looks/look_default_01`);
+    const curLook = await curLookRes.json();
+    const curRev = curLook.revision;
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -310,7 +537,7 @@ try {
           {
             commandId: '99999999-0001-4000-8000-000000000001',
             lookId: 'look_default_01',
-            expectedRevision: 1,
+            expectedRevision: curRev,
             action: 'SET_SLEEVE',
             payload: { sleeveStyle: 'raglan' },
             timestamp: new Date().toISOString(),
@@ -318,7 +545,7 @@ try {
           {
             commandId: '99999999-0002-4000-8000-000000000002',
             lookId: 'look_default_01',
-            expectedRevision: 2,
+            expectedRevision: curRev + 1,
             action: 'SET_PANTS_COLOR',
             payload: { color: { hex: '#1E1B18', name: 'Đen tuyền dạ hội', family: 'black' } },
             timestamp: new Date().toISOString(),

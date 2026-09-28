@@ -303,6 +303,8 @@ export class MockAIAdapter implements AIAdapter {
       fabric,
       pattern,
       accessories,
+      bodyShape: baseLook?.config?.bodyShape || 'standard',
+      modelId: baseLook?.config?.modelId || 'aodai_classic_01',
     };
 
     return { config, title, explanation, mode: 'mock', model: 'dangviet-rules-v1' };

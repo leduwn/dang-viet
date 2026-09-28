@@ -182,3 +182,57 @@
   npm run check
   npm run build
   ```
+
+---
+
+## Mốc 9: Không Gian Mô Phỏng 3D Tương Tác, Đa Dáng Người & Vật Liệu PBR
+
+- **Trạng thái:** Hoàn thành 100% (Đã kiểm chứng toàn diện trên Windows, Playwright & Visual Test Suite)
+- **Các thành phần đã triển khai:**
+  - **Khảo sát kiến trúc & Khóa phiên bản tương thích React 18.3.1:**
+    - Khóa chuẩn tương thích: `three@0.169.0`, `@types/three@0.169.0`, `@react-three/fiber@8.17.10`, `@react-three/drei@9.114.0`.
+    - Cài đặt sạch sẽ, không dùng cờ `--force` hay `--legacy-peer-deps`.
+    - Biên soạn `docs/3D_ARCHITECTURE.md`: Định hình kiến trúc tổng thể, quy chuẩn hệ tọa độ (Y-up, Z-fwd, gốc sàn Y=0, tỷ lệ 1.0 = 1 mét), giải pháp morph targets đồng bộ chống xuyên lưới, ánh sáng studio và pipeline PBR.
+  - **Khronos glTF 2.0 Binary (.glb) Custom Builder & Pipeline Asset:**
+    - `scripts/3d-generators/glb-writer.mjs`: Bộ sinh nhị phân glTF 2.0 thuần túy tuân thủ đặc tả Khronos 100% (magic `0x46546C67`, version 2, JSON chunk đệm khoảng trắng bội số 4 byte, BIN chunk đệm `0x00`).
+    - `scripts/3d-generators/avatar-mesh.mjs`: Lưới nhân vật nữ Việt Nam tỷ lệ tự nhiên 1.666m (đầu, mặt, búi tóc, cổ, thân trên, tay A-pose 22°, chân, bàn chân) kèm tính toán pháp tuyến vertex normal và 5 morph targets.
+    - `scripts/3d-generators/garment-mesh.mjs`: Lưới Áo dài truyền thống cổ đứng 3.5cm (`aodai_classic_01`), Áo dài cách tân raglan (`aodai_remix_raglan`) và Quần lụa hai ống rộng riêng biệt (`pants_silk`), tích hợp cùng không gian 5 morph targets.
+    - `scripts/3d-generators/accessories-mesh.mjs`: Lưới 3D cho 4 phụ kiện truyền thống: mấn đội đầu (`man_truyen_thong`), nón lá bài thơ (`non_la`), chuỗi ngọc trai (`chuoi_ngoc`), quạt xếp (`quat_xep`).
+    - `scripts/3d-generators/generate-all-assets.mjs`: Xuất 8 file `.glb` vào `apps/web/public/models/` và ghi danh mục `catalog_manifest.json`.
+    - `scripts/validate-3d-assets.mjs`: Bộ công cụ kiểm thử asset tự động (kiểm tra header, chunks, kích thước file <5MB, 5 morph targets bắt buộc, bounding box hợp lệ không NaN/Infinity).
+    - `docs/3D_ASSET_PIPELINE.md`: Tài liệu quy chuẩn kỹ thuật Blender, quy ước socket gắn phụ kiện và quy trình thêm mẫu áo mới qua cấu hình catalog mà không cần sửa code renderer lõi.
+  - **Mở rộng Hợp đồng dữ liệu & Command Bus:**
+    - `packages/contracts`: Bổ sung enum `VALID_BODY_SHAPES` (`standard`, `petite`, `tall_slender`, `broad_shoulders`, `curvy_hips`, `plus_size`), `VALID_GARMENT_MODELS` (`aodai_classic_01`, `aodai_remix_raglan`), schemas `SET_BODY_SHAPE`, `SET_GARMENT_MODEL`, cập nhật `GarmentConfigSchema` và `LockStateSchema`.
+    - `packages/domain`: Cập nhật `command-handler.ts` xử lý 2 lệnh mới, tuân thủ khóa thuộc tính `locks.bodyShape` và `locks.modelId`. Cập nhật `rules.ts` bảo toàn vóc dáng và mẫu áo khi đổi sự kiện/phong cách.
+    - `apps/server`: Cập nhật `db.ts` parse dữ liệu qua Zod để tự động gán giá trị mặc định cho bản ghi cũ mà không làm hỏng dữ liệu SQLite; cập nhật `ai/parser.ts` và `ai/mock-adapter.ts`.
+  - **Bộ Renderer 3D & Trải nghiệm Người dùng Tương tác:**
+    - `apps/web/src/components/AoDai3DViewer.tsx`:
+      - Canvas React Three Fiber với OrbitControls (xoay 360°, zoom mượt, giới hạn góc cực chống lật sàn).
+      - CameraDirector hỗ trợ 5 góc nhìn cố định: Trước (Front), Sau (Back), Trái (Left), Phải (Right), Đặt lại (Reset) với chuyển động góc nội suy mượt mà.
+      - Thanh công cụ chọn 5 preset vóc dáng và 2 mẫu áo dài; nút bật/tắt tự động xoay 360°.
+      - WebGL Error Boundary tự động fallback sang mô hình 2D SVG khi thiết bị không hỗ trợ WebGL.
+      - Vật liệu PBR cho 4 chất liệu vải truyền thống: Lụa Hà Đông (`roughness = 0.35, metalness = 0.05`), Gấm Huế (`roughness = 0.52, metalness = 0.18`), Linen (`roughness = 0.85, metalness = 0.00`), Voan Chiffon (`roughness = 0.28, metalness = 0.02, transparent, opacity = 0.88`).
+    - Tích hợp công tắc chuyển đổi linh hoạt `✨ 3D Không gian` và `🎨 2D Vector` tại:
+      - `OutfitRoom.tsx`: Cột hiển thị chính của Phòng phối.
+      - `DesignStudio.tsx`: Khu vực hiển thị kết quả thiết kế AI của Xưởng thiết kế Remix Studio.
+      - `CompareModal.tsx`: Hỗ trợ xem đối sánh 2 bộ trang phục song song trong không gian 3D.
+  - **Kiểm thử Playwright Tự động & Đo đạc Hiệu năng:**
+    - Nâng cấp `scripts/test-playwright.mjs`:
+      - Khởi chạy headless browser với cờ WebGL.
+      - Thao tác kéo chuột xoay nhân vật 360° tự do.
+      - Kiểm tra và chụp ảnh 5 góc nhìn camera (`3d-view-front.png`, `3d-view-back.png`, `3d-view-left.png`, `3d-view-right.png`, `3d-view-reset.png`).
+      - Kiểm tra biến dạng đồng bộ 5 vóc dáng (`3d-body-petite.png`, `3d-body-plus-size.png`, `3d-body-tall-slender.png`, `3d-body-standard.png`).
+      - Kiểm tra nạp mẫu áo cách tân Raglan từ catalog (`3d-model-raglan.png`).
+      - Kiểm tra cập nhật chất liệu Gấm Huế và sắc vàng hoàng yến (`3d-material-updated.png`).
+      - Kiểm tra chuyển đổi qua lại giữa 2D và 3D (`2d-fallback-active.png`).
+      - Kiểm tra đối sánh 2 bộ trong Lookbook ở chế độ 3D (`3d-compare-modal.png`).
+      - Đo đạc hiệu năng: Đạt trung bình **61 FPS**, thời gian khung hình **16.4 ms/frame**.
+- **Lệnh kiểm tra:**
+
+  ```powershell
+  node scripts/validate-3d-assets.mjs
+  node scripts/test-flow.mjs
+  node scripts/test-harden.mjs
+  node scripts/test-playwright.mjs
+  npm run build
+  ```

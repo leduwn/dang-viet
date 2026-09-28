@@ -14,6 +14,8 @@ import {
   VALID_SLEEVES,
   VALID_FABRICS,
   VALID_PATTERNS,
+  VALID_BODY_SHAPES,
+  VALID_GARMENT_MODELS,
   GarmentConfigSchema,
   ColorSchema,
 } from '@dangviet/contracts';
@@ -229,6 +231,36 @@ export function parseModelChatOutput(rawText: string, currentLook: Look): Parsed
           expectedRevision: nextExpectedRev++,
           action: 'SET_ACCESSORIES',
           payload: { accessories: validAccs },
+          timestamp: new Date().toISOString(),
+        });
+        break;
+      }
+
+      case 'SET_BODY_SHAPE': {
+        if (currentLook.locks.bodyShape) continue;
+        const bodyShape = payload.bodyShape as any;
+        if (!VALID_BODY_SHAPES.includes(bodyShape)) continue;
+        commands.push({
+          commandId: randomUUID(),
+          lookId: currentLook.id,
+          expectedRevision: nextExpectedRev++,
+          action: 'SET_BODY_SHAPE',
+          payload: { bodyShape },
+          timestamp: new Date().toISOString(),
+        });
+        break;
+      }
+
+      case 'SET_GARMENT_MODEL': {
+        if (currentLook.locks.modelId) continue;
+        const modelId = payload.modelId as any;
+        if (!VALID_GARMENT_MODELS.includes(modelId)) continue;
+        commands.push({
+          commandId: randomUUID(),
+          lookId: currentLook.id,
+          expectedRevision: nextExpectedRev++,
+          action: 'SET_GARMENT_MODEL',
+          payload: { modelId },
           timestamp: new Date().toISOString(),
         });
         break;

@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { type GarmentConfig } from '@dangviet/contracts';
 import { AoDaiVisualizer } from './AoDaiVisualizer.tsx';
-import { X } from 'lucide-react';
+import { AoDai3DViewer } from './AoDai3DViewer.tsx';
+import { X, Sparkles, Layers } from 'lucide-react';
 
 interface CompareModalProps {
   lookA: { title: string; config: GarmentConfig; eventName?: string; styleName?: string; explanation?: string };
@@ -10,6 +11,7 @@ interface CompareModalProps {
 }
 
 export const CompareModal: React.FC<CompareModalProps> = ({ lookA, lookB, onClose }) => {
+  const [compare3D, setCompare3D] = useState<boolean>(false);
   return (
     <div
       className="compare-modal"
@@ -65,9 +67,63 @@ export const CompareModal: React.FC<CompareModalProps> = ({ lookA, lookB, onClos
           <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.75rem', color: 'var(--text-primary)' }}>
             So sánh trực quan hai phương án
           </h3>
-          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
             Đối chiếu phom dáng, hòa sắc và phụ kiện giữa hai bộ phối
           </p>
+
+          {/* 3D vs 2D Toggle for Comparison */}
+          <div
+            style={{
+              display: 'inline-flex',
+              background: 'var(--bg-subtle)',
+              padding: '3px',
+              borderRadius: '20px',
+              border: '1px solid var(--border-light)',
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setCompare3D(true)}
+              style={{
+                border: 'none',
+                background: compare3D ? 'var(--accent-red)' : 'transparent',
+                color: compare3D ? '#FFFFFF' : 'var(--text-secondary)',
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                padding: '4px 12px',
+                borderRadius: '16px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <Sparkles size={14} />
+              <span>3D Không gian</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setCompare3D(false)}
+              style={{
+                border: 'none',
+                background: !compare3D ? 'var(--accent-red)' : 'transparent',
+                color: !compare3D ? '#FFFFFF' : 'var(--text-secondary)',
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                padding: '4px 12px',
+                borderRadius: '16px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <Layers size={14} />
+              <span>2D Bản vẽ phẳng</span>
+            </button>
+          </div>
         </div>
 
         {/* Side-by-side Visualizers */}
@@ -89,8 +145,12 @@ export const CompareModal: React.FC<CompareModalProps> = ({ lookA, lookB, onClos
             <h4 style={{ fontWeight: 700, fontSize: '1.05rem', marginBottom: '1rem', textAlign: 'center' }}>
               {lookA.title}
             </h4>
-            <div style={{ width: '100%', height: '260px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-              <AoDaiVisualizer config={lookA.config} size="sm" mode="thumbnail" />
+            <div style={{ width: '100%', height: compare3D ? '360px' : '260px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+              {compare3D ? (
+                <AoDai3DViewer config={lookA.config} size="sm" />
+              ) : (
+                <AoDaiVisualizer config={lookA.config} size="sm" mode="thumbnail" />
+              )}
             </div>
           </div>
 
@@ -111,8 +171,12 @@ export const CompareModal: React.FC<CompareModalProps> = ({ lookA, lookB, onClos
             <h4 style={{ fontWeight: 700, fontSize: '1.05rem', marginBottom: '1rem', textAlign: 'center' }}>
               {lookB.title}
             </h4>
-            <div style={{ width: '100%', height: '260px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-              <AoDaiVisualizer config={lookB.config} size="sm" mode="thumbnail" />
+            <div style={{ width: '100%', height: compare3D ? '360px' : '260px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+              {compare3D ? (
+                <AoDai3DViewer config={lookB.config} size="sm" />
+              ) : (
+                <AoDaiVisualizer config={lookB.config} size="sm" mode="thumbnail" />
+              )}
             </div>
           </div>
         </div>

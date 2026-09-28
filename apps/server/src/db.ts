@@ -8,6 +8,8 @@ import {
   type CommandPayload,
   type CommandResult,
   LookSchema,
+  GarmentConfigSchema,
+  LockStateSchema,
 } from '@dangviet/contracts';
 import { executeCommand } from '@dangviet/domain';
 import { getAppConfig } from './config.js';
@@ -146,13 +148,15 @@ export interface LookRow {
 }
 
 export function rowToLook(row: LookRow): Look {
+  const parsedConfig = GarmentConfigSchema.parse(JSON.parse(row.config_json));
+  const parsedLocks = LockStateSchema.parse(JSON.parse(row.locks_json));
   return {
     id: row.id,
     title: row.title,
     eventId: row.event_id as any,
     styleId: row.style_id as any,
-    config: JSON.parse(row.config_json),
-    locks: JSON.parse(row.locks_json),
+    config: parsedConfig,
+    locks: parsedLocks,
     explanation: row.explanation,
     revision: row.revision,
     isDesign: Boolean(row.is_design),
@@ -582,7 +586,7 @@ export const dbRepo = {
       title: r.title,
       lookId: r.look_id,
       revision: r.revision,
-      snapshotConfig: JSON.parse(r.snapshot_config_json),
+      snapshotConfig: GarmentConfigSchema.parse(JSON.parse(r.snapshot_config_json)),
       eventId: r.event_id,
       styleId: r.style_id,
       notes: r.notes,

@@ -44,8 +44,26 @@ export const FabricEnum = z.enum(VALID_FABRICS);
 export type Fabric = z.infer<typeof FabricEnum>;
 
 export const VALID_PATTERNS = ['plain', 'lotus', 'cloud', 'crane', 'geometric_genz'] as const;
-export const PatternEnum = z.enum(VALID_PATTERNS);
 export type Pattern = z.infer<typeof PatternEnum>;
+export const PatternEnum = z.enum(VALID_PATTERNS);
+
+export const VALID_BODY_SHAPES = [
+  'standard',
+  'petite',
+  'tall_slender',
+  'broad_shoulders',
+  'curvy_hips',
+  'plus_size',
+] as const;
+export type BodyShape = typeof VALID_BODY_SHAPES[number];
+export const BodyShapeEnum = z.enum(VALID_BODY_SHAPES);
+
+export const VALID_GARMENT_MODELS = [
+  'aodai_classic_01',
+  'aodai_remix_raglan',
+] as const;
+export type GarmentModelId = typeof VALID_GARMENT_MODELS[number];
+export const GarmentModelIdEnum = z.enum(VALID_GARMENT_MODELS);
 
 export const GarmentConfigSchema = z.object({
   garmentType: z.literal('aodai').default('aodai'),
@@ -56,6 +74,8 @@ export const GarmentConfigSchema = z.object({
   fabric: FabricEnum.default('silk_ha_dong'),
   pattern: PatternEnum.default('plain'),
   accessories: z.array(AccessoryIdEnum).default([]),
+  bodyShape: BodyShapeEnum.default('standard'),
+  modelId: GarmentModelIdEnum.default('aodai_classic_01'),
 });
 export type GarmentConfig = z.infer<typeof GarmentConfigSchema>;
 
@@ -67,6 +87,8 @@ export const LockStateSchema = z.object({
   fabric: z.boolean().default(false),
   pattern: z.boolean().default(false),
   accessories: z.boolean().default(false),
+  bodyShape: z.boolean().default(false),
+  modelId: z.boolean().default(false),
 });
 export type LockState = z.infer<typeof LockStateSchema>;
 
@@ -172,6 +194,8 @@ export const CommandActionEnum = z.enum([
   'SET_PATTERN',
   'TOGGLE_ACCESSORY',
   'SET_ACCESSORIES',
+  'SET_BODY_SHAPE',
+  'SET_GARMENT_MODEL',
   'TOGGLE_LOCK',
   'APPLY_PRESET',
   'RESET_OUTFIT',
@@ -256,10 +280,24 @@ export const SetAccessoriesCommandSchema = BaseCommandSchema.extend({
   }),
 });
 
+export const SetBodyShapeCommandSchema = BaseCommandSchema.extend({
+  action: z.literal('SET_BODY_SHAPE'),
+  payload: z.object({
+    bodyShape: BodyShapeEnum,
+  }),
+});
+
+export const SetGarmentModelCommandSchema = BaseCommandSchema.extend({
+  action: z.literal('SET_GARMENT_MODEL'),
+  payload: z.object({
+    modelId: GarmentModelIdEnum,
+  }),
+});
+
 export const ToggleLockCommandSchema = BaseCommandSchema.extend({
   action: z.literal('TOGGLE_LOCK'),
   payload: z.object({
-    field: z.enum(['primaryColor', 'pantsColor', 'collarStyle', 'sleeveStyle', 'fabric', 'pattern', 'accessories']),
+    field: z.enum(['primaryColor', 'pantsColor', 'collarStyle', 'sleeveStyle', 'fabric', 'pattern', 'accessories', 'bodyShape', 'modelId']),
   }),
 });
 
@@ -301,6 +339,8 @@ export const CommandPayloadSchema = z.discriminatedUnion('action', [
   SetPatternCommandSchema,
   ToggleAccessoryCommandSchema,
   SetAccessoriesCommandSchema,
+  SetBodyShapeCommandSchema,
+  SetGarmentModelCommandSchema,
   ToggleLockCommandSchema,
   ApplyPresetCommandSchema,
   ApplyDesignCommandSchema,

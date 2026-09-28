@@ -10,6 +10,7 @@ import {
   type SaveLookbookResult,
 } from '@dangviet/contracts';
 import { AoDaiVisualizer } from './AoDaiVisualizer.tsx';
+import { AoDai3DViewer } from './AoDai3DViewer.tsx';
 import {
   Lock,
   Unlock,
@@ -81,6 +82,7 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [mobileTab, setMobileTab] = useState<'customize' | 'ai'>('customize');
+  const [visualizerMode, setVisualizerMode] = useState<'3d' | '2d'>('3d');
 
   const isBusyEffective = isMutating || isBusy || isLoading;
 
@@ -120,6 +122,8 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
           fabric: 'chất liệu vải',
           pattern: 'họa tiết',
           accessories: 'phụ kiện',
+          bodyShape: 'vóc dáng',
+          modelId: 'mẫu áo dài',
         };
         const label = fieldLabels[field] || field;
         const isLocked = res.look.locks[field];
@@ -496,49 +500,112 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
             position: 'relative',
           }}
         >
+          {/* Top Title and 3D / 2D Switch Bar */}
           <div
             style={{
-              position: 'absolute',
-              top: '1rem',
-              left: '1rem',
+              width: '100%',
               display: 'flex',
-              gap: '0.4rem',
+              justifyContent: 'space-between',
               alignItems: 'center',
+              marginBottom: '1rem',
               flexWrap: 'wrap',
+              gap: '0.5rem',
             }}
           >
-            <span
-              style={{
-                padding: '0.2rem 0.65rem',
-                borderRadius: 'var(--radius-full)',
-                fontSize: '0.75rem',
-                fontWeight: 700,
-                background: 'var(--bg-subtle)',
-                color: 'var(--text-secondary)',
-              }}
-            >
-              {look.title}
-            </span>
-
-            {viewingDesignTitle && (
+            <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', flexWrap: 'wrap' }}>
               <span
                 style={{
                   padding: '0.2rem 0.65rem',
                   borderRadius: 'var(--radius-full)',
                   fontSize: '0.75rem',
                   fontWeight: 700,
-                  background: 'var(--accent-blue-soft)',
-                  color: 'var(--accent-blue)',
-                  border: '1px solid var(--accent-blue)',
+                  background: 'var(--bg-subtle)',
+                  color: 'var(--text-secondary)',
                 }}
               >
-                Đang xem thiết kế: {viewingDesignTitle}
+                {look.title}
               </span>
-            )}
+
+              {viewingDesignTitle && (
+                <span
+                  style={{
+                    padding: '0.2rem 0.65rem',
+                    borderRadius: 'var(--radius-full)',
+                    fontSize: '0.75rem',
+                    fontWeight: 700,
+                    background: 'var(--accent-blue-soft)',
+                    color: 'var(--accent-blue)',
+                    border: '1px solid var(--accent-blue)',
+                  }}
+                >
+                  Đang xem thiết kế: {viewingDesignTitle}
+                </span>
+              )}
+            </div>
+
+            {/* Toggle 3D / 2D Buttons */}
+            <div
+              style={{
+                display: 'flex',
+                background: 'var(--bg-subtle)',
+                padding: '3px',
+                borderRadius: '20px',
+                border: '1px solid var(--border-light)',
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setVisualizerMode('3d')}
+                style={{
+                  border: 'none',
+                  background: visualizerMode === '3d' ? 'var(--accent-red)' : 'transparent',
+                  color: visualizerMode === '3d' ? '#FFFFFF' : 'var(--text-secondary)',
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  padding: '4px 10px',
+                  borderRadius: '16px',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                ✨ 3D Không gian
+              </button>
+              <button
+                type="button"
+                onClick={() => setVisualizerMode('2d')}
+                style={{
+                  border: 'none',
+                  background: visualizerMode === '2d' ? 'var(--accent-red)' : 'transparent',
+                  color: visualizerMode === '2d' ? '#FFFFFF' : 'var(--text-secondary)',
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  padding: '4px 10px',
+                  borderRadius: '16px',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                🎨 2D Vector
+              </button>
+            </div>
           </div>
 
-          {/* SVG Visualizer */}
-          <AoDaiVisualizer config={look.config} size="lg" mode="detail" />
+          {/* Interactive 3D Viewer */}
+          {visualizerMode === '3d' ? (
+            <div style={{ width: '100%' }}>
+              <AoDai3DViewer
+                config={look.config}
+                size="lg"
+                disabled={isBusyEffective}
+                onBodyShapeChange={(shape) => handleCommand('SET_BODY_SHAPE', { bodyShape: shape })}
+                onModelChange={(modelId) => handleCommand('SET_GARMENT_MODEL', { modelId })}
+              />
+            </div>
+          ) : (
+            <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
+              <AoDaiVisualizer config={look.config} size="lg" mode="detail" />
+            </div>
+          )}
         </div>
 
         {/* ======================================================== */}

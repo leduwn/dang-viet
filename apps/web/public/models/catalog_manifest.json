@@ -1,0 +1,155 @@
+{
+  "version": "1.0.0",
+  "updatedAt": "2026-09-28T16:39:44.049Z",
+  "engine": "Three.js 0.169.0 / React Three Fiber 8.17.10",
+  "conventions": {
+    "unit": "meters",
+    "coordinateSystem": "Y-up, Z-forward, X-right",
+    "groundPlaneY": 0,
+    "baseHeight": 1.65
+  },
+  "bodyPresets": [
+    {
+      "id": "standard",
+      "name": "Chuẩn Á Đông",
+      "description": "Tỷ lệ hình thể cân đối tự nhiên (1.65m)",
+      "weights": {
+        "morph_petite": 0,
+        "morph_tall_slender": 0,
+        "morph_broad_shoulders": 0,
+        "morph_curvy_hips": 0,
+        "morph_plus_size": 0
+      }
+    },
+    {
+      "id": "petite",
+      "name": "Nhỏ nhắn",
+      "description": "Dáng vóc thanh mảnh, chiều cao ~1.56m",
+      "weights": {
+        "morph_petite": 1,
+        "morph_tall_slender": 0,
+        "morph_broad_shoulders": 0,
+        "morph_curvy_hips": 0,
+        "morph_plus_size": 0
+      }
+    },
+    {
+      "id": "tall_slender",
+      "name": "Cao thanh",
+      "description": "Dáng người cao ráo dong dỏng, chiều cao ~1.72m",
+      "weights": {
+        "morph_petite": 0,
+        "morph_tall_slender": 1,
+        "morph_broad_shoulders": 0,
+        "morph_curvy_hips": 0,
+        "morph_plus_size": 0
+      }
+    },
+    {
+      "id": "broad_shoulders",
+      "name": "Khung vai rộng",
+      "description": "Bờ vai mở rộng đĩnh đạc, cầu vai ngang tôn nét thanh tao",
+      "weights": {
+        "morph_petite": 0,
+        "morph_tall_slender": 0,
+        "morph_broad_shoulders": 1,
+        "morph_curvy_hips": 0,
+        "morph_plus_size": 0
+      }
+    },
+    {
+      "id": "curvy_hips",
+      "name": "Hông nở",
+      "description": "Vòng hông nở nang, tạo đường cong lượn tà áo chữ S mềm mại",
+      "weights": {
+        "morph_petite": 0,
+        "morph_tall_slender": 0,
+        "morph_broad_shoulders": 0,
+        "morph_curvy_hips": 1,
+        "morph_plus_size": 0
+      }
+    },
+    {
+      "id": "plus_size",
+      "name": "Đầy đặn",
+      "description": "Thân hình đẫy đà, đường nét tròn đầy quý phái",
+      "weights": {
+        "morph_petite": 0,
+        "morph_tall_slender": 0,
+        "morph_broad_shoulders": 0,
+        "morph_curvy_hips": 0,
+        "morph_plus_size": 1
+      }
+    }
+  ],
+  "models": [
+    {
+      "id": "aodai_classic_01",
+      "name": "Áo Dài Cổ Đứng Truyền Thống",
+      "category": "classic",
+      "meshUrl": "/models/aodai_classic_01.glb",
+      "pantsUrl": "/models/pants_silk.glb",
+      "avatarUrl": "/models/avatar_base.glb",
+      "features": {
+        "collar": "Cổ đứng 3.5cm truyền thống",
+        "sleeve": "Tay dài suôn",
+        "flaps": "Tà dài qua gối xẻ eo",
+        "pants": "Quần lụa ống rộng hai ống"
+      },
+      "supportedMorphs": [
+        "morph_petite",
+        "morph_tall_slender",
+        "morph_broad_shoulders",
+        "morph_curvy_hips",
+        "morph_plus_size"
+      ]
+    },
+    {
+      "id": "aodai_remix_raglan",
+      "name": "Áo Dài Cổ Thuyền Tay Raglan Cách Tân",
+      "category": "modern",
+      "meshUrl": "/models/aodai_remix_raglan.glb",
+      "pantsUrl": "/models/pants_silk.glb",
+      "avatarUrl": "/models/avatar_base.glb",
+      "features": {
+        "collar": "Cổ thuyền thanh thoát",
+        "sleeve": "Tay raglan ôm vai",
+        "flaps": "Tà lỡ midi hiện đại xẻ eo",
+        "pants": "Quần lụa ống rộng hai ống"
+      },
+      "supportedMorphs": [
+        "morph_petite",
+        "morph_tall_slender",
+        "morph_broad_shoulders",
+        "morph_curvy_hips",
+        "morph_plus_size"
+      ]
+    }
+  ],
+  "accessories": [
+    {
+      "id": "man_truyen_thong",
+      "name": "Mấn Đội Đầu Truyền Thống",
+      "modelUrl": "/models/accessories/man_truyen_thong.glb",
+      "socket": "head"
+    },
+    {
+      "id": "non_la",
+      "name": "Nón Lá Bài Thơ",
+      "modelUrl": "/models/accessories/non_la.glb",
+      "socket": "head"
+    },
+    {
+      "id": "chuoi_ngoc",
+      "name": "Chuỗi Ngọc Trai",
+      "modelUrl": "/models/accessories/chuoi_ngoc.glb",
+      "socket": "neck"
+    },
+    {
+      "id": "quat_xep",
+      "name": "Quạt Xếp Cầm Tay",
+      "modelUrl": "/models/accessories/quat_xep.glb",
+      "socket": "hand_right"
+    }
+  ]
+}

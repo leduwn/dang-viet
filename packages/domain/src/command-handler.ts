@@ -11,11 +11,15 @@ import {
   type Pattern,
   type EventId,
   type StyleId,
+  type BodyShape,
+  type GarmentModelId,
   VALID_ACCESSORY_IDS,
   VALID_COLLARS,
   VALID_SLEEVES,
   VALID_FABRICS,
   VALID_PATTERNS,
+  VALID_BODY_SHAPES,
+  VALID_GARMENT_MODELS,
   GarmentConfigSchema,
 } from '@dangviet/contracts';
 import { applyRecommendation } from './rules.js';
@@ -179,6 +183,30 @@ export function executeCommand(
       break;
     }
 
+    case 'SET_BODY_SHAPE': {
+      if (nextLocks.bodyShape) {
+        return { ok: false, error: 'Vóc dáng đang bị khóa, không thể thay đổi', statusCode: 400 };
+      }
+      const bodyShape = payload.bodyShape as BodyShape;
+      if (!bodyShape || !VALID_BODY_SHAPES.includes(bodyShape)) {
+        return { ok: false, error: `Vóc dáng không hợp lệ trong danh mục: ${bodyShape}`, statusCode: 400 };
+      }
+      nextConfig.bodyShape = bodyShape;
+      break;
+    }
+
+    case 'SET_GARMENT_MODEL': {
+      if (nextLocks.modelId) {
+        return { ok: false, error: 'Mẫu áo dài đang bị khóa, không thể thay đổi', statusCode: 400 };
+      }
+      const modelId = payload.modelId as GarmentModelId;
+      if (!modelId || !VALID_GARMENT_MODELS.includes(modelId)) {
+        return { ok: false, error: `Mẫu áo dài không hợp lệ trong danh mục: ${modelId}`, statusCode: 400 };
+      }
+      nextConfig.modelId = modelId;
+      break;
+    }
+
     case 'TOGGLE_LOCK': {
       const field = payload.field as keyof LockState;
       if (field in nextLocks) {
@@ -205,6 +233,8 @@ export function executeCommand(
       if (!nextLocks.fabric) nextConfig.fabric = validPreset.fabric;
       if (!nextLocks.pattern) nextConfig.pattern = validPreset.pattern;
       if (!nextLocks.accessories) nextConfig.accessories = [...validPreset.accessories];
+      if (!nextLocks.bodyShape && validPreset.bodyShape) nextConfig.bodyShape = validPreset.bodyShape;
+      if (!nextLocks.modelId && validPreset.modelId) nextConfig.modelId = validPreset.modelId;
 
       if (payload.title) nextTitle = String(payload.title);
       if (payload.explanation) nextExplanation = String(payload.explanation);
@@ -227,6 +257,8 @@ export function executeCommand(
       if (!nextLocks.fabric) nextConfig.fabric = validDesign.fabric;
       if (!nextLocks.pattern) nextConfig.pattern = validDesign.pattern;
       if (!nextLocks.accessories) nextConfig.accessories = [...validDesign.accessories];
+      if (!nextLocks.bodyShape && validDesign.bodyShape) nextConfig.bodyShape = validDesign.bodyShape;
+      if (!nextLocks.modelId && validDesign.modelId) nextConfig.modelId = validDesign.modelId;
 
       if (payload.title) nextTitle = String(payload.title);
       if (payload.explanation) nextExplanation = String(payload.explanation);

@@ -230,6 +230,8 @@ export function applyRecommendation(
     fabric: locks.fabric ? currentConfig.fabric : (rule.recommendedFabrics[0] as any),
     pattern: locks.pattern ? currentConfig.pattern : (rule.recommendedPatterns[0] as any),
     accessories: locks.accessories ? currentConfig.accessories : [...rule.recommendedAccessories],
+    bodyShape: locks.bodyShape ? currentConfig.bodyShape : (currentConfig.bodyShape || 'standard'),
+    modelId: locks.modelId ? currentConfig.modelId : (currentConfig.modelId || 'aodai_classic_01'),
   };
 
   return {

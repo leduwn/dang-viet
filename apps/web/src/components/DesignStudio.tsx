@@ -5,6 +5,7 @@ import {
   type StyleItem,
 } from '@dangviet/contracts';
 import { AoDaiVisualizer } from './AoDaiVisualizer.tsx';
+import { AoDai3DViewer } from './AoDai3DViewer.tsx';
 import { Sparkles, BookmarkPlus, ArrowRight, Wand2, AlertCircle } from 'lucide-react';
 
 interface DesignStudioProps {
@@ -44,9 +45,12 @@ export const DesignStudio: React.FC<DesignStudioProps> = ({
       fabric: 'voile_chiffon',
       pattern: 'geometric_genz',
       accessories: ['quat_xep', 'tui_coi'],
+      bodyShape: 'standard',
+      modelId: 'aodai_classic_01',
     },
     explanation: 'Thiết kế cách điệu lấy cảm hứng từ trang phục lễ hội trường học, ứng dụng đường xẻ tà tay bay bổng và bảng màu color-block đậm chất Gen Z.',
   });
+  const [visualizerMode, setVisualizerMode] = useState<'3d' | '2d'>('3d');
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   const handleGenerate = async () => {
@@ -300,14 +304,81 @@ export const DesignStudio: React.FC<DesignStudioProps> = ({
             >
               Thiết kế cách điệu do AI hỗ trợ
             </span>
-            <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.4rem', color: 'var(--text-primary)' }}>
+            <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.4rem', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
               {currentDesign.title}
             </h3>
+
+            {/* Toggle 3D / 2D Buttons */}
+            <div
+              style={{
+                display: 'inline-flex',
+                background: 'var(--bg-subtle)',
+                padding: '2px',
+                borderRadius: '16px',
+                border: '1px solid var(--border-light)',
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setVisualizerMode('3d')}
+                style={{
+                  border: 'none',
+                  background: visualizerMode === '3d' ? 'var(--accent-red)' : 'transparent',
+                  color: visualizerMode === '3d' ? '#FFFFFF' : 'var(--text-secondary)',
+                  fontSize: '0.72rem',
+                  fontWeight: 600,
+                  padding: '3px 8px',
+                  borderRadius: '12px',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                ✨ 3D
+              </button>
+              <button
+                type="button"
+                onClick={() => setVisualizerMode('2d')}
+                style={{
+                  border: 'none',
+                  background: visualizerMode === '2d' ? 'var(--accent-red)' : 'transparent',
+                  color: visualizerMode === '2d' ? '#FFFFFF' : 'var(--text-secondary)',
+                  fontSize: '0.72rem',
+                  fontWeight: 600,
+                  padding: '3px 8px',
+                  borderRadius: '12px',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                🎨 2D
+              </button>
+            </div>
           </div>
 
-          {/* SVG Canvas */}
-          <div style={{ padding: '0.5rem 0' }}>
-            <AoDaiVisualizer config={currentDesign.config} size="md" mode="detail" />
+          {/* 3D or SVG Canvas */}
+          <div style={{ width: '100%', padding: '0.5rem 0' }}>
+            {visualizerMode === '3d' ? (
+              <AoDai3DViewer
+                config={currentDesign.config}
+                size="md"
+                onBodyShapeChange={(shape) =>
+                  setCurrentDesign((prev) => ({
+                    ...prev,
+                    config: { ...prev.config, bodyShape: shape },
+                  }))
+                }
+                onModelChange={(modelId) =>
+                  setCurrentDesign((prev) => ({
+                    ...prev,
+                    config: { ...prev.config, modelId },
+                  }))
+                }
+              />
+            ) : (
+              <div style={{ display: 'flex', justifyContent: 'center' }}>
+                <AoDaiVisualizer config={currentDesign.config} size="md" mode="detail" />
+              </div>
+            )}
           </div>
 
           {/* Details & Explanation */}
