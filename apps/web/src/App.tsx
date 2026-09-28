@@ -20,7 +20,8 @@ import {
   fetchCultureCards,
   fetchAIStatus,
   sendAIChat,
-  requestAIDesign,
+  requestDesignProposal,
+  validateDesignProposalApi,
 } from './api/client.ts';
 import { Navbar } from './components/Navbar.tsx';
 import { ExploreSection } from './components/ExploreSection.tsx';
@@ -30,7 +31,14 @@ import { LookbookSection } from './components/LookbookSection.tsx';
 import { CompareModal } from './components/CompareModal.tsx';
 
 export const App: React.FC = () => {
-  const [currentTab, setCurrentTab] = useState<'explore' | 'studio' | 'design' | 'lookbook'>('explore');
+  const [currentTab, setCurrentTab] = useState<'explore' | 'studio' | 'design' | 'lookbook'>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get('tab');
+      if (tab === 'studio' || tab === 'design' || tab === 'lookbook') return tab;
+    } catch {}
+    return 'explore';
+  });
   const [meta, setMeta] = useState<any | null>(null);
   const [look, setLook] = useState<Look | null>(null);
   const [cultureCards, setCultureCards] = useState<CultureCard[]>([]);
@@ -442,10 +450,40 @@ export const App: React.FC = () => {
 
         {currentTab === 'design' && (
           <DesignStudio
+            currentLook={look}
             events={meta.events}
             styles={meta.styles}
-            onRequestDesign={async (prompt, eventId, styleId) => {
-              return requestAIDesign({ prompt, eventId: eventId as any, styleId: styleId as any, baseLookId: look.id });
+            onRequestProposal={async (prompt, eventId, styleId) => {
+              return requestDesignProposal({
+                targetLookId: look.id,
+                prompt,
+                eventId: eventId as any,
+                styleId: styleId as any,
+                expectedRevision: look.revision,
+              });
+            }}
+            onApplyProposal={async (proposal, eventId, styleId) => {
+              // 1. Client-side/Server-side validate proposal
+              const validation = await validateDesignProposalApi(proposal);
+              if (!validation.valid) {
+                return { success: false, error: validation.errors.join('; ') };
+              }
+
+              // 2. Dispatch atomic command
+              const res = await handleDispatchCommand('APPLY_DESIGN', {
+                config: proposal.proposedConfig,
+                title: proposal.title,
+                explanation: proposal.explanation,
+                eventId: eventId as any,
+                styleId: styleId as any,
+              });
+
+              if (res.success) {
+                setCurrentTab('studio');
+                return { success: true };
+              } else {
+                return { success: false, error: res.error || 'Lỗi khi áp dụng thiết kế' };
+              }
             }}
             onSaveDesignToLookbook={async (title, config, explanation, eventId, styleId) => {
               const newItem: LookbookItem = {

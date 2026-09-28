@@ -147,7 +147,7 @@ export const CompareModal: React.FC<CompareModalProps> = ({ lookA, lookB, onClos
             </h4>
             <div style={{ width: '100%', height: compare3D ? '360px' : '260px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
               {compare3D ? (
-                <AoDai3DViewer config={lookA.config} size="sm" />
+                <AoDai3DViewer config={lookA.config} size="sm" showToolbar={false} disabled={true} />
               ) : (
                 <AoDaiVisualizer config={lookA.config} size="sm" mode="thumbnail" />
               )}
@@ -173,7 +173,7 @@ export const CompareModal: React.FC<CompareModalProps> = ({ lookA, lookB, onClos
             </h4>
             <div style={{ width: '100%', height: compare3D ? '360px' : '260px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
               {compare3D ? (
-                <AoDai3DViewer config={lookB.config} size="sm" />
+                <AoDai3DViewer config={lookB.config} size="sm" showToolbar={false} disabled={true} />
               ) : (
                 <AoDaiVisualizer config={lookB.config} size="sm" mode="thumbnail" />
               )}

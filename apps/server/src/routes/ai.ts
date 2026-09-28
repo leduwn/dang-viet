@@ -2,7 +2,10 @@ import { type FastifyPluginAsync } from 'fastify';
 import {
   AIChatRequestSchema,
   StructuredDesignRequestSchema,
+  DesignProposalRequestSchema,
+  DesignProposalSchema,
 } from '@dangviet/contracts';
+import { validateDesignProposal } from '@dangviet/domain';
 import { aiAdapter } from '../ai/nine-router-adapter.js';
 import { dbRepo } from '../db.js';
 
@@ -45,7 +48,43 @@ export const aiRoutes: FastifyPluginAsync = async (fastify) => {
     return result;
   });
 
-  // 4. Concept Image Generation
+  // 4. Generate Design Proposal
+  fastify.post('/ai/proposal', async (request, reply) => {
+    const parse = DesignProposalRequestSchema.safeParse(request.body);
+    if (!parse.success) {
+      return reply.code(400).send({ error: 'Yêu cầu proposal không hợp lệ', details: parse.error.format() });
+    }
+
+    const baseLook = dbRepo.getLook(parse.data.targetLookId);
+    if (!baseLook) {
+      return reply.code(404).send({ error: 'Không tìm thấy bộ phối mục tiêu để tạo đề xuất' });
+    }
+
+    const proposal = await aiAdapter.generateProposal(parse.data, baseLook);
+    return proposal;
+  });
+
+  // 5. Validate Design Proposal
+  fastify.post('/ai/proposal/validate', async (request, reply) => {
+    const parse = DesignProposalSchema.safeParse(request.body);
+    if (!parse.success) {
+      return reply.code(400).send({ error: 'Dữ liệu proposal không hợp lệ', details: parse.error.format() });
+    }
+
+    const proposal = parse.data;
+    const currentLook = dbRepo.getLook(proposal.targetLookId);
+    if (!currentLook) {
+      return reply.code(404).send({ error: 'Không tìm thấy Look mục tiêu để xác thực' });
+    }
+
+    const publishedCards = dbRepo.getCultureCards('published');
+    const allowedSlugs = publishedCards.map((c) => c.slug);
+
+    const validation = validateDesignProposal(proposal, currentLook, allowedSlugs);
+    return validation;
+  });
+
+  // 6. Concept Image Generation
   fastify.post('/ai/concept', async (request, reply) => {
     const { prompt } = request.body as { prompt?: string };
     if (!prompt) {

@@ -597,6 +597,7 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
                 config={look.config}
                 size="lg"
                 disabled={isBusyEffective}
+                locks={look.locks}
                 onBodyShapeChange={(shape) => handleCommand('SET_BODY_SHAPE', { bodyShape: shape })}
                 onModelChange={(modelId) => handleCommand('SET_GARMENT_MODEL', { modelId })}
               />

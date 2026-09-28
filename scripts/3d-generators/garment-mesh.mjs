@@ -1,132 +1,152 @@
 /**
  * 3D Garment Mesh Generator for Vietnamese Ao Dai and Pants with 5 Morph Targets
- * Supports:
- * 1. aodai_classic_01 (Cổ đứng truyền thống 3.5cm, tay dài, tà dài qua gối, quần suông lụa)
- * 2. aodai_remix_raglan (Cổ thuyền cách tân, tay raglan ôm nhẹ, tà lỡ hiện đại, quần suông)
+ * Features:
+ * - Seamless collar-to-bodice and bodice-to-flap continuity
+ * - True anatomical side slits (xẻ tà eo) with folded hem geometry (no DoubleSide cheat needed)
+ * - Complete silk pants geometry with closed waistband, hip/pelvis volume, and dual flowing legs
+ * - 5 synchronized morph targets matching the avatar deformation space
  */
 
-import { computeVertexNormals } from './avatar-mesh.mjs';
+import { computeVertexNormals, computeMorphDeltas } from './avatar-mesh.mjs';
+
+const TARGET_NAMES = [
+  'morph_petite',
+  'morph_tall_slender',
+  'morph_broad_shoulders',
+  'morph_curvy_hips',
+  'morph_plus_size',
+];
 
 /**
- * Creates an Ao Dai mesh with specified style parameters
+ * Creates an Ao Dai mesh with specified collar, sleeve, and flap parameters
  */
 export function generateAoDaiGeometry(options = {}) {
   const {
-    collarType = 'high_stand', // 'high_stand' | 'boat' | 'round'
-    sleeveType = 'long',       // 'long' | 'raglan' | 'elbow'
-    flapLength = 'long',       // 'long' (knee/calf ~0.42m) | 'midi' (~0.52m)
+    collarType = 'high_stand', // 'high_stand' | 'round' | 'boat' | 'v_neck'
+    sleeveType = 'long',       // 'long' | 'raglan' | 'elbow' | 'slit'
+    flapLength = 'long',       // 'long' (~0.42m) | 'midi' (~0.54m)
   } = options;
 
   const positions = [];
   const uvs = [];
   const indices = [];
 
-  const SECTORS = 20;
+  // =========================================================================
+  // 1. COLLAR WITH HEMMED RIM (Cổ áo có độ dày viền mép)
+  // =========================================================================
+  const collarBaseY = collarType === 'boat' ? 1.425 : (collarType === 'round' ? 1.435 : 1.450);
+  const collarTopY  = collarType === 'boat' ? 1.438 : (collarType === 'round' ? 1.455 : (collarType === 'v_neck' ? 1.460 : 1.488)); // Standing 3.8cm
+  const collarRad   = collarType === 'boat' ? 0.070 : (collarType === 'round' ? 0.058 : 0.048);
+  const collarSectors = 24;
 
-  // 1. COLLAR
-  const collarBaseY = collarType === 'boat' ? 1.43 : 1.46;
-  const collarTopY  = collarType === 'boat' ? 1.44 : (collarType === 'round' ? 1.47 : 1.495); // 3.5cm standing collar
-  const collarRad   = collarType === 'boat' ? 0.065 : 0.046;
+  const collarBaseIdx = positions.length / 3;
+  const collarRings = 4;
+  for (let r = 0; r <= collarRings; r++) {
+    const t = r / collarRings;
+    const y = collarBaseY + (collarTopY - collarBaseY) * t;
+    const rad = collarRad * (1.0 - 0.03 * t);
+    const v = 0.90 + 0.10 * t;
 
-  function addCylinder(yBottom, yTop, rBottom, rTop, vStart, vEnd, sectors = 16) {
-    const baseIdx = positions.length / 3;
-    const rings = 4;
-    for (let r = 0; r <= rings; r++) {
-      const t = r / rings;
-      const y = yBottom + (yTop - yBottom) * t;
-      const rad = rBottom + (rTop - rBottom) * t;
-      const v = vStart + (vEnd - vStart) * t;
+    for (let s = 0; s <= collarSectors; s++) {
+      const u = s / collarSectors;
+      const theta = u * Math.PI * 2;
+      const cos = Math.cos(theta);
+      const sin = Math.sin(theta);
 
-      for (let s = 0; s <= sectors; s++) {
-        const u = s / sectors;
-        const theta = u * Math.PI * 2;
-        const x = rad * Math.sin(theta);
-        const z = rad * Math.cos(theta) - 0.010;
-
-        positions.push(x, y, z);
-        uvs.push(u, v);
+      // Add subtle V-notch if v_neck
+      let zOff = -0.012;
+      let yMod = y;
+      if (collarType === 'v_neck' && Math.abs(theta - Math.PI / 2) < 0.4) {
+        yMod -= 0.025 * (1.0 - Math.abs(theta - Math.PI / 2) / 0.4);
       }
-    }
 
-    for (let r = 0; r < rings; r++) {
-      for (let s = 0; s < sectors; s++) {
-        const row1 = baseIdx + r * (sectors + 1);
-        const row2 = baseIdx + (r + 1) * (sectors + 1);
-        indices.push(row1 + s, row1 + s + 1, row2 + s + 1);
-        indices.push(row1 + s, row2 + s + 1, row2 + s);
-      }
+      const x = rad * sin;
+      const z = rad * cos + zOff;
+
+      positions.push(x, yMod, z);
+      uvs.push(u, v);
     }
   }
 
-  addCylinder(collarBaseY, collarTopY, collarRad, collarRad * 0.98, 0.90, 1.0, 16);
+  for (let r = 0; r < collarRings; r++) {
+    for (let s = 0; s < collarSectors; s++) {
+      const row1 = collarBaseIdx + r * (collarSectors + 1);
+      const row2 = collarBaseIdx + (r + 1) * (collarSectors + 1);
+      indices.push(row1 + s, row1 + s + 1, row2 + s + 1);
+      indices.push(row1 + s, row2 + s + 1, row2 + s);
+    }
+  }
 
-  // 2. BODICE (Upper Torso from collar down to waist Y=1.05m where slits start)
+  // =========================================================================
+  // 2. CONTINUOUS BODICE & FLAPS (Thân áo liền lạc với tà trước và tà sau)
+  // =========================================================================
+  // The bodice seamlessly encloses the torso from collarBaseY down to waist Y=1.05m.
+  // At waist Y=1.05m, the side seam splits into two elegant flowing panels:
+  // Front Flap (Tà trước) and Back Flap (Tà sau), each with folded hem edges.
+
+  const flapBottomY = flapLength === 'midi' ? 0.54 : 0.42;
+
+  // Upper Bodice Rings (Enclosed tube from collar to waist)
   const bodiceRings = [
-    { y: collarBaseY, rx: collarRad + 0.015, rz: collarRad + 0.015, zOff: -0.012 },
-    { y: 1.39, rx: 0.174, rz: 0.092, zOff: -0.015 },
-    { y: 1.35, rx: 0.160, rz: 0.103, zOff: -0.010 },
-    { y: 1.28, rx: 0.154, rz: 0.118, zOff:  0.014 }, // Bust contour (clears skin by ~5mm)
-    { y: 1.20, rx: 0.141, rz: 0.096, zOff: -0.005 },
-    { y: 1.12, rx: 0.125, rz: 0.086, zOff: -0.008 },
-    { y: 1.05, rx: 0.120, rz: 0.084, zOff: -0.008 }, // Waistline / slit apex (eo xẻ tà)
+    { y: collarBaseY, rx: collarRad + 0.012, rz: collarRad + 0.012, zOff: -0.012 },
+    { y: 1.395, rx: 0.174, rz: 0.092, zOff: -0.015 }, // Shoulder / clavicle
+    { y: 1.350, rx: 0.160, rz: 0.103, zOff: -0.010 }, // Upper chest
+    { y: 1.280, rx: 0.154, rz: 0.118, zOff:  0.014 }, // Bust contour (clears skin by ~4mm)
+    { y: 1.200, rx: 0.141, rz: 0.098, zOff: -0.005 }, // Ribcage
+    { y: 1.120, rx: 0.125, rz: 0.086, zOff: -0.008 }, // Upper waist
+    { y: 1.050, rx: 0.120, rz: 0.084, zOff: -0.008 }, // Natural waist (Điểm xẻ tà)
   ];
 
-  function addBodice(rings) {
-    const baseIdx = positions.length / 3;
-    const ringCount = rings.length;
+  const BODICE_SECTORS = 24;
+  const bodiceBaseIdx = positions.length / 3;
 
-    for (let r = 0; r < ringCount; r++) {
-      const ring = rings[r];
-      const v = 0.55 + 0.35 * (r / (ringCount - 1));
+  for (let r = 0; r < bodiceRings.length; r++) {
+    const ring = bodiceRings[r];
+    const v = 0.55 + 0.35 * (1.0 - r / (bodiceRings.length - 1));
 
-      for (let s = 0; s <= SECTORS; s++) {
-        const u = s / SECTORS;
-        const theta = u * Math.PI * 2;
-        const x = ring.rx * Math.sin(theta);
-        const y = ring.y;
-        const z = ring.rz * Math.cos(theta) + ring.zOff;
+    for (let s = 0; s <= BODICE_SECTORS; s++) {
+      const u = s / BODICE_SECTORS;
+      const theta = u * Math.PI * 2;
+      const x = ring.rx * Math.sin(theta);
+      const y = ring.y;
+      const z = ring.rz * Math.cos(theta) + ring.zOff;
 
-        positions.push(x, y, z);
-        uvs.push(u, v);
-      }
-    }
-
-    for (let r = 0; r < ringCount - 1; r++) {
-      for (let s = 0; s < SECTORS; s++) {
-        const row1 = baseIdx + r * (SECTORS + 1);
-        const row2 = baseIdx + (r + 1) * (SECTORS + 1);
-        indices.push(row1 + s, row1 + s + 1, row2 + s + 1);
-        indices.push(row1 + s, row2 + s + 1, row2 + s);
-      }
+      positions.push(x, y, z);
+      uvs.push(u, v);
     }
   }
-  addBodice(bodiceRings);
 
-  // 3. FRONT & BACK FLAPS (Tà Trước & Tà Sau)
-  // Split at sides: X in [-rx, +rx].
-  // Front flap: Z > zOff; Back flap: Z < zOff.
-  const flapBottomY = flapLength === 'midi' ? 0.52 : 0.42; // Below knee for traditional
+  for (let r = 0; r < bodiceRings.length - 1; r++) {
+    for (let s = 0; s < BODICE_SECTORS; s++) {
+      const row1 = bodiceBaseIdx + r * (BODICE_SECTORS + 1);
+      const row2 = bodiceBaseIdx + (r + 1) * (BODICE_SECTORS + 1);
+      indices.push(row1 + s, row1 + s + 1, row2 + s + 1);
+      indices.push(row1 + s, row2 + s + 1, row2 + s);
+    }
+  }
+
+  // Flaps (Tà Trước & Tà Sau with side slit borders)
   const flapSteps = 8;
   const flapWidths = [
-    { y: 1.05, w: 0.24, zCurve: 0.090 },
-    { y: 0.98, w: 0.27, zCurve: 0.100 },
-    { y: 0.90, w: 0.33, zCurve: 0.120 }, // High hip
-    { y: 0.80, w: 0.34, zCurve: 0.122 },
-    { y: 0.70, w: 0.35, zCurve: 0.120 },
-    { y: 0.60, w: 0.36, zCurve: 0.115 },
-    { y: 0.50, w: 0.37, zCurve: 0.110 },
-    { y: flapBottomY, w: 0.38, zCurve: 0.108 }, // Hemline
+    { y: 1.05, w: 0.240, zCurve: 0.088 },
+    { y: 0.98, w: 0.272, zCurve: 0.098 },
+    { y: 0.90, w: 0.334, zCurve: 0.118 }, // High hip curve
+    { y: 0.80, w: 0.346, zCurve: 0.120 },
+    { y: 0.70, w: 0.358, zCurve: 0.118 },
+    { y: 0.60, w: 0.368, zCurve: 0.114 },
+    { y: 0.50, w: 0.378, zCurve: 0.110 },
+    { y: flapBottomY, w: 0.388, zCurve: 0.108 }, // Hemline
   ];
 
   function addFlap(isFront = true) {
     const baseIdx = positions.length / 3;
-    const COLS = 10;
+    const COLS = 12;
     const signZ = isFront ? 1 : -1;
-    const zOffset = isFront ? 0.005 : -0.015;
+    const zOffset = isFront ? 0.006 : -0.016;
 
     for (let r = 0; r < flapSteps; r++) {
       const row = flapWidths[r];
-      const v = 0.55 * (1 - r / (flapSteps - 1));
+      const v = 0.55 * (1.0 - r / (flapSteps - 1));
 
       for (let c = 0; c <= COLS; c++) {
         const u = c / COLS;
@@ -134,10 +154,10 @@ export function generateAoDaiGeometry(options = {}) {
         const y = row.y;
         // Mild cylindrical curvature across the flap width
         const arch = Math.cos((u - 0.5) * Math.PI);
-        const z = zOffset + signZ * (row.zCurve + arch * 0.015);
+        const z = zOffset + signZ * (row.zCurve + arch * 0.014);
 
         positions.push(x, y, z);
-        uvs.push(isFront ? u : (1 - u), v);
+        uvs.push(isFront ? u : (1.0 - u), v);
       }
     }
 
@@ -160,34 +180,88 @@ export function generateAoDaiGeometry(options = {}) {
         }
       }
     }
+
+    // Add Hem Border (Độ dày gập mép viền 2mm cho tà áo, không phụ thuộc DoubleSide)
+    const hemBaseIdx = positions.length / 3;
+    const hemThickness = 0.003;
+    for (let r = 0; r < flapSteps; r++) {
+      const row = flapWidths[r];
+      const v = 0.55 * (1.0 - r / (flapSteps - 1));
+      for (let c = 0; c <= COLS; c++) {
+        const u = c / COLS;
+        const x = (u - 0.5) * row.w;
+        const y = row.y;
+        const arch = Math.cos((u - 0.5) * Math.PI);
+        const z = zOffset + signZ * (row.zCurve + arch * 0.014 - hemThickness);
+
+        positions.push(x, y, z);
+        uvs.push(isFront ? (1.0 - u) : u, v);
+      }
+    }
+
+    for (let r = 0; r < flapSteps - 1; r++) {
+      for (let c = 0; c < COLS; c++) {
+        const row1 = hemBaseIdx + r * (COLS + 1);
+        const row2 = hemBaseIdx + (r + 1) * (COLS + 1);
+
+        const i0 = row1 + c;
+        const i1 = row1 + c + 1;
+        const i2 = row2 + c + 1;
+        const i3 = row2 + c;
+
+        if (isFront) {
+          indices.push(i0, i2, i1);
+          indices.push(i0, i3, i2);
+        } else {
+          indices.push(i0, i1, i2);
+          indices.push(i0, i2, i3);
+        }
+      }
+    }
   }
 
   addFlap(true);  // Tà trước
   addFlap(false); // Tà sau
 
-  // 4. SLEEVES (Tay áo dài / lỡ)
+  // =========================================================================
+  // 3. SLEEVES (Tay áo dài / Raglan / lỡ / xẻ tà)
+  // =========================================================================
   function addSleeve(isRight = false) {
     const baseIdx = positions.length / 3;
     const signX = isRight ? 1 : -1;
-    const sleeveSectors = 12;
+    const sleeveSectors = 16;
 
-    const armPath = [
-      [signX * 0.174, 1.38, -0.015], // Shoulder
-      [signX * 0.205, 1.25, -0.015], // Bicep
-      [signX * 0.240, 1.12, -0.015], // Elbow
-      [signX * 0.270, 0.98, -0.010], // Forearm
-      [signX * 0.290, 0.86, -0.005], // Wrist
-    ];
+    // Raglan sleeves cut diagonally from collar junction to armpit
+    const armPath = sleeveType === 'raglan'
+      ? [
+          [signX * 0.170, 1.390, -0.015], // Raglan shoulder slope
+          [signX * 0.202, 1.265, -0.015], // Bicep
+          [signX * 0.235, 1.135, -0.015], // Elbow
+          [signX * 0.264, 0.995, -0.010], // Forearm
+          [signX * 0.284, 0.875, -0.005], // Wrist
+        ]
+      : [
+          [signX * 0.174, 1.385, -0.015], // Classic shoulder set-in
+          [signX * 0.205, 1.260, -0.015], // Bicep
+          [signX * 0.238, 1.130, -0.015], // Elbow
+          [signX * 0.268, 0.990, -0.010], // Forearm
+          [signX * 0.288, 0.870, -0.005], // Wrist
+        ];
 
     const sleeveRadii = sleeveType === 'raglan'
-      ? [0.054, 0.046, 0.041, 0.037, 0.030]
-      : [0.052, 0.045, 0.040, 0.036, 0.029];
+      ? [0.052, 0.045, 0.040, 0.036, 0.029]
+      : [0.050, 0.044, 0.039, 0.035, 0.028];
 
     const count = sleeveType === 'elbow' ? 3 : armPath.length;
 
     for (let i = 0; i < count; i++) {
       const pt = armPath[i];
-      const rad = sleeveRadii[i];
+      let rad = sleeveRadii[i];
+      // Flared slit sleeve effect if sleeveType === 'slit'
+      if (sleeveType === 'slit' && i >= count - 2) {
+        rad += 0.014;
+      }
+
       const nextPt = armPath[Math.min(i + 1, count - 1)];
       const prevPt = armPath[Math.max(0, i - 1)];
 
@@ -231,18 +305,8 @@ export function generateAoDaiGeometry(options = {}) {
         const row1 = baseIdx + i * (sleeveSectors + 1);
         const row2 = baseIdx + (i + 1) * (sleeveSectors + 1);
 
-        const i0 = row1 + s;
-        const i1 = row1 + s + 1;
-        const i2 = row2 + s + 1;
-        const i3 = row2 + s;
-
-        if (isRight) {
-          indices.push(i0, i2, i1);
-          indices.push(i0, i3, i2);
-        } else {
-          indices.push(i0, i1, i2);
-          indices.push(i0, i2, i3);
-        }
+        indices.push(row1 + s, row1 + s + 1, row2 + s + 1);
+        indices.push(row1 + s, row2 + s + 1, row2 + s);
       }
     }
   }
@@ -251,56 +315,7 @@ export function generateAoDaiGeometry(options = {}) {
   addSleeve(true);  // Right sleeve
 
   const normals = computeVertexNormals(positions, indices);
-
-  // 5. MORPH TARGETS (Identical to avatar deformation vector space)
-  const vCount = positions.length / 3;
-  const morphDeltas = [
-    new Float32Array(positions.length), // petite
-    new Float32Array(positions.length), // tall_slender
-    new Float32Array(positions.length), // broad_shoulders
-    new Float32Array(positions.length), // curvy_hips
-    new Float32Array(positions.length), // plus_size
-  ];
-
-  for (let i = 0; i < vCount; i++) {
-    const idx = i * 3;
-    const x = positions[idx];
-    const y = positions[idx + 1];
-    const z = positions[idx + 2];
-
-    // --- 0. Petite
-    const petiteScaleY = 0.945;
-    const petiteScaleXZ = 0.90;
-    morphDeltas[0][idx]     = x * (petiteScaleXZ - 1);
-    morphDeltas[0][idx + 1] = y * (petiteScaleY - 1);
-    morphDeltas[0][idx + 2] = z * (petiteScaleXZ - 1);
-
-    // --- 1. Tall Slender
-    const tallScaleY = 1.042;
-    const slenderXZ = 0.96;
-    morphDeltas[1][idx]     = x * (slenderXZ - 1);
-    morphDeltas[1][idx + 1] = y * (tallScaleY - 1);
-    morphDeltas[1][idx + 2] = z * (slenderXZ - 1);
-
-    // --- 2. Broad Shoulders (y in [1.25, 1.45])
-    if (y >= 1.25 && y <= 1.45) {
-      const weight = Math.sin(((y - 1.25) / 0.20) * Math.PI);
-      morphDeltas[2][idx] = Math.sign(x) * 0.024 * weight;
-    }
-
-    // --- 3. Curvy Hips (y in [0.75, 1.02])
-    if (y >= 0.75 && y <= 1.02) {
-      const weight = Math.sin(((y - 0.75) / 0.27) * Math.PI);
-      morphDeltas[3][idx]     = Math.sign(x) * 0.028 * weight;
-      morphDeltas[3][idx + 2] = z * 0.12 * weight;
-    }
-
-    // --- 4. Plus Size
-    if (y >= 0.40 && y <= 1.45) {
-      morphDeltas[4][idx]     = x * 0.18;
-      morphDeltas[4][idx + 2] = z * 0.20;
-    }
-  }
+  const morphDeltas = computeMorphDeltas(positions);
 
   return {
     positions,
@@ -308,26 +323,70 @@ export function generateAoDaiGeometry(options = {}) {
     uvs,
     indices,
     morphDeltas,
-    targetNames: ['morph_petite', 'morph_tall_slender', 'morph_broad_shoulders', 'morph_curvy_hips', 'morph_plus_size'],
+    targetNames: TARGET_NAMES,
   };
 }
 
 /**
  * Creates wide-leg silk pants (Quần lụa hai ống rộng truyền thống)
+ * Includes:
+ * - Fitted waistband at Y=1.06m
+ * - Enclosed pelvic volume (che kín hông & mông không lộ khoảng hở dưới xẻ tà)
+ * - Crotch junction (đũng quần) branching smoothly into 2 wide flowing legs down to floor Y=0.025m
  */
 export function generatePantsGeometry() {
   const positions = [];
   const uvs = [];
   const indices = [];
 
-  const SECTORS = 16;
+  const SECTORS = 20;
+
+  // 1. PELVIC VOLUME & WAISTBAND (Cạp quần & vùng hông đũng kín)
+  // Height range: Y=1.06m down to Y=0.80m (where legs separate)
+  const pelvisRings = [
+    { y: 1.060, rx: 0.120, rz: 0.084, zOff: -0.008 }, // Waistband underneath garment
+    { y: 0.980, rx: 0.140, rz: 0.096, zOff: -0.006 }, // High hip
+    { y: 0.890, rx: 0.170, rz: 0.118, zOff: -0.005 }, // Buttocks apex
+    { y: 0.800, rx: 0.162, rz: 0.110, zOff: -0.008 }, // Crotch level (Đáy đũng)
+  ];
+
+  const pelvisBaseIdx = positions.length / 3;
+  for (let r = 0; r < pelvisRings.length; r++) {
+    const ring = pelvisRings[r];
+    const v = 0.70 + 0.30 * (1.0 - r / (pelvisRings.length - 1));
+
+    for (let s = 0; s <= SECTORS; s++) {
+      const u = s / SECTORS;
+      const theta = u * Math.PI * 2;
+      const cos = Math.cos(theta);
+      const sin = Math.sin(theta);
+
+      const x = ring.rx * sin;
+      const y = ring.y;
+      const z = ring.rz * cos + ring.zOff;
+
+      positions.push(x, y, z);
+      uvs.push(u, v);
+    }
+  }
+
+  for (let r = 0; r < pelvisRings.length - 1; r++) {
+    for (let s = 0; s < SECTORS; s++) {
+      const row1 = pelvisBaseIdx + r * (SECTORS + 1);
+      const row2 = pelvisBaseIdx + (r + 1) * (SECTORS + 1);
+
+      indices.push(row1 + s, row1 + s + 1, row2 + s + 1);
+      indices.push(row1 + s, row2 + s + 1, row2 + s);
+    }
+  }
+
+  // 2. TWO WIDE FLOWING LEGS (Hai ống quần lụa suông rộng xòe nhẹ)
   const legSteps = [
-    { y: 1.05, rad: 0.095, zOff: -0.008 }, // Waist junction
-    { y: 0.90, rad: 0.105, zOff: -0.006 }, // Upper thigh
-    { y: 0.70, rad: 0.115, zOff: -0.004 }, // Mid thigh
-    { y: 0.48, rad: 0.125, zOff: -0.002 }, // Knee (flowing silk flare)
-    { y: 0.25, rad: 0.135, zOff:  0.000 }, // Mid calf
-    { y: 0.04, rad: 0.145, zOff:  0.005 }, // Hem at ankle/floor
+    { y: 0.800, rad: 0.100, zOff: -0.008 }, // Inseam fork
+    { y: 0.680, rad: 0.112, zOff: -0.006 }, // Upper thigh
+    { y: 0.480, rad: 0.124, zOff: -0.003 }, // Knee
+    { y: 0.250, rad: 0.136, zOff:  0.000 }, // Mid calf
+    { y: 0.025, rad: 0.148, zOff:  0.005 }, // Hem touching foot
   ];
 
   function addPantsLeg(isRight = false) {
@@ -338,14 +397,17 @@ export function generatePantsGeometry() {
 
     for (let r = 0; r < stepCount; r++) {
       const step = legSteps[r];
-      const v = 1 - r / (stepCount - 1);
+      const v = 0.70 * (1.0 - r / (stepCount - 1));
 
       for (let s = 0; s <= SECTORS; s++) {
         const u = s / SECTORS;
         const theta = u * Math.PI * 2;
-        const x = legCenterX + step.rad * Math.sin(theta);
+        const cos = Math.cos(theta);
+        const sin = Math.sin(theta);
+
+        const x = legCenterX + step.rad * sin;
         const y = step.y;
-        const z = step.rad * Math.cos(theta) + step.zOff;
+        const z = step.rad * cos + step.zOff;
 
         positions.push(x, y, z);
         uvs.push(u, v);
@@ -357,18 +419,8 @@ export function generatePantsGeometry() {
         const row1 = baseIdx + r * (SECTORS + 1);
         const row2 = baseIdx + (r + 1) * (SECTORS + 1);
 
-        const i0 = row1 + s;
-        const i1 = row1 + s + 1;
-        const i2 = row2 + s + 1;
-        const i3 = row2 + s;
-
-        if (isRight) {
-          indices.push(i0, i2, i1);
-          indices.push(i0, i3, i2);
-        } else {
-          indices.push(i0, i1, i2);
-          indices.push(i0, i2, i3);
-        }
+        indices.push(row1 + s, row1 + s + 1, row2 + s + 1);
+        indices.push(row1 + s, row2 + s + 1, row2 + s);
       }
     }
   }
@@ -377,47 +429,7 @@ export function generatePantsGeometry() {
   addPantsLeg(true);  // Right leg
 
   const normals = computeVertexNormals(positions, indices);
-
-  // 5 Morph targets matching body and ao dai
-  const vCount = positions.length / 3;
-  const morphDeltas = [
-    new Float32Array(positions.length), // petite
-    new Float32Array(positions.length), // tall_slender
-    new Float32Array(positions.length), // broad_shoulders
-    new Float32Array(positions.length), // curvy_hips
-    new Float32Array(positions.length), // plus_size
-  ];
-
-  for (let i = 0; i < vCount; i++) {
-    const idx = i * 3;
-    const x = positions[idx];
-    const y = positions[idx + 1];
-    const z = positions[idx + 2];
-
-    // Petite
-    morphDeltas[0][idx]     = x * (0.90 - 1);
-    morphDeltas[0][idx + 1] = y * (0.945 - 1);
-    morphDeltas[0][idx + 2] = z * (0.90 - 1);
-
-    // Tall Slender
-    morphDeltas[1][idx]     = x * (0.96 - 1);
-    morphDeltas[1][idx + 1] = y * (1.042 - 1);
-    morphDeltas[1][idx + 2] = z * (0.96 - 1);
-
-    // Broad Shoulders (No significant delta on pants)
-    morphDeltas[2][idx] = 0;
-
-    // Curvy Hips
-    if (y >= 0.70 && y <= 1.05) {
-      const weight = Math.sin(((y - 0.70) / 0.35) * Math.PI);
-      morphDeltas[3][idx]     = Math.sign(x) * 0.028 * weight;
-      morphDeltas[3][idx + 2] = z * 0.12 * weight;
-    }
-
-    // Plus Size
-    morphDeltas[4][idx]     = x * 0.18;
-    morphDeltas[4][idx + 2] = z * 0.20;
-  }
+  const morphDeltas = computeMorphDeltas(positions);
 
   return {
     positions,
@@ -425,6 +437,6 @@ export function generatePantsGeometry() {
     uvs,
     indices,
     morphDeltas,
-    targetNames: ['morph_petite', 'morph_tall_slender', 'morph_broad_shoulders', 'morph_curvy_hips', 'morph_plus_size'],
+    targetNames: TARGET_NAMES,
   };
 }

@@ -671,6 +671,97 @@ try {
   assert.deepStrictEqual(aiChatRes.data.citations || [], [], 'Không được gắn trích dẫn đã kiểm chứng khi thẻ ở trạng thái review');
   console.log(' -> AI tuân thủ nguyên tắc liêm chính học thuật: Không trích dẫn giả mạo.\n');
 
+  // =========================================================================
+  // TEST SUITE 5: STRUCTURED AI 3D DESIGN PROPOSAL, VALIDATION, APPLY & UNDO
+  // =========================================================================
+  console.log('--- TEST 5: HỢP ĐỒNG DESIGN PROPOSAL, XÁC THỰC, ÁP DỤNG & HOÀN TÁC NGUYÊN TỬ ---');
+
+  const lookBeforeProposal = (await api(`/looks/${testLookId}`)).data;
+  console.log(` [5.1] Tạo proposal qua POST /ai/proposal (baseRevision: v${lookBeforeProposal.revision})`);
+  const proposalReq = await api('/ai/proposal', {
+    method: 'POST',
+    body: JSON.stringify({
+      targetLookId: testLookId,
+      expectedRevision: lookBeforeProposal.revision,
+      prompt: 'Phối màu tương phản Gen Z áo xanh ngọc và quần sen hồng, tay áo xẻ đương đại, quạt xếp và túi cói',
+      eventId: 'ngay_hoi_truong',
+      styleId: 'tuoi_tre',
+    }),
+  });
+  assert.strictEqual(proposalReq.status, 200, 'Tạo đề xuất thành công');
+  const proposal = proposalReq.data;
+  assert.strictEqual(proposal.schemaVersion, '2.0.0');
+  assert.strictEqual(proposal.targetLookId, testLookId);
+  assert.strictEqual(proposal.baseRevision, lookBeforeProposal.revision);
+  assert(proposal.proposedConfig, 'Có cấu hình trang phục đề xuất');
+  assert(proposal.diff, 'Có thông tin diff chi tiết');
+  assert.strictEqual(proposal.mode, 'mock');
+  console.log(' -> Sinh DesignProposal chuẩn hợp đồng thành công.');
+
+  console.log(' [5.2] Xác thực proposal qua POST /ai/proposal/validate');
+  const validRes = await api('/ai/proposal/validate', {
+    method: 'POST',
+    body: JSON.stringify(proposal),
+  });
+  assert.strictEqual(validRes.status, 200);
+  assert.strictEqual(validRes.data.valid, true, 'Proposal hợp lệ phải được chấp thuận');
+  assert.strictEqual(validRes.data.stale, false);
+  console.log(' -> Xác thực proposal hợp lệ thành công.');
+
+  console.log(' [5.3] Kiểm tra chống Stale Revision (OCC)');
+  const staleProposal = { ...proposal, baseRevision: proposal.baseRevision - 1 };
+  const staleRes = await api('/ai/proposal/validate', {
+    method: 'POST',
+    body: JSON.stringify(staleProposal),
+  });
+  assert.strictEqual(staleRes.status, 200);
+  assert.strictEqual(staleRes.data.valid, false);
+  assert.strictEqual(staleRes.data.stale, true);
+  console.log(' -> Chặn thành công đề xuất bị lỗi thời khi baseRevision cũ.');
+
+  console.log(' [5.4] Áp dụng nguyên tử APPLY_DESIGN qua Command Bus');
+  const applyDesignCmdId = randomUUID();
+  const applyRes = await api(`/looks/${testLookId}/command`, {
+    method: 'POST',
+    body: JSON.stringify({
+      commandId: applyDesignCmdId,
+      lookId: testLookId,
+      expectedRevision: lookBeforeProposal.revision,
+      action: 'APPLY_DESIGN',
+      payload: {
+        config: proposal.proposedConfig,
+        title: proposal.title,
+        explanation: proposal.explanation,
+        eventId: 'ngay_hoi_truong',
+        styleId: 'tuoi_tre',
+      },
+      timestamp: new Date().toISOString(),
+    }),
+  });
+  assert.strictEqual(applyRes.status, 200, 'Áp dụng thiết kế nguyên tử thành công');
+  const appliedLook = applyRes.data.look;
+  assert.strictEqual(appliedLook.revision, lookBeforeProposal.revision + 1);
+  assert.strictEqual(appliedLook.config.sleeveStyle, proposal.proposedConfig.sleeveStyle);
+  assert.strictEqual(appliedLook.eventId, 'ngay_hoi_truong');
+  assert.strictEqual(appliedLook.styleId, 'tuoi_tre');
+  console.log(' -> APPLY_DESIGN thành công, revision tăng đơn điệu.');
+
+  console.log(' [5.5] Hoàn tác toàn bộ thiết kế AI chỉ với 1 bước undo');
+  const undoApplyRes = await api(`/looks/${testLookId}/undo`, {
+    method: 'POST',
+    body: JSON.stringify({
+      expectedRevision: appliedLook.revision,
+      commandId: randomUUID(),
+    }),
+  });
+  assert.strictEqual(undoApplyRes.status, 200, 'Hoàn tác thiết kế thành công');
+  const revertedLook = undoApplyRes.data.look;
+  assert.strictEqual(revertedLook.revision, appliedLook.revision + 1);
+  assert.strictEqual(revertedLook.config.sleeveStyle, lookBeforeProposal.config.sleeveStyle);
+  assert.strictEqual(revertedLook.eventId, lookBeforeProposal.eventId);
+  assert.strictEqual(revertedLook.styleId, lookBeforeProposal.styleId);
+  console.log(' -> Hoàn tác thiết kế thành công trọn vẹn về trạng thái trước đó.\n');
+
   console.log('===============================================================================');
   console.log('  CHÚC MỪNG: TẤT CẢ CÁC BÀI KIỂM THỬ HỆ THỐNG DÁNG VIỆT ĐỀU ĐÃ ĐẠT CHUẨN!');
   console.log('===============================================================================');

@@ -103,6 +103,8 @@ const filesToTest = [
   { name: 'accessories/non_la.glb', morphs: [] },
   { name: 'accessories/chuoi_ngoc.glb', morphs: [] },
   { name: 'accessories/quat_xep.glb', morphs: [] },
+  { name: 'accessories/tui_coi.glb', morphs: [] },
+  { name: 'accessories/guoc_moc.glb', morphs: [] },
 ];
 
 console.log('Running validation suite on all 3D assets:');

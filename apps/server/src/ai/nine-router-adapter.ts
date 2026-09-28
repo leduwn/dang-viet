@@ -1,15 +1,19 @@
+import { randomUUID } from 'node:crypto';
 import {
   type AIStatus,
   type Look,
   type AIChatResponse,
   type StructuredDesignRequest,
   type GarmentConfig,
+  type DesignProposal,
+  type DesignProposalRequest,
   VALID_ACCESSORY_IDS,
   VALID_COLLARS,
   VALID_SLEEVES,
   VALID_FABRICS,
   VALID_PATTERNS,
 } from '@dangviet/contracts';
+import { computeProposalDiff } from '@dangviet/domain';
 import { type AIAdapter } from './adapter.js';
 import { MockAIAdapter } from './mock-adapter.js';
 import { parseModelChatOutput, parseModelDesignOutput } from './parser.js';
@@ -341,6 +345,63 @@ BẮT BUỘC trả về định dạng JSON:
         mode: 'mock',
         model: 'fallback-mock',
       };
+    }
+  }
+
+  async generateProposal(
+    req: DesignProposalRequest,
+    baseLook: Look
+  ): Promise<DesignProposal> {
+    if (!this.isConfigured()) {
+      return this.fallbackMock.generateProposal(req, baseLook);
+    }
+
+    try {
+      const structured = await this.generateStructuredDesign(
+        {
+          prompt: req.prompt,
+          eventId: req.eventId,
+          styleId: req.styleId,
+          baseLookId: req.targetLookId,
+        },
+        baseLook
+      );
+
+      // Preserve bodyShape exactly from baseLook
+      structured.config.bodyShape = baseLook.config.bodyShape;
+
+      const diff = computeProposalDiff(baseLook.config, structured.config);
+
+      const cards = dbRepo.getCultureCards('published');
+      const citations: Array<{ title: string; source: string; ref: string }> = [];
+      if (cards.length > 0) {
+        const topCard = cards[0];
+        citations.push({
+          title: topCard.title,
+          source: topCard.sourceName,
+          ref: topCard.sourceEvidence,
+        });
+      }
+
+      return {
+        schemaVersion: '2.0.0',
+        proposalId: randomUUID(),
+        targetLookId: baseLook.id,
+        baseRevision: baseLook.revision,
+        catalogVersion: '2.0.0',
+        title: structured.title,
+        proposedConfig: structured.config,
+        diff,
+        explanation: structured.explanation,
+        unsupportedRequests: [],
+        warnings: [],
+        citations,
+        mode: structured.mode || 'live',
+        model: structured.model || this.model,
+        createdAt: new Date().toISOString(),
+      };
+    } catch {
+      return this.fallbackMock.generateProposal(req, baseLook);
     }
   }
 

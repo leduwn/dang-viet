@@ -8,6 +8,9 @@ import {
   type AIChatResponse,
   type StructuredDesignRequest,
   type GarmentConfig,
+  type DesignProposal,
+  type DesignProposalRequest,
+  type ValidateProposalResponse,
 } from '@dangviet/contracts';
 
 export class ApiError extends Error {
@@ -138,5 +141,31 @@ export async function requestAIDesign(
   });
   const data = await res.json();
   if (!res.ok) throw new ApiError(data.error || 'Lỗi sinh thiết kế', res.status, data.code);
+  return data;
+}
+
+export async function requestDesignProposal(
+  req: DesignProposalRequest
+): Promise<DesignProposal> {
+  const res = await fetch(`${API_BASE}/ai/proposal`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(req),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new ApiError(data.error || 'Lỗi sinh đề xuất thiết kế', res.status, data.code);
+  return data;
+}
+
+export async function validateDesignProposalApi(
+  proposal: DesignProposal
+): Promise<ValidateProposalResponse> {
+  const res = await fetch(`${API_BASE}/ai/proposal/validate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(proposal),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new ApiError(data.error || 'Lỗi xác thực đề xuất thiết kế', res.status, data.code);
   return data;
 }

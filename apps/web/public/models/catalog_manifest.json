@@ -1,18 +1,60 @@
 {
-  "version": "1.0.0",
-  "updatedAt": "2026-09-28T16:39:44.049Z",
+  "version": "2.0.0",
+  "updatedAt": "2026-09-28T17:19:16.083Z",
   "engine": "Three.js 0.169.0 / React Three Fiber 8.17.10",
   "conventions": {
     "unit": "meters",
     "coordinateSystem": "Y-up, Z-forward, X-right",
     "groundPlaneY": 0,
-    "baseHeight": 1.65
+    "baseHeight": 1.666
+  },
+  "sockets": {
+    "head": {
+      "basePosition": [
+        0,
+        1.625,
+        -0.01
+      ],
+      "trackedFeature": "crown"
+    },
+    "neck": {
+      "basePosition": [
+        0,
+        1.39,
+        -0.012
+      ],
+      "trackedFeature": "clavicle"
+    },
+    "right_hand": {
+      "basePosition": [
+        0.29,
+        0.77,
+        0
+      ],
+      "trackedFeature": "right_wrist"
+    },
+    "left_hand": {
+      "basePosition": [
+        -0.29,
+        0.77,
+        0
+      ],
+      "trackedFeature": "left_wrist"
+    },
+    "feet": {
+      "basePosition": [
+        0,
+        0,
+        0.015
+      ],
+      "trackedFeature": "ground"
+    }
   },
   "bodyPresets": [
     {
       "id": "standard",
-      "name": "Chuẩn Á Đông",
-      "description": "Tỷ lệ hình thể cân đối tự nhiên (1.65m)",
+      "name": "Dáng cơ bản",
+      "description": "Tỷ lệ hình thể cơ bản cân đối tự nhiên (1.66m)",
       "weights": {
         "morph_petite": 0,
         "morph_tall_slender": 0,
@@ -90,9 +132,12 @@
       "meshUrl": "/models/aodai_classic_01.glb",
       "pantsUrl": "/models/pants_silk.glb",
       "avatarUrl": "/models/avatar_base.glb",
+      "materialSlots": [
+        "AoDaiMaterial"
+      ],
       "features": {
-        "collar": "Cổ đứng 3.5cm truyền thống",
-        "sleeve": "Tay dài suôn",
+        "collar": "Cổ đứng 3.8cm truyền thống",
+        "sleeve": "Tay dài ráp vai suôn",
         "flaps": "Tà dài qua gối xẻ eo",
         "pants": "Quần lụa ống rộng hai ống"
       },
@@ -102,7 +147,12 @@
         "morph_broad_shoulders",
         "morph_curvy_hips",
         "morph_plus_size"
-      ]
+      ],
+      "metadata": {
+        "author": "Dáng Việt Digital Studio",
+        "license": "CC-BY-4.0",
+        "createdVia": "DCC Pure Binary glTF Generator"
+      }
     },
     {
       "id": "aodai_remix_raglan",
@@ -111,9 +161,12 @@
       "meshUrl": "/models/aodai_remix_raglan.glb",
       "pantsUrl": "/models/pants_silk.glb",
       "avatarUrl": "/models/avatar_base.glb",
+      "materialSlots": [
+        "AoDaiMaterial"
+      ],
       "features": {
         "collar": "Cổ thuyền thanh thoát",
-        "sleeve": "Tay raglan ôm vai",
+        "sleeve": "Tay raglan vát nách ôm vai",
         "flaps": "Tà lỡ midi hiện đại xẻ eo",
         "pants": "Quần lụa ống rộng hai ống"
       },
@@ -123,7 +176,12 @@
         "morph_broad_shoulders",
         "morph_curvy_hips",
         "morph_plus_size"
-      ]
+      ],
+      "metadata": {
+        "author": "Dáng Việt Digital Studio",
+        "license": "CC-BY-4.0",
+        "createdVia": "DCC Pure Binary glTF Generator"
+      }
     }
   ],
   "accessories": [
@@ -149,7 +207,19 @@
       "id": "quat_xep",
       "name": "Quạt Xếp Cầm Tay",
       "modelUrl": "/models/accessories/quat_xep.glb",
-      "socket": "hand_right"
+      "socket": "right_hand"
+    },
+    {
+      "id": "tui_coi",
+      "name": "Túi Cói Quai Mộc",
+      "modelUrl": "/models/accessories/tui_coi.glb",
+      "socket": "left_hand"
+    },
+    {
+      "id": "guoc_moc",
+      "name": "Guốc Mộc Quai Nhung",
+      "modelUrl": "/models/accessories/guoc_moc.glb",
+      "socket": "feet"
     }
   ]
 }

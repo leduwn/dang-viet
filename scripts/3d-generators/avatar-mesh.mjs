@@ -1,8 +1,13 @@
 /**
  * Anatomical 3D Mesh Generator for Vietnamese Female Avatar with 5 Morph Targets
+ * Features:
+ * - Natural adult female body proportions (~1.66m height, Y=0.00m to 1.67m)
+ * - Relaxed A-pose with hands comfortably spaced for garment visibility
+ * - Separate geometry primitives for Skin (body/face/limbs) and Hair (crown + bun)
+ * - 5 synchronized morph targets with smooth cosine boundary blending
  */
 
-// Helper to compute normals
+// Helper to compute smooth vertex normals
 export function computeVertexNormals(positions, indices) {
   const normals = new Float32Array(positions.length);
   for (let i = 0; i < indices.length; i += 3) {
@@ -37,41 +42,105 @@ export function computeVertexNormals(positions, indices) {
 }
 
 /**
- * Builds the complete avatar body mesh
+ * Computes 5 synchronized morph target deltas for any set of 3D positions
  */
-export function generateAvatarGeometry() {
+export function computeMorphDeltas(positions) {
+  const vCount = positions.length / 3;
+  const morphDeltas = [
+    new Float32Array(positions.length), // 0: morph_petite
+    new Float32Array(positions.length), // 1: morph_tall_slender
+    new Float32Array(positions.length), // 2: morph_broad_shoulders
+    new Float32Array(positions.length), // 3: morph_curvy_hips
+    new Float32Array(positions.length), // 4: morph_plus_size
+  ];
+
+  for (let i = 0; i < vCount; i++) {
+    const idx = i * 3;
+    const x = positions[idx];
+    const y = positions[idx + 1];
+    const z = positions[idx + 2];
+
+    // --- 0. Petite (~1.56m, narrower frame)
+    const petiteScaleY = 0.945;
+    const petiteScaleXZ = 0.91;
+    morphDeltas[0][idx]     = x * (petiteScaleXZ - 1);
+    morphDeltas[0][idx + 1] = y * (petiteScaleY - 1);
+    morphDeltas[0][idx + 2] = z * (petiteScaleXZ - 1);
+
+    // --- 1. Tall Slender (~1.72m, slender waist)
+    const tallScaleY = 1.042;
+    const slenderXZ = 0.96;
+    morphDeltas[1][idx]     = x * (slenderXZ - 1);
+    morphDeltas[1][idx + 1] = y * (tallScaleY - 1);
+    morphDeltas[1][idx + 2] = z * (slenderXZ - 1);
+
+    // --- 2. Broad Shoulders (Smooth cosine window between 1.25m and 1.45m)
+    if (y >= 1.25 && y <= 1.45) {
+      const weight = Math.sin(((y - 1.25) / 0.20) * Math.PI);
+      morphDeltas[2][idx] = Math.sign(x) * 0.024 * weight;
+    }
+
+    // --- 3. Curvy Hips (Smooth cosine window between 0.72m and 1.02m)
+    if (y >= 0.72 && y <= 1.02) {
+      const weight = Math.sin(((y - 0.72) / 0.30) * Math.PI);
+      morphDeltas[3][idx]     = Math.sign(x) * 0.028 * weight;
+      morphDeltas[3][idx + 2] = (z - 0.0) * 0.12 * weight;
+    }
+
+    // --- 4. Plus Size (Fuller body volume across torso, hips, thighs)
+    if (y >= 0.15 && y <= 1.42) {
+      const weight = y >= 0.80 ? 0.16 : 0.12;
+      morphDeltas[4][idx]     = x * weight;
+      morphDeltas[4][idx + 2] = z * (weight * 1.15);
+    }
+  }
+
+  return morphDeltas;
+}
+
+const TARGET_NAMES = [
+  'morph_petite',
+  'morph_tall_slender',
+  'morph_broad_shoulders',
+  'morph_curvy_hips',
+  'morph_plus_size',
+];
+
+/**
+ * Builds the avatar body (Skin Primitive)
+ */
+export function generateSkinGeometry() {
   const positions = [];
   const uvs = [];
   const indices = [];
 
-  // 1. Head & Facial Anatomy (Loft / Lathed rings with feature profile)
-  // Height range: 1.48m (chin/neck junction) to 1.67m (crown of head)
+  const SECTORS = 24;
+
+  // 1. Head & Neck rings with refined Vietnamese facial contour
+  // Y range: 1.41m (clavicle junction) up to 1.67m (crown)
   const headRings = [
-    { y: 1.67, rx: 0.010, rz: 0.012, zOff: -0.010 }, // Top of head
-    { y: 1.65, rx: 0.065, rz: 0.075, zOff: -0.012 }, // Crown
-    { y: 1.61, rx: 0.082, rz: 0.092, zOff: -0.010 }, // Forehead / brow
-    { y: 1.57, rx: 0.078, rz: 0.088, zOff: -0.005 }, // Eyes / Cheekbones
-    { y: 1.54, rx: 0.068, rz: 0.080, zOff:  0.005 }, // Nose tip / mouth
-    { y: 1.50, rx: 0.045, rz: 0.055, zOff:  0.002 }, // Chin / Jawline
-    { y: 1.46, rx: 0.042, rz: 0.046, zOff: -0.010 }, // Upper neck
-    { y: 1.41, rx: 0.052, rz: 0.054, zOff: -0.012 }, // Base of neck / clavicle junction
+    { y: 1.670, rx: 0.015, rz: 0.018, zOff: -0.010 }, // Top of head
+    { y: 1.650, rx: 0.066, rz: 0.076, zOff: -0.012 }, // Upper crown
+    { y: 1.615, rx: 0.082, rz: 0.092, zOff: -0.010 }, // Forehead / brow
+    { y: 1.575, rx: 0.078, rz: 0.088, zOff: -0.005 }, // Eyes / cheekbone arch
+    { y: 1.540, rx: 0.066, rz: 0.078, zOff:  0.006 }, // Nose tip / philtrum
+    { y: 1.505, rx: 0.048, rz: 0.058, zOff:  0.003 }, // Chin / jawline taper
+    { y: 1.465, rx: 0.042, rz: 0.046, zOff: -0.010 }, // Upper neck
+    { y: 1.415, rx: 0.054, rz: 0.056, zOff: -0.012 }, // Base of neck / clavicle junction
   ];
 
-  // 2. Torso (Shoulders to Groin)
-  // Height range: 1.41m down to 0.78m
+  // 2. Torso (Shoulders, bust, natural waist, hips down to groin)
   const torsoRings = [
-    { y: 1.39, rx: 0.170, rz: 0.088, zOff: -0.015 }, // Shoulder girdle
-    { y: 1.35, rx: 0.155, rz: 0.098, zOff: -0.010 }, // Upper chest
-    { y: 1.28, rx: 0.148, rz: 0.112, zOff:  0.012 }, // Bust apex
-    { y: 1.20, rx: 0.136, rz: 0.092, zOff: -0.005 }, // Ribcage
-    { y: 1.12, rx: 0.120, rz: 0.082, zOff: -0.008 }, // Upper waist
-    { y: 1.05, rx: 0.115, rz: 0.080, zOff: -0.008 }, // Natural waist (thắt lưng)
-    { y: 0.98, rx: 0.135, rz: 0.094, zOff: -0.006 }, // Iliac crest / high hip
-    { y: 0.90, rx: 0.168, rz: 0.115, zOff: -0.005 }, // Hips apex / buttocks
-    { y: 0.82, rx: 0.160, rz: 0.108, zOff: -0.008 }, // Low hip / groin start
+    { y: 1.395, rx: 0.170, rz: 0.088, zOff: -0.015 }, // Shoulder girdle
+    { y: 1.350, rx: 0.156, rz: 0.098, zOff: -0.010 }, // Upper chest
+    { y: 1.280, rx: 0.148, rz: 0.114, zOff:  0.012 }, // Bust apex (natural curve)
+    { y: 1.200, rx: 0.136, rz: 0.094, zOff: -0.005 }, // Ribcage
+    { y: 1.120, rx: 0.120, rz: 0.082, zOff: -0.008 }, // Upper waist
+    { y: 1.050, rx: 0.116, rz: 0.080, zOff: -0.008 }, // Natural waist (thắt lưng)
+    { y: 0.980, rx: 0.136, rz: 0.094, zOff: -0.006 }, // Iliac crest / high hip
+    { y: 0.890, rx: 0.166, rz: 0.116, zOff: -0.005 }, // Hips apex / buttocks
+    { y: 0.810, rx: 0.158, rz: 0.106, zOff: -0.008 }, // Low hip / groin start
   ];
-
-  const SECTORS = 20;
 
   function addLathedTube(rings, vStart, vEnd) {
     const baseIdx = positions.length / 3;
@@ -96,7 +165,6 @@ export function generateAvatarGeometry() {
       }
     }
 
-    // Build quad indices
     for (let r = 0; r < ringCount - 1; r++) {
       for (let s = 0; s < SECTORS; s++) {
         const row1 = baseIdx + r * (SECTORS + 1);
@@ -113,54 +181,11 @@ export function generateAvatarGeometry() {
     }
   }
 
-  // Add Head and Torso
-  addLathedTube(headRings, 0.8, 1.0);
-  addLathedTube(torsoRings, 0.5, 0.8);
+  addLathedTube(headRings, 0.80, 1.00);
+  addLathedTube(torsoRings, 0.50, 0.80);
 
-  // 3. Hair Bun (Búi tóc truyền thống) at the back of the head
-  function addHairBun() {
-    const baseIdx = positions.length / 3;
-    const BUN_RINGS = 8;
-    const BUN_SECTORS = 16;
-    const bunCenterY = 1.61;
-    const bunCenterZ = -0.10;
-    const bunRadius = 0.048;
-
-    for (let r = 0; r <= BUN_RINGS; r++) {
-      const phi = (r / BUN_RINGS) * Math.PI;
-      const y = bunCenterY + bunRadius * Math.cos(phi);
-      const ringR = bunRadius * Math.sin(phi);
-
-      for (let s = 0; s <= BUN_SECTORS; s++) {
-        const theta = (s / BUN_SECTORS) * Math.PI * 2;
-        const x = ringR * Math.sin(theta);
-        const z = bunCenterZ - ringR * Math.cos(theta);
-
-        positions.push(x, y, z);
-        uvs.push(s / BUN_SECTORS, r / BUN_RINGS);
-      }
-    }
-
-    for (let r = 0; r < BUN_RINGS; r++) {
-      for (let s = 0; s < BUN_SECTORS; s++) {
-        const row1 = baseIdx + r * (BUN_SECTORS + 1);
-        const row2 = baseIdx + (r + 1) * (BUN_SECTORS + 1);
-
-        const i0 = row1 + s;
-        const i1 = row1 + s + 1;
-        const i2 = row2 + s + 1;
-        const i3 = row2 + s;
-
-        indices.push(i0, i1, i2);
-        indices.push(i0, i2, i3);
-      }
-    }
-  }
-  addHairBun();
-
-  // 4. Arms in natural A-pose (Left and Right)
-  // Arms angle downwards at ~20° from vertical
-  function addLimb(centerPath, radii, sectors = 12) {
+  // 3. Limbs (Arms and Legs)
+  function addLimb(centerPath, radii, sectors = 14) {
     const baseIdx = positions.length / 3;
     const steps = centerPath.length;
 
@@ -174,7 +199,6 @@ export function generateAvatarGeometry() {
       const len = Math.hypot(...dir) || 1;
       dir[0] /= len; dir[1] /= len; dir[2] /= len;
 
-      // Normal and binormal vectors for ring extrusion
       let up = [0, 1, 0];
       if (Math.abs(dir[1]) > 0.95) up = [0, 0, 1];
       let side = [
@@ -211,110 +235,47 @@ export function generateAvatarGeometry() {
         const row1 = baseIdx + i * (sectors + 1);
         const row2 = baseIdx + (i + 1) * (sectors + 1);
 
-        const i0 = row1 + s;
-        const i1 = row1 + s + 1;
-        const i2 = row2 + s + 1;
-        const i3 = row2 + s;
-
-        indices.push(i0, i1, i2);
-        indices.push(i0, i2, i3);
+        indices.push(row1 + s, row1 + s + 1, row2 + s + 1);
+        indices.push(row1 + s, row2 + s + 1, row2 + s);
       }
     }
   }
 
-  // Left Arm (from shoulder X=-0.17 to hand X=-0.30)
+  // Left Arm (Relaxed natural A-pose at ~18°, hands open gracefully)
   const armPathLeft = [
-    [-0.170, 1.38, -0.015], // Shoulder
-    [-0.200, 1.25, -0.015], // Upper bicep
-    [-0.235, 1.12, -0.015], // Elbow
-    [-0.265, 0.98, -0.010], // Forearm
-    [-0.285, 0.86, -0.005], // Wrist
-    [-0.295, 0.78,  0.000], // Hand / fingertips
+    [-0.170, 1.385, -0.015], // Shoulder
+    [-0.198, 1.260, -0.015], // Upper bicep
+    [-0.230, 1.130, -0.015], // Elbow
+    [-0.258, 0.990, -0.010], // Forearm
+    [-0.278, 0.870, -0.005], // Wrist
+    [-0.290, 0.770,  0.000], // Hand & relaxed fingertips
   ];
-  const armRadii = [0.048, 0.042, 0.038, 0.034, 0.026, 0.020];
+  const armRadii = [0.046, 0.040, 0.036, 0.032, 0.024, 0.018];
   addLimb(armPathLeft, armRadii);
 
   // Right Arm (Mirrored)
   const armPathRight = armPathLeft.map(([x, y, z]) => [-x, y, z]);
   addLimb(armPathRight, armRadii);
 
-  // 5. Legs (Left and Right)
-  // From groin (Y=0.80) to floor (Y=0.00)
+  // Left Leg (From pelvic socket Y=0.80m down to ankle and foot Y=0.00m)
   const legPathLeft = [
-    [-0.082, 0.80, -0.008], // Upper thigh
-    [-0.080, 0.65, -0.006], // Mid thigh
-    [-0.078, 0.49, -0.002], // Knee
-    [-0.076, 0.34, -0.005], // Upper calf
-    [-0.074, 0.18, -0.008], // Lower calf
-    [-0.072, 0.07, -0.010], // Ankle
-    [-0.072, 0.02,  0.035], // Foot toe
+    [-0.080, 0.800, -0.008], // Upper thigh
+    [-0.078, 0.650, -0.006], // Mid thigh
+    [-0.076, 0.485, -0.002], // Knee
+    [-0.074, 0.335, -0.005], // Upper calf
+    [-0.072, 0.180, -0.008], // Lower calf
+    [-0.070, 0.075, -0.010], // Ankle
+    [-0.070, 0.020,  0.035], // Ball of foot / toes
   ];
-  const legRadii = [0.076, 0.068, 0.052, 0.046, 0.036, 0.028, 0.024];
+  const legRadii = [0.074, 0.065, 0.050, 0.044, 0.034, 0.026, 0.022];
   addLimb(legPathLeft, legRadii);
 
   // Right Leg (Mirrored)
   const legPathRight = legPathLeft.map(([x, y, z]) => [-x, y, z]);
   addLimb(legPathRight, legRadii);
 
-  // Normals
   const normals = computeVertexNormals(positions, indices);
-
-  // -------------------------------------------------------------
-  // 6. GENERATE 5 MORPH TARGETS FOR BODY SHAPES
-  // Target 0: morph_petite
-  // Target 1: morph_tall_slender
-  // Target 2: morph_broad_shoulders
-  // Target 3: morph_curvy_hips
-  // Target 4: morph_plus_size
-  // -------------------------------------------------------------
-  const vCount = positions.length / 3;
-  const morphDeltas = [
-    new Float32Array(positions.length), // petite
-    new Float32Array(positions.length), // tall_slender
-    new Float32Array(positions.length), // broad_shoulders
-    new Float32Array(positions.length), // curvy_hips
-    new Float32Array(positions.length), // plus_size
-  ];
-
-  for (let i = 0; i < vCount; i++) {
-    const idx = i * 3;
-    const x = positions[idx];
-    const y = positions[idx + 1];
-    const z = positions[idx + 2];
-
-    // --- 0. Petite (Scale height to ~1.56m, narrower shoulders & hips)
-    const petiteScaleY = 0.945;
-    const petiteScaleXZ = 0.90;
-    morphDeltas[0][idx]     = x * (petiteScaleXZ - 1);
-    morphDeltas[0][idx + 1] = y * (petiteScaleY - 1);
-    morphDeltas[0][idx + 2] = z * (petiteScaleXZ - 1);
-
-    // --- 1. Tall Slender (Scale height to ~1.72m, slender waist)
-    const tallScaleY = 1.042;
-    const slenderXZ = 0.96;
-    morphDeltas[1][idx]     = x * (slenderXZ - 1);
-    morphDeltas[1][idx + 1] = y * (tallScaleY - 1);
-    morphDeltas[1][idx + 2] = z * (slenderXZ - 1);
-
-    // --- 2. Broad Shoulders (Widen shoulder & chest region y in [1.25, 1.45])
-    if (y >= 1.25 && y <= 1.45) {
-      const weight = Math.sin(((y - 1.25) / 0.20) * Math.PI);
-      morphDeltas[2][idx] = Math.sign(x) * 0.024 * weight;
-    }
-
-    // --- 3. Curvy Hips (Widen hips region y in [0.75, 1.00])
-    if (y >= 0.75 && y <= 1.02) {
-      const weight = Math.sin(((y - 0.75) / 0.27) * Math.PI);
-      morphDeltas[3][idx]     = Math.sign(x) * 0.028 * weight;
-      morphDeltas[3][idx + 2] = z * 0.12 * weight;
-    }
-
-    // --- 4. Plus Size (Fuller body contour: torso, waist, thighs)
-    if (y >= 0.15 && y <= 1.42) {
-      morphDeltas[4][idx]     = x * 0.18;
-      morphDeltas[4][idx + 2] = z * 0.20;
-    }
-  }
+  const morphDeltas = computeMorphDeltas(positions);
 
   return {
     positions,
@@ -322,6 +283,115 @@ export function generateAvatarGeometry() {
     uvs,
     indices,
     morphDeltas,
-    targetNames: ['morph_petite', 'morph_tall_slender', 'morph_broad_shoulders', 'morph_curvy_hips', 'morph_plus_size'],
+    targetNames: TARGET_NAMES,
+  };
+}
+
+/**
+ * Builds the hair mesh (Hair Primitive: traditional bun + sculpted scalp volume)
+ */
+export function generateHairGeometry() {
+  const positions = [];
+  const uvs = [];
+  const indices = [];
+
+  // 1. Hair Bun (Búi tóc truyền thống sau gáy)
+  const BUN_RINGS = 10;
+  const BUN_SECTORS = 18;
+  const bunCenterY = 1.610;
+  const bunCenterZ = -0.098;
+  const bunRadius = 0.048;
+
+  const baseBunIdx = positions.length / 3;
+  for (let r = 0; r <= BUN_RINGS; r++) {
+    const phi = (r / BUN_RINGS) * Math.PI;
+    const y = bunCenterY + bunRadius * Math.cos(phi);
+    const ringR = bunRadius * Math.sin(phi);
+
+    for (let s = 0; s <= BUN_SECTORS; s++) {
+      const theta = (s / BUN_SECTORS) * Math.PI * 2;
+      const x = ringR * Math.sin(theta);
+      const z = bunCenterZ - ringR * Math.cos(theta);
+
+      positions.push(x, y, z);
+      uvs.push(s / BUN_SECTORS, r / BUN_RINGS);
+    }
+  }
+
+  for (let r = 0; r < BUN_RINGS; r++) {
+    for (let s = 0; s < BUN_SECTORS; s++) {
+      const row1 = baseBunIdx + r * (BUN_SECTORS + 1);
+      const row2 = baseBunIdx + (r + 1) * (BUN_SECTORS + 1);
+
+      indices.push(row1 + s, row1 + s + 1, row2 + s + 1);
+      indices.push(row1 + s, row2 + s + 1, row2 + s);
+    }
+  }
+
+  // 2. Scalp hair cap (Lớp tóc mượt ôm sát đỉnh đầu)
+  const CAP_RINGS = [
+    { y: 1.675, rx: 0.020, rz: 0.022, zOff: -0.010 }, // Hair part / crown
+    { y: 1.658, rx: 0.070, rz: 0.080, zOff: -0.014 },
+    { y: 1.625, rx: 0.086, rz: 0.096, zOff: -0.012 },
+    { y: 1.595, rx: 0.082, rz: 0.092, zOff: -0.015 }, // Hairline boundary
+  ];
+  const CAP_SECTORS = 20;
+  const baseCapIdx = positions.length / 3;
+
+  for (let r = 0; r < CAP_RINGS.length; r++) {
+    const ring = CAP_RINGS[r];
+    const v = r / (CAP_RINGS.length - 1);
+    for (let s = 0; s <= CAP_SECTORS; s++) {
+      const u = s / CAP_SECTORS;
+      const theta = u * Math.PI * 2;
+      const x = ring.rx * Math.sin(theta);
+      const y = ring.y;
+      const z = ring.rz * Math.cos(theta) + ring.zOff;
+
+      positions.push(x, y, z);
+      uvs.push(u, v);
+    }
+  }
+
+  for (let r = 0; r < CAP_RINGS.length - 1; r++) {
+    for (let s = 0; s < CAP_SECTORS; s++) {
+      const row1 = baseCapIdx + r * (CAP_SECTORS + 1);
+      const row2 = baseCapIdx + (r + 1) * (CAP_SECTORS + 1);
+
+      indices.push(row1 + s, row1 + s + 1, row2 + s + 1);
+      indices.push(row1 + s, row2 + s + 1, row2 + s);
+    }
+  }
+
+  const normals = computeVertexNormals(positions, indices);
+  const morphDeltas = computeMorphDeltas(positions);
+
+  return {
+    positions,
+    normals,
+    uvs,
+    indices,
+    morphDeltas,
+    targetNames: TARGET_NAMES,
+  };
+}
+
+/**
+ * Returns combined avatar primitives for multi-material GLB generation
+ */
+export function generateAvatarGeometry() {
+  const skin = generateSkinGeometry();
+  const hair = generateHairGeometry();
+
+  return {
+    skin,
+    hair,
+    // Provide flat fallback properties for any code expecting direct positions
+    positions: skin.positions,
+    normals: skin.normals,
+    uvs: skin.uvs,
+    indices: skin.indices,
+    morphDeltas: skin.morphDeltas,
+    targetNames: TARGET_NAMES,
   };
 }

@@ -4,6 +4,8 @@ import {
   type AIChatResponse,
   type StructuredDesignRequest,
   type GarmentConfig,
+  type DesignProposal,
+  type DesignProposalRequest,
 } from '@dangviet/contracts';
 
 export interface AIAdapter {
@@ -13,5 +15,9 @@ export interface AIAdapter {
     req: StructuredDesignRequest,
     baseLook?: Look
   ): Promise<{ config: GarmentConfig; title: string; explanation: string; mode?: 'mock' | 'live'; model?: string }>;
+  generateProposal(
+    req: DesignProposalRequest,
+    baseLook: Look
+  ): Promise<DesignProposal>;
   generateConceptImage(prompt: string): Promise<{ success: boolean; imageUrl?: string; message?: string }>;
 }

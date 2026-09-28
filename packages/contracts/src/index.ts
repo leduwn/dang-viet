@@ -473,3 +473,59 @@ export const ConceptTaskSchema = z.object({
   createdAt: z.string(),
 });
 export type ConceptTask = z.infer<typeof ConceptTaskSchema>;
+
+// ==========================================
+// 7. Structured AI 3D Design Proposal Contracts
+// ==========================================
+
+export const ProposalDiffSchema = z.object({
+  changedFields: z.array(z.string()),
+  addedAccessories: z.array(AccessoryIdEnum),
+  removedAccessories: z.array(AccessoryIdEnum),
+  colorChanges: z.array(
+    z.object({
+      field: z.string(),
+      from: z.string(),
+      to: z.string(),
+    })
+  ),
+});
+export type ProposalDiff = z.infer<typeof ProposalDiffSchema>;
+
+export const DesignProposalSchema = z.object({
+  schemaVersion: z.literal('2.0.0').default('2.0.0'),
+  proposalId: z.string(),
+  targetLookId: z.string(),
+  baseRevision: z.number(),
+  catalogVersion: z.string().default('2.0.0'),
+  title: z.string(),
+  proposedConfig: GarmentConfigSchema,
+  diff: ProposalDiffSchema,
+  explanation: z.string(),
+  unsupportedRequests: z.array(z.string()).default([]),
+  warnings: z.array(z.string()).default([]),
+  citations: z.array(AICitationSchema).default([]),
+  mode: z.enum(['mock', 'live']),
+  model: z.string(),
+  createdAt: z.string(),
+});
+export type DesignProposal = z.infer<typeof DesignProposalSchema>;
+
+export const DesignProposalRequestSchema = z.object({
+  prompt: z.string().min(1, 'Mô tả thiết kế không được để trống').max(500, 'Tối đa 500 ký tự'),
+  eventId: EventIdEnum,
+  styleId: StyleIdEnum,
+  targetLookId: z.string(),
+  expectedRevision: z.number(),
+});
+export type DesignProposalRequest = z.infer<typeof DesignProposalRequestSchema>;
+
+export const ValidateProposalResponseSchema = z.object({
+  valid: z.boolean(),
+  stale: z.boolean(),
+  errors: z.array(z.string()),
+  warnings: z.array(z.string()),
+  proposal: DesignProposalSchema.optional(),
+});
+export type ValidateProposalResponse = z.infer<typeof ValidateProposalResponseSchema>;
+

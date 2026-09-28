@@ -12,7 +12,10 @@ import {
   type CollarStyle,
   type SleeveStyle,
   type AccessoryId,
+  type DesignProposal,
+  type DesignProposalRequest,
 } from '@dangviet/contracts';
+import { computeProposalDiff } from '@dangviet/domain';
 import { type AIAdapter } from './adapter.js';
 import { dbRepo } from '../db.js';
 
@@ -308,6 +311,56 @@ export class MockAIAdapter implements AIAdapter {
     };
 
     return { config, title, explanation, mode: 'mock', model: 'dangviet-rules-v1' };
+  }
+
+  async generateProposal(
+    req: DesignProposalRequest,
+    baseLook: Look
+  ): Promise<DesignProposal> {
+    const structured = await this.generateStructuredDesign(
+      {
+        prompt: req.prompt,
+        eventId: req.eventId,
+        styleId: req.styleId,
+        baseLookId: req.targetLookId,
+      },
+      baseLook
+    );
+
+    // Strictly preserve bodyShape and locks from baseLook
+    structured.config.bodyShape = baseLook.config.bodyShape;
+
+    const diff = computeProposalDiff(baseLook.config, structured.config);
+
+    // Citations from published culture cards if relevant
+    const cards = dbRepo.getCultureCards('published');
+    const citations: Array<{ title: string; source: string; ref: string }> = [];
+    if (cards.length > 0) {
+      const topCard = cards[0];
+      citations.push({
+        title: topCard.title,
+        source: topCard.sourceName,
+        ref: topCard.sourceEvidence,
+      });
+    }
+
+    return {
+      schemaVersion: '2.0.0',
+      proposalId: randomUUID(),
+      targetLookId: baseLook.id,
+      baseRevision: baseLook.revision,
+      catalogVersion: '2.0.0',
+      title: structured.title,
+      proposedConfig: structured.config,
+      diff,
+      explanation: structured.explanation,
+      unsupportedRequests: [],
+      warnings: [],
+      citations,
+      mode: 'mock',
+      model: 'dangviet-rules-v1',
+      createdAt: new Date().toISOString(),
+    };
   }
 
   async generateConceptImage(prompt: string): Promise<{ success: boolean; imageUrl?: string; message?: string }> {

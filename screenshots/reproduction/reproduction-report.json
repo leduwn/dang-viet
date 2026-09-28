@@ -1,0 +1,54 @@
+{
+  "timestamp": "2026-09-28T17:15:57.578Z",
+  "issues": [
+    {
+      "id": 1,
+      "title": "Vai/nách/cổ/thân/tà áo và quần bị hở hoặc giao nhau",
+      "observed": "Cổ áo là khối hình trụ độc lập không liền thân; ống tay là khối trụ rời cắm vào vai; thân áo hình trụ đột ngột ngắt ở Y=1.05 thành 2 tà phẳng rời; quần lụa gồm 2 ống trụ độc lập không có vùng đũng/hông/cạp quần nối liền.",
+      "evidenceImage": "screenshots/reproduction/01-vai-nach-co-ta-ho.png",
+      "status": "REPRODUCED"
+    },
+    {
+      "id": 2,
+      "title": "Tóc bị tô cùng màu da",
+      "observed": "Mesh nhân vật avatar_base.glb chỉ có 1 primitive duy nhất với SkinMaterial (#ECBA9E). Búi tóc phía sau đầu bị gán chung màu da thay vì tóc đen/nâu truyền thống.",
+      "evidenceImage": "screenshots/reproduction/02-toc-cung-mau-da.png",
+      "status": "REPRODUCED"
+    },
+    {
+      "id": 3,
+      "title": "Chọn cổ/tay/họa tiết nhưng hình 3D không đổi tương ứng",
+      "observed": "Model 3D trong AoDai3DViewer chỉ phụ thuộc modelId (aodai_classic_01 hoặc aodai_remix_raglan). Khi chọn cổ thuyền/cổ V, tay lỡ/tay xẻ, hoặc họa tiết sen/mây, 3D Canvas vẫn giữ nguyên hình học cổ đứng và vải trơn không vân.",
+      "evidenceImage": "screenshots/reproduction/03-co-tay-hoa-tiet-khong-doi-3d.png",
+      "status": "REPRODUCED"
+    },
+    {
+      "id": 4,
+      "title": "Hai viewer cùng model nhưng đột biến chung useGLTF cache",
+      "observed": "AoDai3DViewer gọi useGLTF trả về cùng một instance THREE.Scene từ cache R3F. Khi viewer B cập nhật mat.color hoặc morphTargetInfluences, nó mutate trực tiếp scene của viewer A khiến cả hai bộ bị đồng bộ hóa màu/vóc dáng ngoài ý muốn.",
+      "evidenceImage": "screenshots/reproduction/04-compare-shared-cache-mutation.png",
+      "status": "REPRODUCED"
+    },
+    {
+      "id": 5,
+      "title": "Đổi model/vóc dáng khi command bị khóa hoặc lỗi (State Drift)",
+      "observed": "AoDai3DViewer tự duy trì useState(activeShape) và useState(activeModel) cục bộ. Khi người dùng click, state cục bộ cập nhật ngay lập tức trước khi domain phản hồi. Khi domain từ chối (do khóa hoặc 409), UI 3D không hoàn nguyên về committed state.",
+      "evidenceImage": "screenshots/reproduction/05-state-drift-local-vs-domain.png",
+      "status": "REPRODUCED"
+    },
+    {
+      "id": 6,
+      "title": "Phụ kiện được chọn nhưng không có biểu diễn 3D",
+      "observed": "Các phụ kiện hợp lệ như tui_coi và guoc_moc hoàn toàn không có mesh 3D trong AoDai3DViewer; đồng thời không có thông báo cho người dùng biết phụ kiện này chỉ hiển thị trên 2D SVG.",
+      "evidenceImage": "screenshots/reproduction/06-phu-kien-khong-co-3d.png",
+      "status": "REPRODUCED"
+    },
+    {
+      "id": 7,
+      "title": "Công tắc 2D/3D trùng lặp",
+      "observed": "Cả OutfitRoom (thanh điều khiển trên cùng với nút \"✨ 3D Không gian\" / \"🎨 2D Vector\") VÀ AoDai3DViewer (nút floating \"2D SVG\" góc trên bên phải) đều có công tắc chuyển đổi 2D/3D riêng biệt, gây xung đột trạng thái hiển thị.",
+      "evidenceImage": "screenshots/reproduction/07-cong-tac-2d-3d-trung-lap.png",
+      "status": "REPRODUCED"
+    }
+  ]
+}
