@@ -31,9 +31,13 @@ npm run build
 
 ### Bước 4: Chạy kiểm thử tự động toàn diện
 ```powershell
+# Chạy bộ kiểm thử luồng cơ bản 12 ca nghiệp vụ
 npm run test
+
+# Chạy bộ kiểm thử chuyên sâu củng cố hệ thống (Undo đa cấp, OCC, Khóa, AI Parser, Backup)
+node scripts/test-harden.mjs
 ```
-*Chạy 12 ca kiểm thử luồng nghiệp vụ tự động (`scripts/test-flow.mjs`): kiểm tra /health, bus lệnh, tăng revision, chặn vi phạm khóa thuộc tính, lưu Lookbook độc lập, hoàn tác (undo), phân định thẻ văn hóa và trợ lý AI.*
+*Bộ kiểm thử `scripts/test-harden.mjs` xác minh chi tiết 5 nhóm kịch bản: chuỗi 3 sửa - 3 hoàn tác liên tiếp - 1 sửa mới, chống vượt khóa `force: true`, từ chối phụ kiện ngoài catalog, chống duplicate command ID, xử lý xung đột 409 khi lệnh gửi đồng thời, lọc lệnh của AI qua parser và kiểm chứng phục hồi an toàn.*
 
 ### Bước 5: Khởi động Ứng dụng (Chế độ Production - Cổng đơn 3001)
 ```powershell
@@ -82,21 +86,30 @@ AI_TIMEOUT_MS=12000
 
 ---
 
-## 5. Quy trình Sao lưu & Phục hồi Dữ liệu
+## 5. Quy trình Sao lưu & Phục hồi Dữ liệu An toàn
 
-### Sao lưu (Backup):
+### Sao lưu trực tuyến không gián đoạn
+
 ```powershell
 npm run backup
 ```
-*Tạo một thư mục con trong `backups/backup-<timestamp>` chứa tệp cơ sở dữ liệu `dangviet.db`, toàn bộ thư mục dữ liệu văn hóa `content/` và tệp chỉ mục `manifest.json`.*
 
-### Phục hồi (Restore):
+*Tạo bản chụp nguyên tử nhất quán (crash-consistent) bằng lệnh SQLite `VACUUM INTO` trong thư mục `backups/backup-<timestamp>` kèm tệp `dangviet.db`, thư mục `content/`, kiểm định ngay với `PRAGMA integrity_check` và lập `manifest.json`.*
+
+### Phục hồi vào thư mục thử nghiệm độc lập
+
 ```powershell
-# Phục hồi từ bản sao lưu gần nhất:
+node scripts/restore.mjs backups/backup-<timestamp> --target-dir ./test-restore-data
+```
+
+### Phục hồi đè lên dữ liệu chính
+
+```powershell
+# Phục hồi từ bản sao lưu gần nhất (khi server đã tắt):
 npm run restore
 
 # Hoặc chỉ định một thư mục sao lưu cụ thể:
-node scripts/restore.mjs backups/backup-2026-09-28T06-35-21-556Z
+node scripts/restore.mjs backups/backup-<timestamp>
 ```
 
 ---

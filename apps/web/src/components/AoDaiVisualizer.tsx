@@ -1,5 +1,5 @@
 import React from 'react';
-import { type GarmentConfig } from '@dangviet/contracts';
+import { type GarmentConfig, type AccessoryId } from '@dangviet/contracts';
 
 interface AoDaiVisualizerProps {
   config: GarmentConfig;
@@ -17,9 +17,9 @@ export const AoDaiVisualizer: React.FC<AoDaiVisualizerProps> = ({
   const collar = config.collarStyle || 'traditional_high';
   const sleeve = config.sleeveStyle || 'traditional_long';
   const pattern = config.pattern || 'plain';
-  const accessories = new Set(config.accessories || []);
+  const accessories = new Set<AccessoryId>(config.accessories || []);
 
-  const hasAccessory = (id: string) => accessories.has(id);
+  const hasAccessory = (id: string) => accessories.has(id as AccessoryId);
 
   // Height and aspect ratio styling
   const dimensions = {
@@ -42,12 +42,14 @@ export const AoDaiVisualizer: React.FC<AoDaiVisualizerProps> = ({
     >
       <svg
         viewBox="0 0 400 700"
-        width={dimensions.width}
-        height={dimensions.height}
         style={{
+          width: '100%',
+          maxWidth: `${dimensions.width}px`,
+          height: 'auto',
+          maxHeight: `${dimensions.height}px`,
           filter: 'drop-shadow(0 12px 24px rgba(30, 27, 24, 0.08))',
-          maxHeight: '100%',
         }}
+        aria-label="Mô hình vector trang phục áo dài"
       >
         <defs>
           {/* Subtle lighting gradient on silk */}

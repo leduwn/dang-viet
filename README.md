@@ -64,9 +64,13 @@ npm run build
 
 ### 4. Chạy kiểm thử tự động
 ```bash
+# Kiểm thử luồng nghiệp vụ cơ bản
 npm run test
+
+# Kiểm thử chuyên sâu hệ thống (Hoàn tác đa cấp tuần tự, OCC, Khóa, AI Parser, Backup)
+node scripts/test-harden.mjs
 ```
-*Bộ kiểm thử `scripts/test-flow.mjs` tự động xác minh 12 ca kiểm thử nghiệp vụ: API health, bus lệnh, kiểm soát khóa, lưu snapshot Lookbook, hoàn tác, phân định thẻ văn hóa và trợ lý AI.*
+*Bộ kiểm thử `scripts/test-harden.mjs` xác minh chi tiết 5 nhóm kịch bản: chuỗi 3 sửa - 3 hoàn tác liên tiếp - 1 sửa mới, chống vượt khóa `force: true`, từ chối phụ kiện ngoài catalog, chống duplicate command ID, xử lý xung đột 409 khi lệnh gửi đồng thời, lọc lệnh của AI qua parser và kiểm chứng phục hồi an toàn.*
 
 ### 5. Khởi động ứng dụng
 ```bash

@@ -10,6 +10,20 @@ import {
   type GarmentConfig,
 } from '@dangviet/contracts';
 
+export class ApiError extends Error {
+  status: number;
+  code?: string;
+  currentRevision?: number;
+
+  constructor(message: string, status: number, code?: string, currentRevision?: number) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.code = code;
+    this.currentRevision = currentRevision;
+  }
+}
+
 const API_BASE = '/api';
 
 export async function fetchMeta(): Promise<{
@@ -39,7 +53,7 @@ export async function sendCommand(command: CommandPayload): Promise<CommandResul
 
   const data = await res.json();
   if (!res.ok) {
-    throw new Error(data.error || 'Lỗi thực thi lệnh phối đồ');
+    throw new ApiError(data.error || 'Lỗi thực thi lệnh phối đồ', res.status, data.code, data.currentRevision);
   }
   return data;
 }

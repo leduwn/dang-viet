@@ -59,11 +59,15 @@ Nhằm đảm bảo người dùng và trợ lý AI có thể cùng thao tác tr
 - `timestamp`: Thời gian phát sinh lệnh.
 
 ### Cơ chế hoạt động:
-1. Khi máy chủ nhận lệnh, hệ thống kiểm tra `command.expectedRevision === currentLook.revision`.
-2. Nếu không khớp (do người dùng đã đổi thuộc tính khác trong lúc AI đang suy nghĩ), lệnh bị từ chối với mã lỗi `HTTP 409 Conflict`.
-3. Kiểm tra khóa thuộc tính: Nếu trường dữ liệu tương ứng đang có cờ khóa `locks[field] === true`, lệnh bị từ chối với mã lỗi `HTTP 400 Bad Request`.
-4. Nếu hợp lệ, hệ thống tạo `nextConfig`, tăng `revision = currentLook.revision + 1`, lưu vào bảng `looks`, thêm bản ghi lịch sử vào `look_revisions` và ghi vết vào `commands`.
-5. Tính năng **Hoàn tác (Undo):** Truy vấn bản ghi liền trước trong `look_revisions`, cập nhật lại `looks` và loại bỏ revision hiện tại.
+
+1. Khi máy chủ nhận lệnh, hệ thống mở một giao dịch nguyên tử SQLite `BEGIN IMMEDIATE` để khóa ghi độc quyền ngay từ đầu, ngăn chặn race condition.
+2. Kiểm tra trùng lặp lệnh (`DUPLICATE_COMMAND_ID`): Nếu `commandId` đã tồn tại trong bảng `commands`, hủy giao dịch và trả về `HTTP 409 Conflict`.
+3. Kiểm tra kiểm soát đồng quy lạc quan (OCC): Kiểm tra `command.expectedRevision === currentLook.revision`. Nếu không khớp, hủy giao dịch và trả về `HTTP 409 Conflict (REVISION_CONFLICT)`.
+4. Kiểm tra khóa thuộc tính: Nếu trường dữ liệu tương ứng đang có cờ khóa `locks[field] === true`, lệnh bị từ chối `HTTP 400 Bad Request`. Cờ `force: true` đã bị loại bỏ hoàn toàn.
+5. Đối chiếu danh mục: Các giá trị cổ, tay, vải, họa tiết và phụ kiện được kiểm tra tính hợp lệ qua Zod enum catalogs (`VALID_ACCESSORY_IDS`, v.v.).
+6. Hàm domain `executeCommand` xử lý chuyển đổi trạng thái thuần túy (pure function), không sửa đổi đối tượng `currentLook` truyền vào.
+7. Nếu hợp lệ, hệ thống đẩy trạng thái hiện tại vào ngăn xếp hoàn tác `undo_stack_json`, tăng `revision = currentLook.revision + 1` (đơn điệu tăng), lưu vào bảng `looks`, thêm bản ghi lịch sử vào `look_revisions` và ghi vết vào `commands`.
+8. Tính năng **Hoàn tác Tuần tự Đa cấp (Sequential Multi-level Undo):** Lấy snapshot đỉnh từ `undo_stack_json` khôi phục lại cấu hình và khóa, đồng thời tăng `revision` lên một đơn vị mới (`revision + 1`). Nhờ đó, revision luôn tăng đơn điệu, bảo vệ kiểm soát xung đột OCC, cho phép hoàn tác liên tiếp nhiều bước mà không bị lặp vòng trạng thái, và rẽ nhánh lịch sử an toàn khi có chỉnh sửa mới.
 
 ---
 
@@ -100,20 +104,38 @@ Kiến trúc này giúp tốc độ hiển thị đạt 60fps trên mọi thiế
 
 ---
 
-## 6. Trình tích hợp AI (Dual-Adapter Pattern) & Rào chắn An toàn Văn hóa
+## 6. Trình tích hợp AI (Dual-Adapter Pattern) & Bộ phân tích đầu ra mô hình
 
 ```
-                         ┌──► [9router Adapter] ──► Kết nối AI Gateway (nếu có API Key)
-[API Client /api/ai/*] ──┤
+                         ┌──► [9router Adapter] ──► Gọi API OpenAI Compatible (Prompt JSON Actions)
+[API Client /api/ai/*] ──┤                                 │
+                         │                                 ▼
+                         │                        [apps/server/src/ai/parser.ts]
+                         │                        (Lọc thuộc tính khóa & catalog Zod)
+                         │
                          └──► [Mock AI Adapter] ──► Xử lý NLP nội bộ, quy tắc văn hóa (Fallback)
 ```
 
-1. **Dual-Adapter:** Hệ thống tự động kiểm tra biến môi trường `AI_API_KEY`. Nếu không có khóa hoặc mạng gặp sự cố, hệ thống chuyển suốt sang `MockAIAdapter`. Người dùng luôn nhận được phản hồi phân tích văn hóa chính xác và lệnh điều khiển mượt mà 100% không bị ngắt quãng.
+1. **Dual-Adapter:**
+   - Hệ thống tự động kiểm tra biến môi trường `AI_API_KEY`. Nếu không có khóa hoặc mạng gặp sự cố, hệ thống chuyển sang `MockAIAdapter` với nhãn hiển thị minh bạch `AI Mô phỏng (Mock)`.
+   - Khi có `AI_API_KEY`, hệ thống kết nối mô hình thật qua 9router, yêu cầu mô hình trả về phản hồi kèm mảng hành động có cấu trúc `actions` định dạng JSON.
+   - Đầu ra của mô hình được thẩm định chặt chẽ qua `parseModelChatOutput`: loại bỏ mọi hành động cố can thiệp vào thuộc tính bị khóa, loại bỏ phụ kiện không thuộc danh mục và giới hạn tối đa 3 hành động mỗi lượt.
+   - Không tráo đổi command do Mock sinh gán vào câu trả lời của mô hình thật.
 2. **Rào chắn Văn hóa & Trích dẫn Nguồn:**
-   - Dữ liệu thẻ văn hóa trong `content/culture-cards.json` được phân định rõ ràng giữa `published` (đã có nguồn khảo cứu: Bảo tàng Áo dài, sách *Ngàn năm áo mũ*, tài liệu Cát Tường 1934, v.v.) và `draft` (đang xác minh).
-   - AI chỉ trích dẫn các thẻ ở trạng thái `published`.
-3. **Cảnh báo Bản rập:** Mọi thiết kế do AI sinh ra đều mang nhãn bắt buộc:
+   - Dữ liệu thẻ văn hóa trong `content/culture-cards.json` được phân định nghiêm ngặt: chỉ thẻ ở trạng thái `published` mới được AI trích dẫn làm bằng chứng đã kiểm chứng.
+   - Khi khảo sát nguồn cho thấy liên kết hỏng (404), tên miền không phân giải được hoặc bài viết chung chung chưa có số trang tài liệu, thẻ lập tức chuyển sang trạng thái `review`.
+   - Khi người dùng hỏi về tri thức ở trạng thái `review`, AI thông báo trung thực rằng tư liệu đang trong giai đoạn thẩm định học thuật, không tự tạo trích dẫn giả mạo.
+3. **Cảnh báo Bản rập & Minh bạch Thiết kế:** Mọi thiết kế do AI sinh ra đều mang nhãn bắt buộc:
    *"Thiết kế cách điệu do AI hỗ trợ — Không thể dùng trực tiếp làm bản rập may."*
+   Hình ảnh hiển thị là mô hình vector SVG tùy biến trực quan, không phải ảnh raster do AI sinh.
+
+---
+
+## 7. Sao lưu & Phục hồi Cơ sở dữ liệu SQLite An toàn
+
+- **Sao lưu trực tiếp không ngắt quãng (Online Zero-Downtime Backup):** Sử dụng câu lệnh nguyên bản của SQLite `VACUUM INTO '<destination>'`. Cơ chế này tạo bản sao lưu nhất quán tức thời (crash-consistent snapshot) ngay cả khi ứng dụng đang có các kết nối đọc/ghi hoạt động.
+- **Kiểm định tính toàn vẹn (Integrity Verification):** Mọi bản sao lưu đều được kiểm tra ngay với `PRAGMA integrity_check` trước khi ghi nhận thành công và tạo tệp chỉ mục `manifest.json`.
+- **Phục hồi an toàn (Safe Restore):** `scripts/restore.mjs` kiểm tra lock tệp đang hoạt động và hỗ trợ phục hồi vào thư mục thử nghiệm độc lập (`--target-dir <path>`) để thẩm định tính toàn vẹn trước khi áp dụng vào môi trường vận hành thực tế.
 
 ---
 

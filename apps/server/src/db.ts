@@ -6,9 +6,107 @@ import {
   type LookbookItem,
   type CultureCard,
   type CommandPayload,
+  type CommandResult,
 } from '@dangviet/contracts';
+import { executeCommand } from '@dangviet/domain';
 
 let dbInstance: DatabaseSync | null = null;
+
+function runPendingMigrations(db: DatabaseSync): void {
+  // Ensure schema_migrations table exists
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS schema_migrations (
+      version TEXT PRIMARY KEY,
+      applied_at TEXT NOT NULL
+    );
+  `);
+
+  const appliedRows = db.prepare('SELECT version FROM schema_migrations').all() as Array<{ version: string }>;
+  const appliedVersions = new Set(appliedRows.map((r) => r.version));
+
+  // Find migrations directory
+  const candidateDirs = [
+    path.resolve('migrations'),
+    path.resolve('../../migrations'),
+    path.resolve('../migrations'),
+  ];
+  const migrationsDir = candidateDirs.find((d) => fs.existsSync(d));
+  if (!migrationsDir) return;
+
+  const files = fs.readdirSync(migrationsDir).filter((f) => f.endsWith('.sql')).sort();
+  for (const file of files) {
+    const version = path.basename(file, '.sql');
+    if (!appliedVersions.has(version)) {
+      try {
+        const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf-8');
+        db.exec(sql);
+        db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(
+          version,
+          new Date().toISOString()
+        );
+      } catch (err: any) {
+        // If column already exists (e.g. from previous run), record migration
+        if (err.message && err.message.includes('duplicate column name')) {
+          db.prepare('INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(
+            version,
+            new Date().toISOString()
+          );
+        } else {
+          console.error(`[DB] Lỗi khi chạy migration ${file}:`, err);
+        }
+      }
+    }
+  }
+}
+
+function syncCultureCardsFromDisk(db: DatabaseSync): void {
+  const candidatePaths = [
+    path.resolve('content/culture-cards.json'),
+    path.resolve('../../content/culture-cards.json'),
+    path.resolve('../content/culture-cards.json'),
+  ];
+  const cardsFile = candidatePaths.find((p) => fs.existsSync(p));
+  if (!cardsFile) return;
+
+  try {
+    const raw = fs.readFileSync(cardsFile, 'utf-8');
+    const cards = JSON.parse(raw);
+    const upsertStmt = db.prepare(`
+      INSERT INTO culture_cards (
+        id, slug, title, category, summary, content, source_name, source_author, source_url, source_evidence, status, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(slug) DO UPDATE SET
+        title = excluded.title,
+        category = excluded.category,
+        summary = excluded.summary,
+        content = excluded.content,
+        source_name = excluded.source_name,
+        source_author = excluded.source_author,
+        source_url = excluded.source_url,
+        source_evidence = excluded.source_evidence,
+        status = excluded.status;
+    `);
+
+    for (const c of cards) {
+      upsertStmt.run(
+        c.id,
+        c.slug,
+        c.title,
+        c.category,
+        c.summary,
+        c.content,
+        c.sourceName,
+        c.sourceAuthor,
+        c.sourceUrl || '',
+        c.sourceEvidence,
+        c.status || 'review',
+        c.createdAt || new Date().toISOString()
+      );
+    }
+  } catch (err: any) {
+    console.error('[DB] Lỗi đồng bộ thẻ văn hóa:', err.message);
+  }
+}
 
 export function getDb(): DatabaseSync {
   if (dbInstance) return dbInstance;
@@ -19,6 +117,8 @@ export function getDb(): DatabaseSync {
     fs.mkdirSync(dir, { recursive: true });
   }
   dbInstance = new DatabaseSync(resolvedPath);
+  runPendingMigrations(dbInstance);
+  syncCultureCardsFromDisk(dbInstance);
   return dbInstance;
 }
 
@@ -35,6 +135,7 @@ export interface LookRow {
   is_design: number;
   created_at: string;
   updated_at: string;
+  undo_stack_json?: string;
 }
 
 export function rowToLook(row: LookRow): Look {
@@ -61,12 +162,18 @@ export const dbRepo = {
     return rowToLook(row);
   },
 
+  hasCommand(commandId: string): boolean {
+    const db = getDb();
+    const row = db.prepare('SELECT id FROM commands WHERE id = ?').get(commandId);
+    return Boolean(row);
+  },
+
   createLook(look: Look): void {
     const db = getDb();
     db.prepare(`
       INSERT INTO looks (
-        id, user_id, title, event_id, style_id, config_json, locks_json, explanation, revision, is_design, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        id, user_id, title, event_id, style_id, config_json, locks_json, explanation, revision, is_design, created_at, updated_at, undo_stack_json
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       look.id,
       'default_user',
@@ -79,7 +186,8 @@ export const dbRepo = {
       look.revision,
       look.isDesign ? 1 : 0,
       look.createdAt,
-      look.updatedAt
+      look.updatedAt,
+      JSON.stringify([])
     );
 
     // Save initial revision
@@ -96,59 +204,276 @@ export const dbRepo = {
     );
   },
 
-  updateLook(look: Look, command?: CommandPayload): void {
+  /**
+   * Execute command in a single atomic transaction:
+   * 1. Check duplicate commandId -> reject 409 DUPLICATE_COMMAND_ID
+   * 2. Read look state within transaction
+   * 3. Check expectedRevision -> reject 409 REVISION_CONFLICT
+   * 4. Execute domain logic
+   * 5. Push previous state onto undo stack
+   * 6. Write look, look_revision, command in the same transaction
+   */
+  executeCommandTransaction(
+    lookId: string,
+    command: CommandPayload
+  ): { ok: true; result: CommandResult } | { ok: false; statusCode: number; error: string; code?: string; currentRevision?: number } {
     const db = getDb();
-    db.prepare(`
-      UPDATE looks SET
-        title = ?,
-        event_id = ?,
-        style_id = ?,
-        config_json = ?,
-        locks_json = ?,
-        explanation = ?,
-        revision = ?,
-        is_design = ?,
-        updated_at = ?
-      WHERE id = ?
-    `).run(
-      look.title,
-      look.eventId,
-      look.styleId,
-      JSON.stringify(look.config),
-      JSON.stringify(look.locks),
-      look.explanation,
-      look.revision,
-      look.isDesign ? 1 : 0,
-      look.updatedAt,
-      look.id
-    );
+    db.exec('BEGIN IMMEDIATE');
 
-    // Record revision
-    db.prepare(`
-      INSERT INTO look_revisions (look_id, revision, config_json, locks_json, explanation, created_at)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(
-      look.id,
-      look.revision,
-      JSON.stringify(look.config),
-      JSON.stringify(look.locks),
-      look.explanation,
-      look.updatedAt
-    );
+    try {
+      // 1. Duplicate check (Idempotency / Replay protection)
+      const existingCmd = db.prepare('SELECT id, revision FROM commands WHERE id = ?').get(command.commandId) as any;
+      if (existingCmd) {
+        db.exec('ROLLBACK');
+        return {
+          ok: false,
+          statusCode: 409,
+          code: 'DUPLICATE_COMMAND_ID',
+          error: `Lệnh đã được thực thi trước đó (Trùng lặp Command ID: ${command.commandId})`,
+        };
+      }
 
-    // Record command if provided
-    if (command) {
+      // 2. Read current state fresh from DB inside transaction
+      const row = db.prepare('SELECT * FROM looks WHERE id = ?').get(lookId) as LookRow | undefined;
+      if (!row) {
+        db.exec('ROLLBACK');
+        return {
+          ok: false,
+          statusCode: 404,
+          code: 'LOOK_NOT_FOUND',
+          error: 'Không tìm thấy bộ phối',
+        };
+      }
+
+      const currentLook = rowToLook(row);
+
+      // 3. Concurrency check: expectedRevision must match current revision
+      if (command.expectedRevision !== currentLook.revision) {
+        db.exec('ROLLBACK');
+        return {
+          ok: false,
+          statusCode: 409,
+          code: 'REVISION_CONFLICT',
+          currentRevision: currentLook.revision,
+          error: `Xung đột phiên bản: Lệnh yêu cầu revision ${command.expectedRevision} nhưng phiên bản hiện tại trong cơ sở dữ liệu là ${currentLook.revision}. Hãy tải lại trạng thái mới nhất.`,
+        };
+      }
+
+      // 4. Pure domain execution
+      const execution = executeCommand(currentLook, command);
+      if (!execution.ok) {
+        db.exec('ROLLBACK');
+        return {
+          ok: false,
+          statusCode: execution.statusCode,
+          code: execution.code || 'DOMAIN_RULE_VIOLATION',
+          error: execution.error,
+        };
+      }
+
+      const updatedLook = execution.result.look;
+
+      // 5. Update Undo Stack: Push previous state snapshot
+      let undoStack: any[] = [];
+      try {
+        if (row.undo_stack_json) {
+          undoStack = JSON.parse(row.undo_stack_json);
+        }
+      } catch {}
+
+      undoStack.push({
+        config: currentLook.config,
+        locks: currentLook.locks,
+        explanation: currentLook.explanation,
+        title: currentLook.title,
+        eventId: currentLook.eventId,
+        styleId: currentLook.styleId,
+      });
+
+      // Keep max 50 undo steps
+      if (undoStack.length > 50) {
+        undoStack.shift();
+      }
+
+      // 6. Persist look update
+      db.prepare(`
+        UPDATE looks SET
+          title = ?,
+          event_id = ?,
+          style_id = ?,
+          config_json = ?,
+          locks_json = ?,
+          explanation = ?,
+          revision = ?,
+          is_design = ?,
+          updated_at = ?,
+          undo_stack_json = ?
+        WHERE id = ?
+      `).run(
+        updatedLook.title,
+        updatedLook.eventId,
+        updatedLook.styleId,
+        JSON.stringify(updatedLook.config),
+        JSON.stringify(updatedLook.locks),
+        updatedLook.explanation,
+        updatedLook.revision,
+        updatedLook.isDesign ? 1 : 0,
+        updatedLook.updatedAt,
+        JSON.stringify(undoStack),
+        updatedLook.id
+      );
+
+      // 7. Persist revision history
+      db.prepare(`
+        INSERT INTO look_revisions (look_id, revision, config_json, locks_json, explanation, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run(
+        updatedLook.id,
+        updatedLook.revision,
+        JSON.stringify(updatedLook.config),
+        JSON.stringify(updatedLook.locks),
+        updatedLook.explanation,
+        updatedLook.updatedAt
+      );
+
+      // 8. Persist command record
       db.prepare(`
         INSERT INTO commands (id, look_id, revision, action, payload_json, created_at)
         VALUES (?, ?, ?, ?, ?, ?)
       `).run(
         command.commandId,
-        look.id,
-        look.revision,
+        updatedLook.id,
+        updatedLook.revision,
         command.action,
         JSON.stringify(command.payload),
         command.timestamp
       );
+
+      db.exec('COMMIT');
+
+      return {
+        ok: true,
+        result: execution.result,
+      };
+    } catch (err: any) {
+      try { db.exec('ROLLBACK'); } catch {}
+      return {
+        ok: false,
+        statusCode: 500,
+        code: 'INTERNAL_ERROR',
+        error: `Lỗi giao dịch máy chủ: ${err.message}`,
+      };
+    }
+  },
+
+  /**
+   * Sequential Multi-level Undo:
+   * Pops previous state from undo_stack_json.
+   * Monotonically increments revision to prevent concurrency overwrites.
+   */
+  executeUndoTransaction(
+    lookId: string
+  ): { ok: true; result: { success: boolean; message: string; look: Look; remainingUndoSteps: number } } | { ok: false; statusCode: number; error: string; code?: string } {
+    const db = getDb();
+    db.exec('BEGIN IMMEDIATE');
+
+    try {
+      const row = db.prepare('SELECT * FROM looks WHERE id = ?').get(lookId) as LookRow | undefined;
+      if (!row) {
+        db.exec('ROLLBACK');
+        return { ok: false, statusCode: 404, code: 'LOOK_NOT_FOUND', error: 'Không tìm thấy bộ phối' };
+      }
+
+      const currentLook = rowToLook(row);
+      let undoStack: any[] = [];
+      try {
+        if (row.undo_stack_json) {
+          undoStack = JSON.parse(row.undo_stack_json);
+        }
+      } catch {}
+
+      if (undoStack.length === 0) {
+        db.exec('ROLLBACK');
+        return {
+          ok: false,
+          statusCode: 400,
+          code: 'CANNOT_UNDO',
+          error: 'Đã ở trạng thái ban đầu của phiên làm việc, không thể hoàn tác tiếp.',
+        };
+      }
+
+      // Pop the most recent previous state
+      const prevEntry = undoStack.pop();
+
+      // Monotonically increase revision
+      const newRevision = currentLook.revision + 1;
+      const rolledBackLook: Look = {
+        ...currentLook,
+        title: prevEntry.title ?? currentLook.title,
+        eventId: prevEntry.eventId ?? currentLook.eventId,
+        styleId: prevEntry.styleId ?? currentLook.styleId,
+        config: prevEntry.config,
+        locks: prevEntry.locks,
+        explanation: prevEntry.explanation,
+        revision: newRevision,
+        updatedAt: new Date().toISOString(),
+      };
+
+      // Persist rolled back state with updated undo stack
+      db.prepare(`
+        UPDATE looks SET
+          title = ?,
+          event_id = ?,
+          style_id = ?,
+          config_json = ?,
+          locks_json = ?,
+          explanation = ?,
+          revision = ?,
+          is_design = ?,
+          updated_at = ?,
+          undo_stack_json = ?
+        WHERE id = ?
+      `).run(
+        rolledBackLook.title,
+        rolledBackLook.eventId,
+        rolledBackLook.styleId,
+        JSON.stringify(rolledBackLook.config),
+        JSON.stringify(rolledBackLook.locks),
+        rolledBackLook.explanation,
+        rolledBackLook.revision,
+        rolledBackLook.isDesign ? 1 : 0,
+        rolledBackLook.updatedAt,
+        JSON.stringify(undoStack),
+        rolledBackLook.id
+      );
+
+      // Record revision
+      db.prepare(`
+        INSERT INTO look_revisions (look_id, revision, config_json, locks_json, explanation, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run(
+        rolledBackLook.id,
+        rolledBackLook.revision,
+        JSON.stringify(rolledBackLook.config),
+        JSON.stringify(rolledBackLook.locks),
+        rolledBackLook.explanation,
+        rolledBackLook.updatedAt
+      );
+
+      db.exec('COMMIT');
+
+      return {
+        ok: true,
+        result: {
+          success: true,
+          message: `Đã hoàn tác về trạng thái trước đó. Phiên bản mới: v${newRevision}`,
+          look: rolledBackLook,
+          remainingUndoSteps: undoStack.length,
+        },
+      };
+    } catch (err: any) {
+      try { db.exec('ROLLBACK'); } catch {}
+      return { ok: false, statusCode: 500, code: 'INTERNAL_ERROR', error: `Lỗi hoàn tác: ${err.message}` };
     }
   },
 
@@ -253,5 +578,41 @@ export const dbRepo = {
       status: r.status,
       createdAt: r.created_at,
     };
+  },
+
+  syncCultureCards(cards: CultureCard[]): void {
+    const db = getDb();
+    const upsertStmt = db.prepare(`
+      INSERT INTO culture_cards (
+        id, slug, title, category, summary, content, source_name, source_author, source_url, source_evidence, status, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(slug) DO UPDATE SET
+        title = excluded.title,
+        category = excluded.category,
+        summary = excluded.summary,
+        content = excluded.content,
+        source_name = excluded.source_name,
+        source_author = excluded.source_author,
+        source_url = excluded.source_url,
+        source_evidence = excluded.source_evidence,
+        status = excluded.status;
+    `);
+
+    for (const c of cards) {
+      upsertStmt.run(
+        c.id,
+        c.slug,
+        c.title,
+        c.category,
+        c.summary,
+        c.content,
+        c.sourceName,
+        c.sourceAuthor,
+        c.sourceUrl || '',
+        c.sourceEvidence,
+        c.status || 'review',
+        c.createdAt || new Date().toISOString()
+      );
+    }
   },
 };

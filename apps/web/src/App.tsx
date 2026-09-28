@@ -84,7 +84,13 @@ export const App: React.FC = () => {
       setLook(result.look);
     } catch (err: any) {
       console.error('Command error:', err);
-      alert(`Lỗi thực hiện lệnh: ${err.message}`);
+      if (err.status === 409 || err.code === 'REVISION_CONFLICT') {
+        alert(`Xung đột phiên bản: Trạng thái trên giao diện (v${look.revision}) không khớp với phiên bản máy chủ. Đang tự động tải lại phiên bản mới nhất...`);
+        const freshLook = await fetchLook(look.id);
+        setLook(freshLook);
+      } else {
+        alert(`Lỗi thực hiện lệnh: ${err.message}`);
+      }
     }
   };
 
@@ -96,6 +102,8 @@ export const App: React.FC = () => {
       setLook(res.look);
     } catch (err: any) {
       alert(`Lỗi hoàn tác: ${err.message}`);
+      const freshLook = await fetchLook(look.id);
+      setLook(freshLook);
     }
   };
 
@@ -119,9 +127,14 @@ export const App: React.FC = () => {
       createdAt: new Date().toISOString(),
     };
 
-    await saveToLookbook(newItem);
-    const updated = await fetchLookbook();
-    setLookbookItems(updated);
+    try {
+      await saveToLookbook(newItem);
+      const updated = await fetchLookbook();
+      setLookbookItems(updated);
+      alert('Đã lưu thành công bộ phối vào Lookbook!');
+    } catch (err: any) {
+      alert(`Lỗi lưu Lookbook: ${err.message}`);
+    }
   };
 
   // 5. Ask AI with Command Execution Loop
@@ -134,13 +147,23 @@ export const App: React.FC = () => {
       let currentRev = look.revision;
       let updatedLook = look;
 
-      for (const cmd of res.commands) {
-        cmd.expectedRevision = currentRev;
-        const cmdRes = await sendCommand(cmd);
-        updatedLook = cmdRes.look;
-        currentRev = cmdRes.newRevision;
+      try {
+        for (const cmd of res.commands) {
+          cmd.expectedRevision = currentRev;
+          const cmdRes = await sendCommand(cmd);
+          updatedLook = cmdRes.look;
+          currentRev = cmdRes.newRevision;
+        }
+        setLook(updatedLook);
+      } catch (err: any) {
+        if (err.status === 409 || err.code === 'REVISION_CONFLICT') {
+          alert(`Lệnh do AI đề xuất bị hủy do xung đột phiên bản. Đang đồng bộ lại trạng thái mới nhất từ máy chủ...`);
+          const freshLook = await fetchLook(look.id);
+          setLook(freshLook);
+        } else {
+          alert(`Không thể áp dụng lệnh từ AI: ${err.message}`);
+        }
       }
-      setLook(updatedLook);
     }
 
     return {
@@ -216,7 +239,6 @@ export const App: React.FC = () => {
                 config: preset.config,
                 title: preset.title,
                 explanation: preset.explanation,
-                force: true,
               });
             }}
           />
@@ -264,7 +286,7 @@ export const App: React.FC = () => {
             }}
             onApplyToStudio={(config, title, explanation) => {
               setCurrentTab('studio');
-              handleDispatchCommand('APPLY_DESIGN', { config, title, explanation, force: true });
+              handleDispatchCommand('APPLY_DESIGN', { config, title, explanation });
             }}
           />
         )}
@@ -278,7 +300,6 @@ export const App: React.FC = () => {
                 config: item.snapshotConfig,
                 title: item.title,
                 explanation: item.notes,
-                force: true,
               });
             }}
             onDeleteItem={handleDeleteLookbookItem}

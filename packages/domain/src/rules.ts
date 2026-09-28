@@ -4,16 +4,21 @@ import {
   type GarmentConfig,
   type LockState,
   type Color,
+  type AccessoryId,
+  type CollarStyle,
+  type SleeveStyle,
+  type Fabric,
+  type Pattern,
 } from '@dangviet/contracts';
 
 export interface StyleRule {
   eventId: EventId;
   styleId: StyleId;
-  recommendedCollars: string[];
-  recommendedSleeves: string[];
-  recommendedFabrics: string[];
-  recommendedPatterns: string[];
-  recommendedAccessories: string[];
+  recommendedCollars: CollarStyle[];
+  recommendedSleeves: SleeveStyle[];
+  recommendedFabrics: Fabric[];
+  recommendedPatterns: Pattern[];
+  recommendedAccessories: AccessoryId[];
   recommendedColors: { primary: Color; pants: Color }[];
   aestheticRationale: string;
 }

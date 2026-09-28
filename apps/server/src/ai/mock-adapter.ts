@@ -11,6 +11,7 @@ import {
   type Pattern,
   type CollarStyle,
   type SleeveStyle,
+  type AccessoryId,
 } from '@dangviet/contracts';
 import { type AIAdapter } from './adapter.js';
 import { dbRepo } from '../db.js';
@@ -95,18 +96,22 @@ export class MockAIAdapter implements AIAdapter {
         // Default cultural overview for current look
         const c1 = cards.find((x) => x.slug.includes('ngu_than'));
         const c2 = cards.find((x) => x.slug.includes('lua'));
-        reply = `Bộ phối hiện tại lấy cảm hứng từ cấu trúc áo dài truyền thống với phom dáng chuẩn mực. Tà áo dài kết nối di sản áo ngũ thân cung đình với sự cách tân thanh thoát.`;
-        if (c1) citations.push({ title: c1.title, source: c1.sourceName, ref: c1.sourceEvidence });
-        if (c2) citations.push({ title: c2.title, source: c2.sourceName, ref: c2.sourceEvidence });
+        if (c1 || c2) {
+          reply = `Bộ phối hiện tại lấy cảm hứng từ cấu trúc áo dài truyền thống với phom dáng chuẩn mực. Tà áo dài kết nối di sản áo ngũ thân cung đình với sự cách tân thanh thoát.`;
+          if (c1) citations.push({ title: c1.title, source: c1.sourceName, ref: c1.sourceEvidence });
+          if (c2) citations.push({ title: c2.title, source: c2.sourceName, ref: c2.sourceEvidence });
+        }
       }
 
-      if (!reply) {
-        reply = 'Hiện tại kho tư liệu văn hóa đã kiểm chứng chưa có đủ dẫn chứng xác thực cho câu hỏi cụ thể này. Trợ lý khuyến nghị tham khảo thêm tại Bảo tàng Lịch sử Quốc gia hoặc Bảo tàng Áo dài.';
+      if (!reply || citations.length === 0) {
+        reply = 'Hiện tại kho tư liệu văn hóa đã kiểm chứng (trạng thái published) chưa có đủ dẫn chứng xác thực độc lập cho câu hỏi này (các tư liệu liên quan hiện đang ở trạng thái thẩm định - review). Trợ lý xin phép không trích dẫn thông tin chưa kiểm chứng.';
       }
 
       return {
         reply,
         citations,
+        mode: 'mock',
+        model: 'dangviet-rules-v1',
       };
     }
 
@@ -115,6 +120,8 @@ export class MockAIAdapter implements AIAdapter {
       if (look.locks.pantsColor) {
         return {
           reply: 'Màu quần hiện đang bị KHÓA. Bạn vui lòng mở khóa màu quần trước khi yêu cầu thay đổi.',
+          mode: 'mock',
+          model: 'dangviet-rules-v1',
         };
       }
 
@@ -132,7 +139,7 @@ export class MockAIAdapter implements AIAdapter {
       commands.push(createCmd('SET_PANTS_COLOR', { color: newPantsColor }));
       reply = `Đã gửi lệnh đổi màu quần sang "${newPantsColor.name}".`;
       explanation = `Màu quần ${newPantsColor.name} tạo điểm nhấn cân bằng thị giác với màu áo.`;
-      return { reply, explanation, commands };
+      return { reply, explanation, commands, mode: 'mock', model: 'dangviet-rules-v1' };
     }
 
     // 3. Change Primary Shirt Color (e.g. "đổi áo màu đỏ", "áo xanh", "màu đỏ")
@@ -140,6 +147,8 @@ export class MockAIAdapter implements AIAdapter {
       if (look.locks.primaryColor) {
         return {
           reply: 'Màu áo hiện đang bị KHÓA. Bạn vui lòng mở khóa áo để thực hiện đổi màu.',
+          mode: 'mock',
+          model: 'dangviet-rules-v1',
         };
       }
 
@@ -160,7 +169,7 @@ export class MockAIAdapter implements AIAdapter {
 
       commands.push(createCmd('SET_PRIMARY_COLOR', { color: newColor }));
       reply = `Đã gửi lệnh chuyển màu áo sang "${newColor.name}".`;
-      return { reply, commands };
+      return { reply, commands, mode: 'mock', model: 'dangviet-rules-v1' };
     }
 
     // 4. Toggle Accessories (e.g. "bỏ túi, thêm nón lá", "thêm mấn", "bỏ quạt")
@@ -168,6 +177,8 @@ export class MockAIAdapter implements AIAdapter {
       if (look.locks.accessories) {
         return {
           reply: 'Phần phụ kiện đang bị KHÓA. Hãy mở khóa phụ kiện trước.',
+          mode: 'mock',
+          model: 'dangviet-rules-v1',
         };
       }
 
@@ -207,7 +218,7 @@ export class MockAIAdapter implements AIAdapter {
 
       commands.push(createCmd('SET_ACCESSORIES', { accessories: Array.from(curAccs) }));
       reply = 'Đã cập nhật phụ kiện theo yêu cầu của bạn.';
-      return { reply, commands };
+      return { reply, commands, mode: 'mock', model: 'dangviet-rules-v1' };
     }
 
     // 5. Preset / Event recommendation (e.g. "phối cho mình bộ đi kỷ yếu màu xanh", "đi tết", "ngày hội")
@@ -237,12 +248,12 @@ export class MockAIAdapter implements AIAdapter {
 
       reply = `Đã đề xuất phương án phối đồ phù hợp với bối cảnh ${targetEvent === 'ky_yeu' ? 'Chụp ảnh kỷ yếu' : targetEvent === 'choi_tet' ? 'Đi chơi Tết' : 'Ngày hội văn hóa'} theo phong cách ${targetStyle}.`;
       explanation = 'Sự kết hợp này đảm bảo phom dáng trang trọng, tinh tế nhưng vẫn mang nét trẻ trung Gen Z.';
-      return { reply, explanation, commands };
+      return { reply, explanation, commands, mode: 'mock', model: 'dangviet-rules-v1' };
     }
 
     // Default polite and helpful guidance
     reply = `Trợ lý Dáng Việt sẵn sàng hỗ trợ bạn. Bạn có thể yêu cầu:\n- "Đổi quần sang màu trắng"\n- "Phối bộ đi chơi Tết màu đỏ son rực rỡ"\n- "Bỏ nón lá, thêm quạt xếp và chuỗi ngọc"\n- "Giải thích nguồn gốc tay raglan và trích dẫn tư liệu"\n- "Tạo thiết kế mới phá cách cho ngày hội trường"`;
-    return { reply };
+    return { reply, mode: 'mock', model: 'dangviet-rules-v1' };
   }
 
   async generateStructuredDesign(
@@ -258,7 +269,7 @@ export class MockAIAdapter implements AIAdapter {
     let sleeveStyle: SleeveStyle = 'slit';
     let fabric: Fabric = 'voile_chiffon';
     let pattern: Pattern = 'geometric_genz';
-    const accessories = ['quat_xep', 'tui_coi'];
+    const accessories: AccessoryId[] = ['quat_xep', 'tui_coi'];
 
     if (text.includes('sen') || text.includes('hồng')) {
       primaryColor = { hex: '#E8A598', name: 'Hồng sen phấn', family: 'pink' };

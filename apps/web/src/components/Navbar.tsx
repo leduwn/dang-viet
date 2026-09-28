@@ -58,7 +58,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onSelectTab, aiStatu
           >
             <span className="status-dot"></span>
             <Sparkles size={13} />
-            <span>{aiStatus.mode === 'live' ? '9router Live' : 'AI Mô phỏng'}</span>
+            <span>{aiStatus.mode === 'live' ? `AI Trực tuyến (${aiStatus.model})` : 'AI Mô phỏng (Mock)'}</span>
           </div>
         ) : (
           <div className="status-badge-mock">

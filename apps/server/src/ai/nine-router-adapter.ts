@@ -4,9 +4,15 @@ import {
   type AIChatResponse,
   type StructuredDesignRequest,
   type GarmentConfig,
+  VALID_ACCESSORY_IDS,
+  VALID_COLLARS,
+  VALID_SLEEVES,
+  VALID_FABRICS,
+  VALID_PATTERNS,
 } from '@dangviet/contracts';
 import { type AIAdapter } from './adapter.js';
 import { MockAIAdapter } from './mock-adapter.js';
+import { parseModelChatOutput, parseModelDesignOutput } from './parser.js';
 
 export class NineRouterAdapter implements AIAdapter {
   private fallbackMock = new MockAIAdapter();
@@ -19,7 +25,7 @@ export class NineRouterAdapter implements AIAdapter {
     this.baseUrl = (process.env.AI_BASE_URL || 'https://api.9router.com/v1').replace(/\/+$/, '');
     this.apiKey = process.env.AI_API_KEY || '';
     this.model = process.env.AI_MODEL || 'gemini-2.5-flash';
-    this.timeoutMs = Number(process.env.AI_TIMEOUT_MS) || 30000;
+    this.timeoutMs = Number(process.env.AI_TIMEOUT_MS) || 25000;
   }
 
   isConfigured(): boolean {
@@ -31,18 +37,18 @@ export class NineRouterAdapter implements AIAdapter {
       return {
         configured: false,
         mode: 'mock',
-        provider: '9router (Chưa cấu hình API Key)',
+        provider: 'Mock / 9router (Chưa cấu hình API Key)',
         model: this.model,
         capabilities: {
           textChat: true,
           structuredCommands: true,
           imageGen: false,
         },
-        message: 'Chưa cấu hình AI_API_KEY trong .env. Ứng dụng tự động kích hoạt Mock Adapter an toàn.',
+        message: 'Chưa cấu hình AI_API_KEY trong .env. Ứng dụng hoạt động ở Chế độ mô phỏng an toàn.',
       };
     }
 
-    // Try a ping check
+    // Ping check without leaking API key
     try {
       const response = await fetch(`${this.baseUrl}/models`, {
         method: 'GET',
@@ -63,7 +69,7 @@ export class NineRouterAdapter implements AIAdapter {
             structuredCommands: true,
             imageGen: false,
           },
-          message: 'Đã kết nối thành công tới cổng dịch vụ 9router.',
+          message: 'Đã kết nối tới cổng 9router. Trạng thái kiểm chứng thực tế phụ thuộc phản hồi từng lượt gọi.',
         };
       } else {
         return {
@@ -73,10 +79,10 @@ export class NineRouterAdapter implements AIAdapter {
           model: this.model,
           capabilities: {
             textChat: true,
-            structuredCommands: true,
+            structuredCommands: false,
             imageGen: false,
           },
-          message: `Dịch vụ 9router phản hồi mã lỗi ${response.status}. Tự động chuyển tiếp sang Mock Adapter.`,
+          message: `Dịch vụ 9router phản hồi mã lỗi ${response.status}. Tự động kích hoạt Chế độ mô phỏng.`,
         };
       }
     } catch (err: any) {
@@ -87,10 +93,10 @@ export class NineRouterAdapter implements AIAdapter {
         model: this.model,
         capabilities: {
           textChat: true,
-          structuredCommands: true,
+          structuredCommands: false,
           imageGen: false,
         },
-        message: `Lỗi kết nối tới 9router (${err.message}). Đang hoạt động ở chế độ Mock Adapter an toàn.`,
+        message: `Lỗi kết nối tới 9router (${err.message}). Đang hoạt động ở Chế độ mô phỏng an toàn.`,
       };
     }
   }
@@ -100,23 +106,52 @@ export class NineRouterAdapter implements AIAdapter {
     message: string,
     history: Array<{ role: string; content: string }>
   ): Promise<AIChatResponse> {
+    // 1. If not configured, strictly use mock adapter
     if (!this.isConfigured()) {
       return this.fallbackMock.chat(look, message, history);
     }
 
+    // 2. Bound inputs to guard against token overflow and attacks
+    const boundedMessage = message.slice(0, 1000).trim();
+    const boundedHistory = (history || []).slice(-4).map((h) => ({
+      role: h.role === 'user' || h.role === 'assistant' || h.role === 'system' ? h.role : 'user',
+      content: String(h.content).slice(0, 1000),
+    }));
+
     try {
-      const systemPrompt = `Bạn là Trợ lý Dáng Việt chuyên gia về Việt phục truyền thống và phong cách remix Gen Z.
-Quy tắc:
-1. Trả lời bằng tiếng Việt lịch thiệp, gợi cảm hứng, dựa trên sự thật lịch sử.
-2. Bộ phối hiện tại:
-   - Sự kiện: ${look.eventId}
-   - Phong cách: ${look.styleId}
-   - Màu áo: ${look.config.primaryColor.name} (${look.config.primaryColor.hex}) [Khóa: ${look.locks.primaryColor}]
-   - Màu quần: ${look.config.pantsColor.name} (${look.config.pantsColor.hex}) [Khóa: ${look.locks.pantsColor}]
-   - Cổ áo: ${look.config.collarStyle}
-   - Tay áo: ${look.config.sleeveStyle}
-   - Phụ kiện: ${look.config.accessories.join(', ') || 'Không có'}
-3. Nếu người dùng muốn đổi chi tiết trang phục, hãy đưa ra gợi ý thẩm mỹ và giải thích.`;
+      const systemPrompt = `Bạn là Trợ lý Dáng Việt, chuyên gia tư vấn Việt phục truyền thống và phong cách remix đương đại.
+Nhiệm vụ: Trả lời người dùng lịch thiệp bằng tiếng Việt, gợi ý phối đồ chuẩn xác và trả về JSON có cấu trúc.
+
+Trạng thái bộ phối hiện tại:
+- Sự kiện (eventId): ${look.eventId}
+- Phong cách (styleId): ${look.styleId}
+- Màu áo: ${look.config.primaryColor.name} (${look.config.primaryColor.hex}) [Đang khóa: ${look.locks.primaryColor}]
+- Màu quần: ${look.config.pantsColor.name} (${look.config.pantsColor.hex}) [Đang khóa: ${look.locks.pantsColor}]
+- Kiểu cổ áo: ${look.config.collarStyle} [Đang khóa: ${look.locks.collarStyle}]
+- Kiểu tay áo: ${look.config.sleeveStyle} [Đang khóa: ${look.locks.sleeveStyle}]
+- Chất liệu vải: ${look.config.fabric} [Đang khóa: ${look.locks.fabric}]
+- Họa tiết: ${look.config.pattern} [Đang khóa: ${look.locks.pattern}]
+- Phụ kiện: ${look.config.accessories.join(', ') || 'Không có'} [Đang khóa: ${look.locks.accessories}]
+
+QUY TẮC BẮT BUỘC:
+1. KHÔNG được thay đổi bất kỳ thuộc tính nào đang bị khóa [Đang khóa: true]. Nếu người dùng yêu cầu đổi phần đã khóa, hãy từ chối lịch sự và giải thích người dùng cần mở khóa trước.
+2. Danh mục phụ kiện hợp lệ: ${VALID_ACCESSORY_IDS.join(', ')}.
+3. Danh mục kiểu cổ hợp lệ: ${VALID_COLLARS.join(', ')}.
+4. Danh mục kiểu tay hợp lệ: ${VALID_SLEEVES.join(', ')}.
+5. Danh mục vải hợp lệ: ${VALID_FABRICS.join(', ')}.
+6. Danh mục họa tiết hợp lệ: ${VALID_PATTERNS.join(', ')}.
+7. Định dạng phản hồi: BẮT BUỘC trả về một đối tượng JSON duy nhất (có thể bọc trong \`\`\`json ... \`\`\`):
+{
+  "reply": "Nội dung phản hồi tư vấn cho người dùng",
+  "explanation": "Giải thích thẩm mỹ hoặc nguồn gốc văn hóa",
+  "actions": [
+    {
+      "action": "SET_PRIMARY_COLOR" | "SET_PANTS_COLOR" | "SET_COLLAR" | "SET_SLEEVE" | "SET_FABRIC" | "SET_PATTERN" | "TOGGLE_ACCESSORY" | "SET_ACCESSORIES" | "SET_EVENT" | "SET_STYLE" | "RESET_OUTFIT",
+      "payload": { ... }
+    }
+  ]
+}
+Nếu người dùng chỉ hỏi han hoặc không yêu cầu chỉnh sửa trang phục, để mảng "actions": [].`;
 
       const response = await fetch(`${this.baseUrl}/chat/completions`, {
         method: 'POST',
@@ -128,37 +163,40 @@ Quy tắc:
           model: this.model,
           messages: [
             { role: 'system', content: systemPrompt },
-            ...history.slice(-4), // Last 4 messages only to avoid token overflow
-            { role: 'user', content: message },
+            ...boundedHistory,
+            { role: 'user', content: boundedMessage },
           ],
-          max_tokens: 600,
-          temperature: 0.7,
+          max_tokens: 800,
+          temperature: 0.5,
         }),
         signal: AbortSignal.timeout(this.timeoutMs),
       });
 
       if (!response.ok) {
-        throw new Error(`9router API error: ${response.status} ${response.statusText}`);
+        throw new Error(`9router HTTP ${response.status}: ${response.statusText}`);
       }
 
       const data = (await response.json()) as any;
-      const text = data.choices?.[0]?.message?.content || '';
+      const rawText = data.choices?.[0]?.message?.content || '';
 
-      // Also use fallback mock to extract structured commands if user requested action
-      const mockResult = await this.fallbackMock.chat(look, message, history);
+      // Parse real model's output strictly through domain rules parser
+      // DO NOT mix mock commands into real model responses
+      const parsed = parseModelChatOutput(rawText, look);
 
       return {
-        reply: text,
-        explanation: mockResult.explanation,
-        commands: mockResult.commands,
-        citations: mockResult.citations,
+        reply: parsed.reply,
+        explanation: parsed.explanation,
+        commands: parsed.commands.length > 0 ? parsed.commands : undefined,
+        citations: parsed.citations,
+        mode: 'live',
+        model: this.model,
       };
     } catch (err: any) {
-      // Fallback to mock adapter gracefully on error
-      const mockResult = await this.fallbackMock.chat(look, message, history);
+      // Clear reporting: Do NOT pretend to be real AI when request fails
       return {
-        ...mockResult,
-        reply: `${mockResult.reply}\n\n*(Lưu ý: Không kết nối được 9router, phản hồi tự động bởi Mock Adapter)*`,
+        reply: `[Lỗi kết nối AI - Chuyển sang Chế độ mô phỏng]: Không thể kết nối tới mô hình AI (${err.message}). Lượt này không gọi được model thật.`,
+        mode: 'mock',
+        model: 'fallback-mock',
       };
     }
   }
@@ -167,7 +205,74 @@ Quy tắc:
     req: StructuredDesignRequest,
     baseLook?: Look
   ): Promise<{ config: GarmentConfig; title: string; explanation: string }> {
-    return this.fallbackMock.generateStructuredDesign(req, baseLook);
+    if (!this.isConfigured()) {
+      return this.fallbackMock.generateStructuredDesign(req, baseLook);
+    }
+
+    try {
+      const promptText = req.prompt.slice(0, 500).trim();
+      const systemPrompt = `Bạn là Trợ lý Thiết kế Dáng Việt. Hãy sáng tạo một cấu hình trang phục Áo dài Việt Nam hoàn chỉnh dựa trên yêu cầu của người dùng.
+Bối cảnh: ${req.eventId}, Phong cách: ${req.styleId}.
+
+QUY TẮC:
+1. Kiểu cổ áo (collarStyle) chỉ được chọn từ: ${VALID_COLLARS.join(', ')}.
+2. Kiểu tay áo (sleeveStyle) chỉ được chọn từ: ${VALID_SLEEVES.join(', ')}.
+3. Chất liệu (fabric) chỉ được chọn từ: ${VALID_FABRICS.join(', ')}.
+4. Họa tiết (pattern) chỉ được chọn từ: ${VALID_PATTERNS.join(', ')}.
+5. Phụ kiện (accessories) là mảng chứa các mã hợp lệ từ: ${VALID_ACCESSORY_IDS.join(', ')}.
+6. Màu sắc (primaryColor, pantsColor) gồm { hex: string, name: string, family: string }.
+
+BẮT BUỘC trả về định dạng JSON:
+{
+  "title": "Tên thiết kế sáng tạo",
+  "explanation": "Ý nghĩa thẩm mỹ và thông điệp văn hóa của bộ phối",
+  "config": {
+    "garmentType": "aodai",
+    "primaryColor": { "hex": "#...", "name": "...", "family": "..." },
+    "pantsColor": { "hex": "#...", "name": "...", "family": "..." },
+    "collarStyle": "...",
+    "sleeveStyle": "...",
+    "fabric": "...",
+    "pattern": "...",
+    "accessories": ["..."]
+  }
+}`;
+
+      const response = await fetch(`${this.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: this.model,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: promptText },
+          ],
+          max_tokens: 800,
+          temperature: 0.7,
+        }),
+        signal: AbortSignal.timeout(this.timeoutMs),
+      });
+
+      if (!response.ok) {
+        throw new Error(`9router HTTP ${response.status}`);
+      }
+
+      const data = (await response.json()) as any;
+      const rawText = data.choices?.[0]?.message?.content || '';
+
+      const parsedDesign = parseModelDesignOutput(rawText, req.prompt);
+      if (parsedDesign) {
+        return parsedDesign;
+      }
+
+      // If parsing fails, fall back to mock
+      return this.fallbackMock.generateStructuredDesign(req, baseLook);
+    } catch {
+      return this.fallbackMock.generateStructuredDesign(req, baseLook);
+    }
   }
 
   async generateConceptImage(prompt: string): Promise<{ success: boolean; imageUrl?: string; message?: string }> {

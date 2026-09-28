@@ -100,3 +100,38 @@
   ```powershell
   npm run test
   ```
+
+---
+
+## Mốc 7: Củng cố Hệ thống Toàn diện, Kiểm soát Đồng quy OCC & Liêm chính Văn hóa
+- **Trạng thái:** Hoàn thành 100% (Đã xác minh trên Windows)
+- **Các thành phần đã triển khai:**
+  - **Hoàn tác đa cấp tuần tự (Sequential Multi-level Undo):** Bổ sung cột `undo_stack_json` vào bảng `looks` qua migration `002_undo_and_constraints.sql`. Hoàn tác liên tiếp pop snapshot cũ nhưng số `revision` luôn tăng đơn điệu (`revision + 1`) để giữ vững OCC, không quay vòng trạng thái, rẽ nhánh lịch sử an toàn khi có thao tác mới, bảo toàn tuyệt đối snapshot trong Lookbook.
+  - **Củng cố Command Bus & Giao dịch nguyên tử SQLite:**
+    - Loại bỏ hoàn toàn cờ `force: true`. Mọi nỗ lực vượt khóa bị từ chối `HTTP 400`.
+    - Lệnh `APPLY_DESIGN` và `APPLY_PRESET` tự động giữ nguyên các thuộc tính đang bị khóa.
+    - Đối chiếu phụ kiện và thuộc tính với Zod enum catalogs (`VALID_ACCESSORY_IDS`, `VALID_COLLARS`, `VALID_SLEEVES`, `VALID_FABRICS`, `VALID_PATTERNS`). Giá trị lạ bị từ chối `HTTP 400`.
+    - Hàm domain thuần túy không mutate tham số `currentLook`.
+    - Chống trùng lặp lệnh (`DUPLICATE_COMMAND_ID` HTTP 409) dựa trên `commandId` duy nhất trong bảng `commands`.
+    - Toàn bộ chu trình kiểm tra revision, cập nhật look, thêm revision, đẩy undo stack và lưu command được đóng gói trong giao dịch nguyên tử SQLite `BEGIN IMMEDIATE`.
+  - **Tách biệt ranh giới AI & Bộ phân tích đầu ra mô hình:**
+    - Tạo `apps/server/src/ai/parser.ts`: Trích xuất JSON actions có cấu trúc từ phản hồi của mô hình 9router, tự động lọc bỏ hành động đụng chạm thuộc tính bị khóa và phụ kiện ngoài danh mục, khống chế tối đa 3 hành động mỗi lượt.
+    - Không tráo đổi command của Mock sang câu trả lời của 9router.
+    - Hiển thị minh bạch trên giao diện trạng thái "AI Trực tuyến" vs "AI Mô phỏng (Mock)".
+    - Chống ghi đè khi lệnh AI đến muộn (xung đột `expectedRevision` -> từ chối 409).
+  - **Khảo cứu & Kiểm chứng nguồn văn hóa trung thực:**
+    - Rà soát thực tế toàn bộ 6 thẻ qua công cụ mạng: phát hiện liên kết 404, bài viết tổng quát hoặc trang tra cứu chung -> chuyển cả 6 thẻ sang trạng thái `review` (hiện tại: 0 published, 6 review, 1 draft).
+    - Tạo nhật ký kiểm chứng chi tiết tại `docs/CULTURAL_SOURCES.md`.
+    - Cơ chế tự động đồng bộ thẻ văn hóa từ JSON vào SQLite đang hoạt động (`syncCultureCardsFromDisk`).
+    - AI chỉ trích dẫn thẻ `published`. Khi người dùng hỏi về tri thức đang ở trạng thái `review`, AI thông báo trung thực tư liệu đang thẩm định.
+  - **Quy trình Sao lưu VACUUM INTO & Phục hồi Độc lập:**
+    - Nâng cấp `scripts/backup.mjs` sử dụng lệnh nguyên tử `VACUUM INTO`, kiểm tra `PRAGMA integrity_check` và tạo `manifest.json`.
+    - Nâng cấp `scripts/restore.mjs` kiểm tra lock tệp database, hỗ trợ khôi phục an toàn vào thư mục thử nghiệm độc lập `--target-dir`.
+  - **Trực quan hóa & Minh bạch Giao diện:**
+    - Gán nhãn vector SVG minh bạch, không gọi là ảnh do AI tạo.
+    - Bổ sung CSS responsive chống tràn ngang (`overflow-x: hidden`) trên điện thoại di động và tablet.
+  - **Bộ kiểm thử chuyên sâu `scripts/test-harden.mjs`:** Kiểm chứng tự động toàn bộ 5 nhóm tình huống nghiệp vụ trên Windows.
+- **Lệnh kiểm tra:**
+  ```powershell
+  node scripts/test-harden.mjs
+  ```

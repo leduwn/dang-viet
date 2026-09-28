@@ -11,8 +11,19 @@ export const ColorSchema = z.object({
 });
 export type Color = z.infer<typeof ColorSchema>;
 
+export const VALID_ACCESSORY_IDS = [
+  'man_truyen_thong',
+  'non_la',
+  'chuoi_ngoc',
+  'quat_xep',
+  'tui_coi',
+  'guoc_moc',
+] as const;
+export type AccessoryId = typeof VALID_ACCESSORY_IDS[number];
+export const AccessoryIdEnum = z.enum(VALID_ACCESSORY_IDS);
+
 export const AccessoryItemSchema = z.object({
-  id: z.string(),
+  id: AccessoryIdEnum,
   name: z.string(),
   category: z.enum(['headwear', 'jewelry', 'handheld', 'footwear', 'bag']),
   description: z.string(),
@@ -20,37 +31,20 @@ export const AccessoryItemSchema = z.object({
 });
 export type AccessoryItem = z.infer<typeof AccessoryItemSchema>;
 
-export const CollarStyleEnum = z.enum([
-  'traditional_high', // Cổ đứng truyền thống 3-4cm
-  'round',            // Cổ tròn thoải mái
-  'boat',             // Cổ thuyền thanh thoát
-  'v_neck',           // Cổ chữ V cách tân
-]);
+export const VALID_COLLARS = ['traditional_high', 'round', 'boat', 'v_neck'] as const;
+export const CollarStyleEnum = z.enum(VALID_COLLARS);
 export type CollarStyle = z.infer<typeof CollarStyleEnum>;
 
-export const SleeveStyleEnum = z.enum([
-  'traditional_long', // Tay dài truyền thống
-  'raglan',           // Tay raglan cổ điển
-  'elbow',            // Tay lửng thanh lịch
-  'slit',             // Tay xẻ cách điệu Gen Z
-]);
+export const VALID_SLEEVES = ['traditional_long', 'raglan', 'elbow', 'slit'] as const;
+export const SleeveStyleEnum = z.enum(VALID_SLEEVES);
 export type SleeveStyle = z.infer<typeof SleeveStyleEnum>;
 
-export const FabricEnum = z.enum([
-  'silk_ha_dong',     // Lụa Vạn Phúc - Hà Đông
-  'brocade_hue',      // Gấm hoa hoàng gia Huế
-  'voile_chiffon',    // Tơ voan nhẹ nhàng
-  'linen_modern',     // Đũi tơ tự nhiên cách tân
-]);
+export const VALID_FABRICS = ['silk_ha_dong', 'brocade_hue', 'voile_chiffon', 'linen_modern'] as const;
+export const FabricEnum = z.enum(VALID_FABRICS);
 export type Fabric = z.infer<typeof FabricEnum>;
 
-export const PatternEnum = z.enum([
-  'plain',            // Trơn tinh giản
-  'lotus',            // Hoa sen thanh tịnh
-  'cloud',            // Vân mây cổ điển
-  'crane',            // Hạc vàng bay lượn
-  'geometric_genz',   // Họa tiết kỷ hà Gen Z remix
-]);
+export const VALID_PATTERNS = ['plain', 'lotus', 'cloud', 'crane', 'geometric_genz'] as const;
+export const PatternEnum = z.enum(VALID_PATTERNS);
 export type Pattern = z.infer<typeof PatternEnum>;
 
 export const GarmentConfigSchema = z.object({
@@ -61,7 +55,7 @@ export const GarmentConfigSchema = z.object({
   sleeveStyle: SleeveStyleEnum.default('traditional_long'),
   fabric: FabricEnum.default('silk_ha_dong'),
   pattern: PatternEnum.default('plain'),
-  accessories: z.array(z.string()).default([]),
+  accessories: z.array(AccessoryIdEnum).default([]),
 });
 export type GarmentConfig = z.infer<typeof GarmentConfigSchema>;
 
@@ -243,6 +237,8 @@ export const AIChatResponseSchema = z.object({
   commands: z.array(CommandPayloadSchema).optional(),
   citations: z.array(AICitationSchema).optional(),
   suggestedActionLabel: z.string().optional(),
+  mode: z.enum(['mock', 'live']).optional(),
+  model: z.string().optional(),
 });
 export type AIChatResponse = z.infer<typeof AIChatResponseSchema>;
 
