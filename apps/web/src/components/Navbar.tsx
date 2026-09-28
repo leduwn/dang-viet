@@ -1,6 +1,7 @@
 import React from 'react';
 import { type AIStatus } from '@dangviet/contracts';
 import { Sparkles, Compass, Shirt, Palette, Bookmark } from 'lucide-react';
+import { BrandLogo } from './BrandLogo.tsx';
 
 interface NavbarProps {
   currentTab: 'explore' | 'studio' | 'design' | 'lookbook';
@@ -11,8 +12,21 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = ({ currentTab, onSelectTab, aiStatus }) => {
   return (
     <header className="navbar">
-      <div className="brand-wrapper" onClick={() => onSelectTab('explore')} style={{ cursor: 'pointer' }}>
-        <div className="brand-logo-badge">DV</div>
+      <div
+        className="brand-wrapper"
+        onClick={() => onSelectTab('explore')}
+        style={{ cursor: 'pointer' }}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onSelectTab('explore');
+          }
+        }}
+        aria-label="Về trang Khám phá Dáng Việt"
+      >
+        <BrandLogo size={32} showWordmark={false} />
         <div className="brand-text">
           <h1>Dáng Việt</h1>
           <p>Khám phá Việt phục, tạo nên dáng riêng</p>

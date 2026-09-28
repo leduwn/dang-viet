@@ -1,17 +1,23 @@
 import React, { useId } from 'react';
 import { type GarmentConfig, type AccessoryId } from '@dangviet/contracts';
 
-interface AoDaiVisualizerProps {
+export interface AoDaiVisualizerProps {
   config: GarmentConfig;
   className?: string;
   size?: 'sm' | 'md' | 'lg';
+  mode?: 'thumbnail' | 'detail';
+  showDisclaimer?: boolean;
 }
 
 export const AoDaiVisualizer: React.FC<AoDaiVisualizerProps> = ({
   config,
   className = '',
   size = 'lg',
+  mode,
+  showDisclaimer,
 }) => {
+  const isThumbnail = mode === 'thumbnail' || (!mode && size === 'sm');
+  const shouldShowDisclaimer = showDisclaimer !== undefined ? showDisclaimer : !isThumbnail;
   const rawId = useId();
   const uid = rawId.replace(/[:]/g, '');
 
@@ -48,13 +54,15 @@ export const AoDaiVisualizer: React.FC<AoDaiVisualizerProps> = ({
       className={className}
     >
       <svg
-        viewBox="0 0 400 700"
+        viewBox="-10 0 420 700"
+        preserveAspectRatio="xMidYMid meet"
         style={{
           width: '100%',
           maxWidth: `${dimensions.width}px`,
           height: 'auto',
           maxHeight: `${dimensions.height}px`,
           filter: 'drop-shadow(0 12px 24px rgba(30, 27, 24, 0.08))',
+          display: 'block',
         }}
         aria-label="Mô hình vector trang phục áo dài"
       >
@@ -506,45 +514,47 @@ export const AoDaiVisualizer: React.FC<AoDaiVisualizerProps> = ({
         )}
       </svg>
 
-      {/* Mandatory visualizer badge & fabric limitation disclaimer */}
-      <div
-        style={{
-          marginTop: '0.65rem',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: '0.25rem',
-          width: '100%',
-          maxWidth: `${dimensions.width}px`,
-          padding: '0 0.5rem',
-        }}
-      >
-        <span
+      {/* Visualizer badge & fabric limitation disclaimer (only in detail mode) */}
+      {shouldShowDisclaimer && (
+        <div
           style={{
-            fontSize: '0.72rem',
-            fontWeight: 700,
-            color: 'var(--text-secondary)',
-            textAlign: 'center',
-            background: 'var(--bg-subtle)',
-            border: '1px solid var(--border-medium)',
-            padding: '2px 10px',
-            borderRadius: '12px',
-            letterSpacing: '0.02em',
+            marginTop: '0.65rem',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '0.25rem',
+            width: '100%',
+            maxWidth: `${dimensions.width}px`,
+            padding: '0 0.5rem',
           }}
         >
-          Mô hình đồ họa SVG minh họa 2D
-        </span>
-        <span
-          style={{
-            fontSize: '0.68rem',
-            color: 'var(--text-muted)',
-            textAlign: 'center',
-            lineHeight: 1.35,
-          }}
-        >
-          Mô phỏng màu sắc và phom dáng cắt may. Lựa chọn chất liệu thay đổi độ bóng và dệt vân bề mặt nhưng không mô phỏng độ rủ vi sợi 3D hay độ vừa vặn cơ thể thực tế.
-        </span>
-      </div>
+          <span
+            style={{
+              fontSize: '0.72rem',
+              fontWeight: 700,
+              color: 'var(--text-secondary)',
+              textAlign: 'center',
+              background: 'var(--bg-subtle)',
+              border: '1px solid var(--border-medium)',
+              padding: '2px 10px',
+              borderRadius: '12px',
+              letterSpacing: '0.02em',
+            }}
+          >
+            Mô hình đồ họa SVG minh họa 2D
+          </span>
+          <span
+            style={{
+              fontSize: '0.68rem',
+              color: 'var(--text-muted)',
+              textAlign: 'center',
+              lineHeight: 1.35,
+            }}
+          >
+            Mô phỏng màu sắc và phom dáng cắt may. Lựa chọn chất liệu thay đổi độ bóng và dệt vân bề mặt nhưng không mô phỏng độ rủ vi sợi 3D hay độ vừa vặn cơ thể thực tế.
+          </span>
+        </div>
+      )}
     </div>
   );
 };

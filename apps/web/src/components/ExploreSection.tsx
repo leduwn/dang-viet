@@ -27,7 +27,7 @@ export const ExploreSection: React.FC<ExploreSectionProps> = ({
     return cultureCards;
   }, [cultureCards, cultureFilter]);
   return (
-    <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '3rem' }}>
+    <div className="explore-section" style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '3rem' }}>
       {/* 1. Hero Introduction */}
       <section
         style={{
@@ -110,6 +110,7 @@ export const ExploreSection: React.FC<ExploreSectionProps> = ({
                 accessories: ['chuoi_ngoc', 'non_la'],
               }}
               size="md"
+              mode="thumbnail"
             />
           </div>
         </div>
@@ -209,8 +210,11 @@ export const ExploreSection: React.FC<ExploreSectionProps> = ({
             <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.6rem', color: 'var(--text-primary)' }}>
               12 Gợi ý phối đồ nổi bật
             </h3>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '0.25rem' }}>
               Được nghiên cứu tỉ mỉ theo từng sự kiện và phong cách thẩm mỹ
+            </p>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', fontStyle: 'italic' }}>
+              Hình minh họa 2D; màu sắc và chất liệu thực tế có thể khác.
             </p>
           </div>
         </div>
@@ -219,6 +223,7 @@ export const ExploreSection: React.FC<ExploreSectionProps> = ({
           {presets.map((preset) => (
             <div
               key={preset.id}
+              className="preset-card"
               style={{
                 background: 'var(--bg-surface)',
                 borderRadius: 'var(--radius-lg)',
@@ -226,27 +231,41 @@ export const ExploreSection: React.FC<ExploreSectionProps> = ({
                 border: '1px solid var(--border-light)',
                 display: 'flex',
                 flexDirection: 'column',
-                alignItems: 'center',
                 boxShadow: 'var(--shadow-sm)',
+                height: '100%',
+                boxSizing: 'border-box',
               }}
             >
-              <div style={{ width: '100%', height: '310px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                <AoDaiVisualizer config={preset.config} size="sm" />
+              <div
+                style={{
+                  width: '100%',
+                  height: '260px',
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  background: 'var(--bg-subtle)',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '0.75rem',
+                  boxSizing: 'border-box',
+                }}
+              >
+                <AoDaiVisualizer config={preset.config} size="sm" mode="thumbnail" />
               </div>
 
-              <div style={{ width: '100%', marginTop: '0.75rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
-                  <h4 style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--text-primary)' }}>
+              <div style={{ width: '100%', display: 'flex', flexDirection: 'column', flex: 1, marginTop: '0.85rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.45rem', gap: '0.5rem' }}>
+                  <h4 style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--text-primary)', lineHeight: 1.3 }}>
                     {preset.title}
                   </h4>
                   <span
                     style={{
-                      fontSize: '0.7rem',
-                      padding: '0.15rem 0.5rem',
+                      fontSize: '0.72rem',
+                      padding: '0.15rem 0.55rem',
                       background: 'var(--bg-subtle)',
                       borderRadius: 'var(--radius-full)',
                       fontWeight: 600,
                       color: 'var(--text-muted)',
+                      flexShrink: 0,
                     }}
                   >
                     {preset.styleId === 'thanh_lich' ? 'Thanh lịch' : preset.styleId === 'tuoi_tre' ? 'Tươi trẻ' : 'Tối giản'}
@@ -255,35 +274,37 @@ export const ExploreSection: React.FC<ExploreSectionProps> = ({
 
                 <p
                   style={{
-                    fontSize: '0.8rem',
+                    fontSize: '0.82rem',
                     color: 'var(--text-secondary)',
-                    lineHeight: 1.45,
-                    marginBottom: '1rem',
-                    minHeight: '48px',
+                    lineHeight: 1.5,
+                    marginBottom: '1.25rem',
                   }}
                 >
                   {preset.explanation}
                 </p>
 
-                <button
-                  onClick={() => onApplyPreset(preset)}
-                  style={{
-                    width: '100%',
-                    padding: '0.55rem',
-                    background: 'var(--accent-red)',
-                    color: 'white',
-                    borderRadius: 'var(--radius-md)',
-                    fontWeight: 600,
-                    fontSize: '0.82rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '0.4rem',
-                  }}
-                >
-                  <Sparkles size={14} />
-                  <span>Chọn và tùy biến bộ này</span>
-                </button>
+                <div style={{ marginTop: 'auto', width: '100%' }}>
+                  <button
+                    onClick={() => onApplyPreset(preset)}
+                    style={{
+                      width: '100%',
+                      padding: '0.65rem',
+                      background: 'var(--accent-red)',
+                      color: 'white',
+                      borderRadius: 'var(--radius-md)',
+                      fontWeight: 600,
+                      fontSize: '0.85rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.4rem',
+                      transition: 'background 0.2s ease',
+                    }}
+                  >
+                    <Sparkles size={14} />
+                    <span>Chọn và tùy biến bộ này</span>
+                  </button>
+                </div>
               </div>
             </div>
           ))}

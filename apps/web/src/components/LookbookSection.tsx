@@ -40,7 +40,7 @@ export const LookbookSection: React.FC<LookbookSectionProps> = ({
   };
 
   return (
-    <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem 1.5rem', width: '100%' }}>
+    <div className="lookbook-section" style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem 1.5rem', width: '100%' }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
@@ -148,12 +148,24 @@ export const LookbookSection: React.FC<LookbookSectionProps> = ({
                 </div>
 
                 {/* SVG Visualizer */}
-                <div style={{ height: '310px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                  <AoDaiVisualizer config={item.snapshotConfig} size="sm" />
+                <div
+                  style={{
+                    width: '100%',
+                    height: '260px',
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    background: 'var(--bg-subtle)',
+                    borderRadius: 'var(--radius-md)',
+                    padding: '0.75rem',
+                    boxSizing: 'border-box',
+                  }}
+                >
+                  <AoDaiVisualizer config={item.snapshotConfig} size="sm" mode="thumbnail" />
                 </div>
 
                 {/* Content */}
-                <div style={{ marginTop: '0.75rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', flex: 1, marginTop: '0.85rem' }}>
                   <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.35rem' }}>
                     {item.title}
                   </h3>

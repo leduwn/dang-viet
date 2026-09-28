@@ -7,6 +7,7 @@ import {
   type CommandAction,
   type CommandPayload,
   type MutationResult,
+  type SaveLookbookResult,
 } from '@dangviet/contracts';
 import {
   fetchMeta,
@@ -215,11 +216,11 @@ export const App: React.FC = () => {
   };
 
   // 4. Save Current Look to Lookbook
-  const handleSaveLookbook = async () => {
-    if (!look) return;
+  const handleSaveLookbook = async (): Promise<SaveLookbookResult> => {
+    if (!look) return { status: 'failed', message: 'Chưa tải bộ phối' };
     if (isMutatingRef.current) {
       console.warn('Đang có thao tác đang xử lý, bỏ qua lưu trùng.');
-      return;
+      return { status: 'busy', message: 'Hệ thống đang xử lý thao tác khác, vui lòng thử lại sau.' };
     }
     isMutatingRef.current = true;
     setIsBusy(true);
@@ -237,15 +238,28 @@ export const App: React.FC = () => {
 
     try {
       await saveToLookbook(newItem);
+      let refetched = true;
       try {
         const updated = await fetchLookbook();
         setLookbookItems(updated);
       } catch (refetchErr: any) {
         console.error('Refetch lookbook error:', refetchErr);
+        refetched = false;
       }
+      return {
+        status: 'saved',
+        message: refetched
+          ? 'Đã lưu thành công bộ phối vào Lookbook!'
+          : 'Đã lưu, chưa làm mới được danh sách',
+        item: newItem,
+        refetched,
+      };
     } catch (err: any) {
       console.error('Save lookbook error:', err);
-      throw err;
+      return {
+        status: 'failed',
+        message: err.message || 'Lỗi lưu Lookbook',
+      };
     } finally {
       isMutatingRef.current = false;
       setIsBusy(false);
@@ -271,7 +285,7 @@ export const App: React.FC = () => {
       // Phase 2: Sequential execution under shared mutation guard
       if (isMutatingRef.current) {
         return {
-          reply: `[Không thể áp dụng lệnh AI]: Hệ thống đang xử lý thao tác phối đồ khác. Vui lòng thử lại sau.`,
+          reply: `[Không thể áp dụng lệnh AI]: Hệ thống đang xử lý thao tác phối đồ khác. Vui lòng thử lại sau.\n\n*Đề xuất từ AI:* ${res.reply}`,
           explanation: res.explanation,
           citations: res.citations,
           mode: res.mode,
@@ -312,12 +326,13 @@ export const App: React.FC = () => {
 
       if (appliedCount === totalCmds) {
         commandsStatus = 'all_applied';
+        finalReply = `[Thực thi: Đã áp dụng toàn bộ ${totalCmds}/${totalCmds} lệnh] ${res.reply}`;
       } else if (appliedCount === 0) {
         commandsStatus = 'failed';
-        finalReply = `[Lưu ý: Không thể áp dụng thay đổi từ AI (${failureReason})] ${res.reply.replace(/(Đã|mình đã) (cập nhật|thay đổi|chuyển|đổi|chọn).*/gi, 'Trợ lý đã đề xuất thay đổi nhưng không thể áp dụng vào bộ trang phục.')}`;
+        finalReply = `[Thực thi thất bại: Không thể áp dụng thay đổi từ AI (${failureReason})]\n\n*Đề xuất ban đầu từ AI:* ${res.reply}`;
       } else {
         commandsStatus = 'partially_applied';
-        finalReply = `[Lưu ý: Chỉ áp dụng thành công ${appliedCount}/${totalCmds} lệnh (${failureReason})] ${res.reply}`;
+        finalReply = `[Thực thi một phần: Chỉ áp dụng thành công ${appliedCount}/${totalCmds} lệnh (${failureReason})]\n\n*Đề xuất ban đầu từ AI:* ${res.reply}`;
       }
     }
 

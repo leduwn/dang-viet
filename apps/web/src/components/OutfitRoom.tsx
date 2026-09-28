@@ -7,6 +7,7 @@ import {
   type LockState,
   type CommandAction,
   type MutationResult,
+  type SaveLookbookResult,
 } from '@dangviet/contracts';
 import { AoDaiVisualizer } from './AoDaiVisualizer.tsx';
 import {
@@ -30,7 +31,7 @@ interface OutfitRoomProps {
   onDispatchCommand: (action: CommandAction, payload: any) => Promise<MutationResult>;
   onUndo: () => Promise<MutationResult>;
   onReset: () => Promise<MutationResult>;
-  onSaveLookbook: () => Promise<void>;
+  onSaveLookbook: () => Promise<SaveLookbookResult>;
   onOpenCompare: () => void;
   onAskAI: (
     message: string,
@@ -171,8 +172,14 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
     if (isSaving || isBusyEffective) return;
     setIsSaving(true);
     try {
-      await onSaveLookbook();
-      showNotification('Đã lưu thành công bộ phối vào Lookbook!', 'success');
+      const res = await onSaveLookbook();
+      if (res.status === 'saved') {
+        showNotification(res.message, res.refetched ? 'success' : 'info');
+      } else if (res.status === 'busy') {
+        showNotification(res.message, 'info');
+      } else {
+        showNotification(res.message, 'error');
+      }
     } catch (err: any) {
       showNotification(err.message || 'Lỗi lưu Lookbook', 'error');
     } finally {
@@ -222,7 +229,7 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
   const accessoriesSet = new Set(look.config.accessories);
 
   return (
-    <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '1.5rem', width: '100%' }}>
+    <div className="outfit-room" style={{ maxWidth: '1400px', margin: '0 auto', padding: '1.5rem', width: '100%' }}>
       {/* Top Banner / Notification */}
       {notification && (
         <div
@@ -531,7 +538,7 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
           </div>
 
           {/* SVG Visualizer */}
-          <AoDaiVisualizer config={look.config} size="lg" />
+          <AoDaiVisualizer config={look.config} size="lg" mode="detail" />
         </div>
 
         {/* ======================================================== */}

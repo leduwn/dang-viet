@@ -331,6 +331,13 @@ export interface MutationResult {
   look?: Look;
 }
 
+export interface SaveLookbookResult {
+  status: 'saved' | 'busy' | 'failed';
+  message: string;
+  item?: LookbookItem;
+  refetched?: boolean;
+}
+
 // ==========================================
 // 5. Culture Cards (Verified Cultural Sources)
 // ==========================================

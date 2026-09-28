@@ -12,6 +12,9 @@ interface CompareModalProps {
 export const CompareModal: React.FC<CompareModalProps> = ({ lookA, lookB, onClose }) => {
   return (
     <div
+      className="compare-modal"
+      role="dialog"
+      aria-label="Đối sánh trang phục áo dài"
       style={{
         position: 'fixed',
         top: 0,
@@ -86,7 +89,9 @@ export const CompareModal: React.FC<CompareModalProps> = ({ lookA, lookB, onClos
             <h4 style={{ fontWeight: 700, fontSize: '1.05rem', marginBottom: '1rem', textAlign: 'center' }}>
               {lookA.title}
             </h4>
-            <AoDaiVisualizer config={lookA.config} size="sm" />
+            <div style={{ width: '100%', height: '260px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+              <AoDaiVisualizer config={lookA.config} size="sm" mode="thumbnail" />
+            </div>
           </div>
 
           <div
@@ -106,7 +111,9 @@ export const CompareModal: React.FC<CompareModalProps> = ({ lookA, lookB, onClos
             <h4 style={{ fontWeight: 700, fontSize: '1.05rem', marginBottom: '1rem', textAlign: 'center' }}>
               {lookB.title}
             </h4>
-            <AoDaiVisualizer config={lookB.config} size="sm" />
+            <div style={{ width: '100%', height: '260px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+              <AoDaiVisualizer config={lookB.config} size="sm" mode="thumbnail" />
+            </div>
           </div>
         </div>
 

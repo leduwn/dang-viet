@@ -88,7 +88,7 @@ export const DesignStudio: React.FC<DesignStudioProps> = ({
   };
 
   return (
-    <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem 1.5rem', width: '100%', boxSizing: 'border-box' }}>
+    <div className="design-studio" style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem 1.5rem', width: '100%', boxSizing: 'border-box' }}>
       {/* Studio Header */}
       <div style={{ marginBottom: '2rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
@@ -306,8 +306,8 @@ export const DesignStudio: React.FC<DesignStudioProps> = ({
           </div>
 
           {/* SVG Canvas */}
-          <div style={{ padding: '1rem 0' }}>
-            <AoDaiVisualizer config={currentDesign.config} size="md" />
+          <div style={{ padding: '0.5rem 0' }}>
+            <AoDaiVisualizer config={currentDesign.config} size="md" mode="detail" />
           </div>
 
           {/* Details & Explanation */}
