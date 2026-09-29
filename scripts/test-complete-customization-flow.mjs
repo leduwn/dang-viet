@@ -1,24 +1,24 @@
 import assert from 'node:assert';
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { getModelCapability, MODEL_CAPABILITIES } from '@dangviet/contracts';
 
 console.log('===============================================================================');
-console.log('  DÁNG VIỆT - BÀI KIỂM CHỨNG TỔNG THỂ 13 BƯỚC: MỘT LUỒNG PHỐI ĐỒ HOÀN CHỈNH');
+console.log('  DÁNG VIỆT - KIỂM CHỨNG LUỒNG NGHIỆP VỤ BACKEND & API (12 BƯỚC)');
+console.log('  (Lưu ý: Kiểm thử giao diện thật & xuất PNG được tách riêng sang test Playwright)');
 console.log('===============================================================================\n');
 
-const testDir = path.resolve('test-complete-flow-scratch');
-if (fs.existsSync(testDir)) {
-  fs.rmSync(testDir, { recursive: true, force: true });
-}
-fs.mkdirSync(testDir, { recursive: true });
-
+// Tạo thư mục tạm độc lập theo từng lần chạy bằng os.tmpdir() + mkdtempSync
+const testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dangviet-flow-'));
 const testDbPath = path.join(testDir, 'test-complete.db');
+console.log(`[MÔI TRƯỜNG] Thư mục kiểm thử tạm: ${testDir}`);
+console.log(`[MÔI TRƯỜNG] Database tạm: ${testDbPath}\n`);
 
-// Step 1: Khởi động máy chủ backend tại cổng ngẫu nhiên do HĐH cấp và DB tạm
-console.log('[BƯỚC 1/13] Khởi động máy chủ backend tại cổng ngẫu nhiên và database độc lập...');
+// Bước 1: Khởi động máy chủ backend tại cổng ngẫu nhiên do HĐH cấp và DB tạm
+console.log('[BƯỚC 1/12] Khởi động máy chủ backend tại cổng ngẫu nhiên và database độc lập...');
 const serverProcess = spawn(process.execPath, ['apps/server/dist/index.js'], {
   env: {
     ...process.env,
@@ -30,19 +30,31 @@ const serverProcess = spawn(process.execPath, ['apps/server/dist/index.js'], {
   stdio: 'pipe',
 });
 
+let stdoutBuffer = '';
 let assignedPort = null;
+
 serverProcess.stdout.on('data', (chunk) => {
-  const text = chunk.toString();
-  const match = text.match(/http:\/\/127\.0\.0\.1:(\d+)/);
-  if (match) assignedPort = match[1];
+  stdoutBuffer += chunk.toString();
+  const match = stdoutBuffer.match(/http:\/\/127\.0\.0\.1:(\d+)/);
+  if (match) {
+    assignedPort = match[1];
+  }
 });
+
 serverProcess.stderr.on('data', (chunk) => {
   const errText = chunk.toString();
   if (errText.trim()) console.error('[SERVER STDERR]', errText);
 });
 
 let ready = false;
-for (let i = 0; i < 25; i++) {
+const maxWaitMs = 25000;
+const startWait = Date.now();
+
+while (Date.now() - startWait < maxWaitMs) {
+  if (serverProcess.exitCode !== null) {
+    console.error(`[FAIL] Máy chủ backend đã thoát sớm với mã lỗi ${serverProcess.exitCode}.`);
+    process.exit(1);
+  }
   if (assignedPort) {
     try {
       const res = await fetch(`http://127.0.0.1:${assignedPort}/api/health`);
@@ -52,11 +64,11 @@ for (let i = 0; i < 25; i++) {
       }
     } catch {}
   }
-  await new Promise((r) => setTimeout(r, 400));
+  await new Promise((r) => setTimeout(r, 300));
 }
 
 if (!ready || !assignedPort) {
-  console.error('[FAIL] Không thể kết nối tới server sau 10 giây.');
+  console.error('[FAIL] Không thể kết nối tới server sau 25 giây.');
   serverProcess.kill();
   process.exit(1);
 }
@@ -74,8 +86,8 @@ async function api(endpoint, options = {}) {
 }
 
 try {
-  // Step 2: Khám phá model & assets, kiểm tra single source of truth capabilities
-  console.log('[BƯỚC 2/13] Kiểm tra Single Source of Truth Capabilities & Tệp 3D V2 thực tế...');
+  // Bước 2: Khám phá model & assets, kiểm tra single source of truth capabilities
+  console.log('[BƯỚC 2/12] Kiểm tra Single Source of Truth Capabilities & Tệp 3D V2 thực tế...');
   const capV2 = getModelCapability('aodai_traditional_v2');
   assert.strictEqual(capV2.category, 'classic');
   assert.deepStrictEqual(capV2.supportedCollars, ['traditional_high']);
@@ -138,8 +150,8 @@ try {
   let currentLook = initRes.data;
   console.log(` -> Khởi tạo lookId="${lookId}" thành công (revision: 1).\n`);
 
-  // Step 3: Chỉnh thuộc tính có hỗ trợ: Đổi màu áo đỏ son, màu quần trắng
-  console.log('[BƯỚC 3/13] Chỉnh thuộc tính có hỗ trợ: Đổi màu áo đỏ son (#B83A24), đổi màu quần (#FFFFFF)...');
+  // Bước 3: Chỉnh thuộc tính có hỗ trợ: Đổi màu áo đỏ son, màu quần trắng
+  console.log('[BƯỚC 3/12] Chỉnh thuộc tính có hỗ trợ: Đổi màu áo đỏ son (#B83A24), đổi màu quần (#FFFFFF)...');
   const setRedColor = await api(`/looks/${lookId}/command`, {
     method: 'POST',
     body: JSON.stringify({
@@ -157,8 +169,8 @@ try {
   assert.strictEqual(currentLook.revision, 2);
   console.log(' -> Đổi màu áo thành công, revision=2.\n');
 
-  // Step 4: Chặn thuộc tính không hỗ trợ theo capability
-  console.log('[BƯỚC 4/13] Kiểm tra chặn thuộc tính không hỗ trợ: Đổi cổ sang "round" trên mẫu v2...');
+  // Bước 4: Chặn thuộc tính không hỗ trợ theo capability
+  console.log('[BƯỚC 4/12] Kiểm tra chặn thuộc tính không hỗ trợ: Đổi cổ sang "round" trên mẫu v2...');
   const setInvalidCollar = await api(`/looks/${lookId}/command`, {
     method: 'POST',
     body: JSON.stringify({
@@ -174,8 +186,8 @@ try {
   assert(setInvalidCollar.data.error.includes('không hỗ trợ'), 'Thông báo phải giải thích rõ lý do không hỗ trợ');
   console.log(` -> Đã chặn thành công: "${setInvalidCollar.data.error}".\n`);
 
-  // Step 5: Khóa màu áo (primaryColor: true)
-  console.log('[BƯỚC 5/13] Khóa màu áo (TOGGLE_LOCK: primaryColor)...');
+  // Bước 5: Khóa màu áo (primaryColor: true)
+  console.log('[BƯỚC 5/12] Khóa màu áo (TOGGLE_LOCK: primaryColor)...');
   const lockShirt = await api(`/looks/${lookId}/command`, {
     method: 'POST',
     body: JSON.stringify({
@@ -193,8 +205,8 @@ try {
   assert.strictEqual(currentLook.revision, 3);
   console.log(' -> Màu áo đã được khóa an toàn, revision=3.\n');
 
-  // Step 6: AI Assistant hội thoại tiếp nối tôn trọng khóa
-  console.log('[BƯỚC 6/13] Gửi yêu cầu AI: "giữ màu áo, đổi quần xanh và bớt phụ kiện"...');
+  // Bước 6: AI Assistant hội thoại tiếp nối tôn trọng khóa
+  console.log('[BƯỚC 6/12] Gửi yêu cầu AI: "giữ màu áo, đổi quần xanh và bớt phụ kiện"...');
   const aiChatRes = await api('/ai/chat', {
     method: 'POST',
     body: JSON.stringify({
@@ -207,14 +219,13 @@ try {
   });
   assert.strictEqual(aiChatRes.status, 200);
   assert(aiChatRes.data.reply.length > 0);
-  // Xác nhận AI không sinh lệnh đổi primaryColor vì primaryColor đang bị khóa
   const primaryColorCmd = aiChatRes.data.commands.find((c) => c.action === 'SET_PRIMARY_COLOR');
   assert.strictEqual(primaryColorCmd, undefined, 'AI không được sinh lệnh đổi màu áo khi màu áo đang bị khóa');
   console.log(` -> AI trả lời: "${aiChatRes.data.reply.slice(0, 70)}..."`);
   console.log(' -> Rào chắn AI bảo vệ thành công: Không sinh lệnh thay đổi màu áo đã khóa.\n');
 
-  // Step 7: Xem trước proposal rồi bấm "Hủy xem trước" (Preview & Cancel)
-  console.log('[BƯỚC 7/13] Sinh đề xuất AI (Proposal), xem trước rồi hủy xem trước...');
+  // Bước 7: Xem trước proposal rồi bấm "Hủy xem trước" (Preview & Cancel)
+  console.log('[BƯỚC 7/12] Sinh đề xuất AI (Proposal), xem trước rồi hủy xem trước...');
   const proposalRes = await api('/ai/proposal', {
     method: 'POST',
     body: JSON.stringify({
@@ -230,14 +241,13 @@ try {
   assert.strictEqual(proposal.baseRevision, currentLook.revision);
   assert.strictEqual(proposal.proposedConfig.primaryColor.name, currentLook.config.primaryColor.name, 'Proposal phải giữ nguyên màu áo đã khóa');
 
-  // Client xem trước (local preview) rồi hủy xem trước -> Look trong DB vẫn giữ nguyên
   const lookAfterCancel = (await api(`/looks/${lookId}`)).data;
   assert.strictEqual(lookAfterCancel.revision, currentLook.revision, 'Hủy xem trước không làm thay đổi DB');
   assert.strictEqual(lookAfterCancel.config.primaryColor.name, 'Đỏ son hoàng gia');
   console.log(' -> Hủy xem trước thành công: Cấu hình và revision trên server giữ nguyên vẹn.\n');
 
-  // Step 8: Áp dụng đề xuất AI nguyên tử qua APPLY_DESIGN
-  console.log('[BƯỚC 8/13] Áp dụng đề xuất AI nguyên tử qua APPLY_DESIGN...');
+  // Bước 8: Áp dụng đề xuất AI nguyên tử qua APPLY_DESIGN
+  console.log('[BƯỚC 8/12] Áp dụng đề xuất AI nguyên tử qua APPLY_DESIGN...');
   const applyProposalRes = await api(`/looks/${lookId}/command`, {
     method: 'POST',
     body: JSON.stringify({
@@ -260,8 +270,8 @@ try {
   assert.strictEqual(currentLook.config.primaryColor.name, 'Đỏ son hoàng gia', 'Màu áo đã khóa được bảo toàn');
   console.log(` -> Áp dụng nguyên tử thành công: revision=4, tiêu đề="${currentLook.title}".\n`);
 
-  // Step 9: Nhấn Hoàn tác (Undo)
-  console.log('[BƯỚC 9/13] Nhấn Hoàn tác (Undo) thiết kế vừa áp dụng...');
+  // Bước 9: Nhấn Hoàn tác (Undo)
+  console.log('[BƯỚC 9/12] Nhấn Hoàn tác (Undo) thiết kế vừa áp dụng...');
   const undoRes = await api(`/looks/${lookId}/undo`, {
     method: 'POST',
     body: JSON.stringify({
@@ -275,8 +285,8 @@ try {
   assert.strictEqual(currentLook.title, 'Áo dài Nữ sinh Cổ cao Chuẩn V2', 'Tiêu đề trở về trước khi áp dụng proposal');
   console.log(' -> Hoàn tác thành công: Phục hồi hoàn toàn trạng thái trước khi áp dụng proposal.\n');
 
-  // Step 10: Đọc tư liệu văn hóa đã kiểm chứng
-  console.log('[BƯỚC 10/13] Đọc tư liệu văn hóa: Phân biệt thẻ published [Đã kiểm chứng] và review [Đang thẩm định]...');
+  // Bước 10: Đọc tư liệu văn hóa đã kiểm chứng
+  console.log('[BƯỚC 10/12] Đọc tư liệu văn hóa: Phân biệt thẻ published [Đã kiểm chứng] và review [Đang thẩm định]...');
   const allCardsRes = await api('/culture?status=all');
   assert.strictEqual(allCardsRes.status, 200);
   const cards = allCardsRes.data;
@@ -292,8 +302,8 @@ try {
   }
   console.log(` -> Đã xác minh: ${publishedCards.length} thẻ [Đã kiểm chứng], ${reviewCards.length} thẻ [Đang thẩm định].\n`);
 
-  // Step 11: Lưu bản phối vào Lookbook và kiểm tra tính bất biến
-  console.log('[BƯỚC 11/13] Lưu bản phối vào Lookbook & kiểm tra snapshot bất biến...');
+  // Bước 11: Lưu bản phối vào Lookbook và kiểm tra tính bất biến
+  console.log('[BƯỚC 11/12] Lưu bản phối vào Lookbook & kiểm tra snapshot bất biến...');
   const lookbookId = `lookbook_item_${Date.now()}`;
   const saveLb = await api('/lookbook', {
     method: 'POST',
@@ -332,8 +342,8 @@ try {
   assert.strictEqual(lbCheck.snapshotConfig.pantsColor.name, 'Trắng tinh khôi', 'Snapshot Lookbook phải bất biến!');
   console.log(' -> Lưu Lookbook thành công, snapshot bất biến sau các chỉnh sửa tiếp theo.\n');
 
-  // Step 12: Mở lại snapshot từ Lookbook khi có thuộc tính đang khóa
-  console.log('[BƯỚC 12/13] Mở lại snapshot từ Lookbook: Bảo tồn thuộc tính đang khóa...');
+  // Bước 12: Mở lại snapshot từ Lookbook khi có thuộc tính đang khóa
+  console.log('[BƯỚC 12/12] Mở lại snapshot từ Lookbook: Bảo tồn thuộc tính đang khóa...');
   // Hiện tại primaryColor đang bị khóa (Đỏ son). Mở snapshot vào look:
   const restoreFromLb = await api(`/looks/${lookId}/command`, {
     method: 'POST',
@@ -358,27 +368,27 @@ try {
   assert.strictEqual(currentLook.config.primaryColor.name, 'Đỏ son hoàng gia', 'Màu áo khóa vẫn được bảo toàn');
   console.log(' -> Mở lại từ Lookbook thành công, tôn trọng các thuộc tính bị khóa.\n');
 
-  // Step 13: Xuất ảnh minh họa 3D có thương hiệu Dáng Việt
-  console.log('[BƯỚC 13/13] Kiểm tra tính năng Xuất ảnh minh họa 3D có thương hiệu (PNG)...');
-  // Đọc mã nguồn exportImage.ts để xác thực các tiêu chí thiết kế
-  const exportImageSrc = fs.readFileSync(path.resolve('apps/web/src/utils/exportImage.ts'), 'utf-8');
-  assert(exportImageSrc.includes('1200'), 'Độ phân giải chiều rộng phải là 1200px');
-  assert(exportImageSrc.includes('1600'), 'Độ phân giải chiều cao phải là 1600px');
-  assert(exportImageSrc.includes('DÁNG VIỆT'), 'Phải chứa tên thương hiệu DÁNG VIỆT');
-  assert(exportImageSrc.includes('Hình minh họa 3D'), 'Phải gắn nhãn kỹ thuật "Hình minh họa 3D"');
-  assert(exportImageSrc.includes('toDataURL'), 'Phải xuất ra data URL PNG chuẩn');
-  console.log(' -> Xuất ảnh bản phối 3D: Độ phân giải 1200x1600, logo Dáng Việt, bảng mã màu và nhãn kỹ thuật đầy đủ.\n');
-
   console.log('===============================================================================');
-  console.log('  CHÚC MỪNG: TOÀN BỘ 13 BƯỚC CỦA LUỒNG PHỐI ĐỒ HOÀN CHỈNH ĐỀU ĐẠT CHUẨN 100%!');
+  console.log('  CHÚC MỪNG: TOÀN BỘ 12 BƯỚC LUỒNG NGHIỆP VỤ API ĐỀU ĐẠT CHUẨN 100%!');
   console.log('===============================================================================');
 } catch (err) {
-  console.error('\n[LỖI TRONG LUỒNG KIỂM CHỨNG]:', err);
+  console.error('\n[LỖI TRONG LUỒNG KIỂM CHỨNG API]:', err);
   process.exitCode = 1;
 } finally {
-  serverProcess.kill();
-  try {
-    fs.rmSync(testDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
-  } catch {}
-  console.log('\n[TEARDOWN] Đã dọn dẹp cơ sở dữ liệu tạm và dừng máy chủ an toàn.');
+  console.log('\n[TEARDOWN] Đang dừng máy chủ backend và chờ tiến trình kết thúc...');
+  if (!serverProcess.killed && serverProcess.exitCode === null) {
+    await new Promise((resolve) => {
+      serverProcess.once('exit', resolve);
+      serverProcess.kill();
+      setTimeout(resolve, 3000);
+    });
+  }
+  if (fs.existsSync(testDir)) {
+    try {
+      fs.rmSync(testDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+      console.log(`[TEARDOWN] Đã dọn dẹp sạch thư mục tạm: ${testDir}`);
+    } catch (cleanupErr) {
+      console.warn(`[TEARDOWN] Lưu ý không thể xóa thư mục tạm: ${cleanupErr.message}`);
+    }
+  }
 }

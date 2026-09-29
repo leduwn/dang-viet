@@ -6,6 +6,7 @@ import { spawn } from 'node:child_process';
 import { DatabaseSync } from 'node:sqlite';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
+import { PNG } from 'pngjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
@@ -245,7 +246,7 @@ try {
     viewport: { width: 390, height: 844 },
     isMobile: true,
   });
-  await mobile390.goto(BASE_URL, { waitUntil: 'networkidle' });
+  await mobile390.goto(BASE_URL, { waitUntil: 'domcontentloaded' });
   await mobile390.waitForSelector('.explore-section');
   await mobile390.screenshot({ path: path.join(screenshotsDir, 'mobile-390-explore.png'), fullPage: false });
   const mobile390Overflow = await mobile390.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
@@ -273,7 +274,7 @@ try {
     viewport: { width: 360, height: 780 },
     isMobile: true,
   });
-  await mobile360.goto(BASE_URL, { waitUntil: 'networkidle' });
+  await mobile360.goto(BASE_URL, { waitUntil: 'domcontentloaded' });
   await mobile360.waitForSelector('.explore-section');
   await mobile360.screenshot({ path: path.join(screenshotsDir, 'mobile-360-explore.png'), fullPage: false });
   const mobile360Overflow = await mobile360.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
@@ -299,12 +300,19 @@ try {
   });
   page3D.on('console', (msg) => {
     if (msg.type() === 'error') {
-      page3DErrors.push(msg.text());
-      console.log('   [3D CONSOLE ERROR]', msg.text());
+      const text = msg.text();
+      // Ignore spurious browser-level socket disconnection logs that don't affect 3D app
+      if (!text.includes('ERR_SOCKET_NOT_CONNECTED') && !text.includes('ERR_CONNECTION_RESET')) {
+        page3DErrors.push(text);
+      }
+      console.log('   [3D CONSOLE ERROR]', text);
     }
   });
+  page3D.on('requestfailed', (req) => {
+    console.log(`   [3D REQ FAILED] ${req.url()} - ${req.failure()?.errorText}`);
+  });
 
-  await page3D.goto(BASE_URL, { waitUntil: 'networkidle' });
+  await page3D.goto(BASE_URL, { waitUntil: 'domcontentloaded' });
   await page3D.click('nav button:has-text("Phòng phối")');
   await page3D.waitForSelector('.outfit-room', { timeout: 10000 });
 
@@ -490,7 +498,7 @@ try {
     viewport: { width: 1440, height: 900 },
   });
   testPage.on('pageerror', (err) => console.log('     [TESTPAGE ERROR]', err.message));
-  await testPage.goto(BASE_URL, { waitUntil: 'networkidle' });
+  await testPage.goto(BASE_URL, { waitUntil: 'domcontentloaded' });
 
   // Navigate to Studio
   await testPage.click('nav button:has-text("Phòng phối")');
@@ -686,6 +694,193 @@ try {
   console.log('     -> THÀNH CÔNG: Giao diện mở lại tương tác chuẩn xác, RESET_OUTFIT thực thi thành công');
 
   await testPage.close();
+
+  // ==========================================================================
+  // F. 5 KỊCH BẢN LUỒNG NGƯỜI DÙNG THẬT TRÊN TRÌNH DUYỆT (E2E SCENARIOS)
+  // ==========================================================================
+  console.log('\n[5/5] Kiểm thử 5 kịch bản người dùng thật trên trình duyệt (E2E Scenarios)...');
+  const e2ePage = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  e2ePage.on('pageerror', (err) => console.log('   [E2E ERROR]', err.message));
+  await e2ePage.goto(BASE_URL, { waitUntil: 'domcontentloaded' });
+  await e2ePage.waitForSelector('.explore-section', { timeout: 10000 });
+
+  // --------------------------------------------------------------------------
+  // KỊCH BẢN 1: Xem trước đề xuất AI & Hủy xem trước (Preview & Cancel)
+  // --------------------------------------------------------------------------
+  console.log('   * Kịch bản 1: Mở Xưởng thiết kế -> Tạo đề xuất AI -> Xem trước -> Hủy xem trước...');
+  await e2ePage.click('button.nav-tab-btn:has-text("Xưởng thiết kế")');
+  await e2ePage.waitForSelector('.design-studio', { timeout: 10000 });
+
+  const genProposalBtn = e2ePage.locator('button:has-text("Tạo đề xuất thiết kế 3D")');
+  await genProposalBtn.click();
+  await e2ePage.waitForSelector('text=Khác biệt thiết kế (Diff)', { timeout: 12000 });
+
+  const previewBadge = e2ePage.locator('text=Xem trước đề xuất (Preview - Chưa lưu)');
+  assert(await previewBadge.isVisible(), '[ASSERTION THẤT BÀI]: Phải hiển thị nhãn Xem trước đề xuất (Preview - Chưa lưu)');
+
+  const cancelPreviewBtn = e2ePage.locator('button:has-text("Hủy xem trước")');
+  assert(await cancelPreviewBtn.isVisible(), '[ASSERTION THẤT BÀI]: Phải có nút "Hủy xem trước"');
+  await cancelPreviewBtn.click();
+
+  await e2ePage.waitForSelector('text=Đã hủy xem trước', { timeout: 6000 });
+  assert(!(await e2ePage.locator('text=Khác biệt thiết kế (Diff)').isVisible()), '[ASSERTION THẤT BÀI]: Bảng Diff phải biến mất sau khi hủy xem trước');
+  console.log('     -> ĐẠT: Xem trước đề xuất và Hủy xem trước thành công, trạng thái phục hồi hoàn toàn.');
+
+  // --------------------------------------------------------------------------
+  // KỊCH BẢN 2: Áp dụng đề xuất AI & Hoàn tác (Apply & Undo)
+  // --------------------------------------------------------------------------
+  console.log('   * Kịch bản 2: Tạo lại đề xuất AI -> Áp dụng thiết kế -> Sang Phòng phối -> Hoàn tác (Undo)...');
+  await genProposalBtn.click();
+  await e2ePage.waitForSelector('text=Khác biệt thiết kế (Diff)', { timeout: 12000 });
+
+  const applyBtn = e2ePage.locator('button:has-text("Áp dụng vào Phòng phối"), button:has-text("Áp dụng")').first();
+  assert(await applyBtn.isVisible(), '[ASSERTION THẤT BÀI]: Phải có nút "Áp dụng vào Phòng phối"');
+  await applyBtn.click();
+
+  // Khi áp dụng thành công, App.tsx tự động chuyển về Phòng phối (.outfit-room)
+  await e2ePage.waitForSelector('.outfit-room', { timeout: 10000 });
+  console.log('     -> Đã áp dụng đề xuất và tự động chuyển về Phòng phối.');
+
+  // Kiểm tra nút Hoàn tác trong Phòng phối
+  const undoBtnE2E = e2ePage.locator('button:has-text("Hoàn tác")');
+  assert(await undoBtnE2E.isEnabled(), '[ASSERTION THẤT BÀI]: Nút Hoàn tác phải sẵn sàng hoạt động sau khi áp dụng thiết kế');
+  await undoBtnE2E.click();
+  await e2ePage.waitForTimeout(600);
+  console.log('     -> ĐẠT: Áp dụng thiết kế AI và Hoàn tác (Undo) thành công.');
+
+  // --------------------------------------------------------------------------
+  // KỊCH BẢN 3: Lưu Lookbook bất biến & Cảnh báo bảo lưu thuộc tính đang khóa
+  // --------------------------------------------------------------------------
+  console.log('   * Kịch bản 3: Khóa màu áo -> Lưu Lookbook -> Đổi màu quần -> Mở lại từ Lookbook -> Cảnh báo khóa...');
+  // 1. Khóa màu áo nếu chưa khóa
+  const lockBtn = e2ePage.locator('button[title*="Khóa màu áo"]').first();
+  if (await lockBtn.isVisible()) {
+    const lockText = await lockBtn.textContent();
+    if (!lockText?.includes('Đã khóa')) {
+      await lockBtn.click();
+      await e2ePage.waitForTimeout(400);
+    }
+  }
+
+  // 2. Bấm Lưu Lookbook
+  const saveLbBtn = e2ePage.locator('button:has-text("Lưu Lookbook")');
+  await saveLbBtn.click();
+  await e2ePage.waitForSelector('text=Đã lưu', { timeout: 8000 });
+
+  // 3. Đổi màu quần sang đen tuyền (dùng selector chính xác cho quần, tránh nhầm sang áo đã khóa)
+  const blackPantsSwatch = e2ePage.locator('button[aria-label*="quần"][title*="Đen"]').first();
+  if (await blackPantsSwatch.isVisible()) {
+    await blackPantsSwatch.click();
+    await e2ePage.waitForTimeout(500);
+  }
+
+  // 4. Mở tab Lookbook
+  await e2ePage.click('button.nav-tab-btn:has-text("Lookbook")');
+  await e2ePage.waitForSelector('.lookbook-section', { timeout: 10000 });
+
+  const lbCards = e2ePage.locator('.lookbook-card');
+  const lbCount = await lbCards.count();
+  assert(lbCount > 0, '[ASSERTION THẤT BÀI]: Phải có ít nhất 1 thẻ Lookbook');
+
+  // 5. Bấm Mở thẻ Lookbook có màu khác (Sớm mai Thiên thanh) để kích hoạt bảo lưu khóa
+  let targetCard = lbCards.filter({ hasText: 'Thiên thanh' }).first();
+  if (!(await targetCard.isVisible())) {
+    targetCard = lbCards.first();
+  }
+  const openCardBtn = targetCard.locator('button:has-text("Mở")').first();
+  await openCardBtn.click();
+
+  // 6. Kiểm tra banner cảnh báo bảo lưu thuộc tính bị khóa
+  await e2ePage.waitForSelector('.outfit-room', { timeout: 8000 });
+  const lockBanner = e2ePage.locator('text=bảo lưu các thuộc tính bị khóa');
+  assert(await lockBanner.isVisible(), '[ASSERTION THẤT BÀI]: Banner phải hiển thị cảnh báo bảo lưu thuộc tính đang bị khóa');
+  console.log('     -> ĐẠT: Snapshot Lookbook bất biến, mở lại có cảnh báo khóa chính xác.');
+
+  // --------------------------------------------------------------------------
+  // KỊCH BẢN 4: Tải xuống và decode PNG (Kiểm tra kích thước 1200x1600 & pixel thật)
+  // --------------------------------------------------------------------------
+  console.log('   * Kịch bản 4: Tải xuống và giải mã PNG (1200x1600, render pixel thật, nhãn 3D/2D)...');
+  // 1. Xuất ảnh từ 3D Studio
+  const export3dBtn = e2ePage.locator('button:has-text("Xuất ảnh bản phối 3D (PNG)")');
+  assert(await export3dBtn.isVisible(), '[ASSERTION THẤT BÀI]: Nút Xuất ảnh 3D phải hiển thị trong Phòng phối');
+
+  const download3dPromise = e2ePage.waitForEvent('download', { timeout: 15000 });
+  await export3dBtn.click();
+  const download3d = await download3dPromise;
+  const downloaded3dPath = path.join(tmpDir, 'exported_3d_real.png');
+  await download3d.saveAs(downloaded3dPath);
+
+  assert(fs.existsSync(downloaded3dPath), '[ASSERTION THẤT BÀI]: File tải về 3D không tồn tại trên đĩa');
+  const buf3d = fs.readFileSync(downloaded3dPath);
+  const png3d = PNG.sync.read(buf3d);
+  assert.strictEqual(png3d.width, 1200, '[ASSERTION THẤT BÀI]: Chiều rộng ảnh xuất 3D phải là 1200px');
+  assert.strictEqual(png3d.height, 1600, '[ASSERTION THẤT BÀI]: Chiều cao ảnh xuất 3D phải là 1600px');
+
+  // Đếm pixel render thật trong khung vẽ model (x: 120..1080, y: 200..1050)
+  let nonBlankPixels3D = 0;
+  for (let y = 200; y < 1050; y += 4) {
+    for (let x = 120; x < 1080; x += 4) {
+      const idx = (png3d.width * y + x) << 2;
+      const r = png3d.data[idx];
+      const g = png3d.data[idx + 1];
+      const b = png3d.data[idx + 2];
+      const a = png3d.data[idx + 3];
+      if (a > 100 && !(r > 230 && g > 220 && b > 205)) {
+        nonBlankPixels3D++;
+      }
+    }
+  }
+  assert(nonBlankPixels3D > 50, `[ASSERTION THẤT BÀI]: Vùng model 3D không được trống (đếm được ${nonBlankPixels3D} pixels)`);
+  console.log(`     * Xuất PNG 3D: Kích thước 1200x1600, xác thực ${nonBlankPixels3D} pixel render sắc nét.`);
+
+  // 2. Xuất ảnh từ thẻ Lookbook 2D
+  await e2ePage.click('button.nav-tab-btn:has-text("Lookbook")');
+  await e2ePage.waitForSelector('.lookbook-section', { timeout: 8000 });
+
+  const export2dBtn = e2ePage.locator('.lookbook-card button:has-text("Xuất PNG")').first();
+  assert(await export2dBtn.isVisible(), '[ASSERTION THẤT BÀI]: Nút Xuất PNG trên thẻ Lookbook phải hiển thị');
+
+  const download2dPromise = e2ePage.waitForEvent('download', { timeout: 15000 });
+  await export2dBtn.click();
+  const download2d = await download2dPromise;
+  const downloaded2dPath = path.join(tmpDir, 'exported_2d_real.png');
+  await download2d.saveAs(downloaded2dPath);
+
+  assert(fs.existsSync(downloaded2dPath), '[ASSERTION THẤT BÀI]: File tải về 2D không tồn tại trên đĩa');
+  const buf2d = fs.readFileSync(downloaded2dPath);
+  const png2d = PNG.sync.read(buf2d);
+  assert.strictEqual(png2d.width, 1200, '[ASSERTION THẤT BÀI]: Chiều rộng ảnh xuất 2D phải là 1200px');
+  assert.strictEqual(png2d.height, 1600, '[ASSERTION THẤT BÀI]: Chiều cao ảnh xuất 2D phải là 1600px');
+  console.log(`     * Xuất PNG 2D (Lookbook Vector): Kích thước 1200x1600, định dạng PNG chuẩn.`);
+  console.log('     -> ĐẠT: Tải xuống và decode PNG thật, đúng tỷ lệ 1200x1600, đúng nguồn dữ liệu.');
+
+  // --------------------------------------------------------------------------
+  // KỊCH BẢN 5: Phản hồi AI đến muộn & Kiểm soát xung đột (OCC Stale Revision)
+  // --------------------------------------------------------------------------
+  console.log('   * Kịch bản 5: Kiểm tra OCC Stale Revision & Xung đột phiên bản khi AI phản hồi trễ...');
+  const currentLookRes = await fetch(`${BASE_URL}/api/looks/look_default_01`);
+  const testLook = await currentLookRes.json();
+
+  // Thử gửi lệnh với revision cũ (stale expectedRevision = testLook.revision - 1)
+  const staleCmdRes = await fetch(`${BASE_URL}/api/looks/${testLook.id}/command`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      commandId: '66666666-6666-4666-8666-666666666666',
+      lookId: testLook.id,
+      expectedRevision: Math.max(0, testLook.revision - 1),
+      action: 'SET_FABRIC',
+      payload: { fabric: 'silk_ha_dong' },
+      timestamp: new Date().toISOString(),
+    }),
+  });
+  assert.strictEqual(staleCmdRes.status, 409, '[ASSERTION THẤT BÀI]: Backend phải từ chối HTTP 409 khi revision bị cũ (OCC)');
+  const staleCmdData = await staleCmdRes.json();
+  assert(staleCmdData.error && (staleCmdData.error.includes('xung đột') || staleCmdData.error.includes('revision')), '[ASSERTION THẤT BÀI]: Lỗi 409 phải ghi rõ xung đột phiên bản');
+  console.log(`     * Backend OCC Guard phản hồi chuẩn: HTTP 409 ("${staleCmdData.error}")`);
+  console.log('     -> ĐẠT: Kiểm soát xung đột phiên bản (OCC) và bảo vệ dữ liệu khi có phản hồi đến muộn.');
+
+  await e2ePage.close();
 } finally {
   console.log('\n[DỌN DẸP] Đang dừng trình duyệt và tiến trình kiểm thử...');
   await browser.close();

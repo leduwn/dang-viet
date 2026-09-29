@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { type LookbookItem } from '@dangviet/contracts';
+import { type LookbookItem, type Look } from '@dangviet/contracts';
 import { AoDaiVisualizer } from './AoDaiVisualizer.tsx';
-import { Trash2, ExternalLink, GitCompare, Bookmark, Calendar } from 'lucide-react';
+import { Trash2, ExternalLink, GitCompare, Bookmark, Calendar, Download } from 'lucide-react';
+import { exportCustomizationPng } from '../utils/exportImage.ts';
 
 interface LookbookSectionProps {
   lookbookItems: LookbookItem[];
@@ -17,6 +18,49 @@ export const LookbookSection: React.FC<LookbookSectionProps> = ({
   onCompareTwo,
 }) => {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [exportingId, setExportingId] = useState<string | null>(null);
+
+  const handleExportItemPng = async (item: LookbookItem, cardEl: HTMLElement | null) => {
+    if (exportingId) return;
+    setExportingId(item.id);
+    try {
+      const svgEl = cardEl?.querySelector('svg') as SVGSVGElement | null;
+      const snapshotLook: Look = {
+        id: item.lookId,
+        title: item.title,
+        eventId: item.eventId,
+        styleId: item.styleId,
+        config: JSON.parse(JSON.stringify(item.snapshotConfig)),
+        locks: {
+          primaryColor: false,
+          pantsColor: false,
+          collarStyle: false,
+          sleeveStyle: false,
+          fabric: false,
+          pattern: false,
+          accessories: false,
+          bodyShape: false,
+          modelId: false,
+        },
+        explanation: item.notes || 'Bản phối lưu trữ Lookbook',
+        revision: item.revision,
+        isDesign: false,
+        createdAt: item.createdAt,
+        updatedAt: item.createdAt,
+      };
+
+      await exportCustomizationPng({
+        look: snapshotLook,
+        svgElement: svgEl,
+        eventLabel: item.eventId,
+        styleLabel: item.styleId,
+      });
+    } catch (err: any) {
+      alert(`Lỗi xuất ảnh Lookbook: ${err.message}`);
+    } finally {
+      setExportingId(null);
+    }
+  };
 
   const handleToggleSelect = (id: string) => {
     setSelectedIds((prev) => {
@@ -101,6 +145,7 @@ export const LookbookSection: React.FC<LookbookSectionProps> = ({
             return (
               <div
                 key={item.id}
+                className="lookbook-card"
                 style={{
                   background: 'var(--bg-surface)',
                   borderRadius: 'var(--radius-lg)',
@@ -200,7 +245,33 @@ export const LookbookSection: React.FC<LookbookSectionProps> = ({
                       }}
                     >
                       <ExternalLink size={14} />
-                      <span>Mở trong phòng phối</span>
+                      <span>Mở</span>
+                    </button>
+
+                    <button
+                      onClick={(e) => {
+                        const card = (e.currentTarget as HTMLElement).closest('.lookbook-card') as HTMLElement | null;
+                        handleExportItemPng(item, card);
+                      }}
+                      disabled={exportingId === item.id}
+                      title="Xuất ảnh PNG chất lượng cao (2D Vector)"
+                      style={{
+                        padding: '0.55rem 0.75rem',
+                        background: 'var(--bg-subtle)',
+                        color: 'var(--accent-blue)',
+                        borderRadius: 'var(--radius-md)',
+                        fontSize: '0.82rem',
+                        fontWeight: 600,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.3rem',
+                        border: '1px solid var(--border-medium)',
+                        cursor: exportingId === item.id ? 'wait' : 'pointer',
+                      }}
+                    >
+                      <Download size={14} />
+                      <span>{exportingId === item.id ? 'Đang xuất...' : 'Xuất PNG'}</span>
                     </button>
 
                     <button

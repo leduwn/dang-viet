@@ -316,7 +316,21 @@ try {
   // =========================================================================
   // JOURNEY STEP 9: CHỈNH SỬA TIẾP TỤC (EDIT AFTER OPENING FROM LOOKBOOK)
   // =========================================================================
-  console.log('[BƯỚC 9] Chỉnh sửa tiếp tục sau khi mở Lookbook: Đổi kiểu cổ áo sang cổ thuyền (boat)...');
+  console.log('[BƯỚC 9] Chỉnh sửa tiếp tục sau khi mở Lookbook: Chuyển mẫu Raglan & đổi kiểu cổ áo sang cổ thuyền (boat)...');
+  const setModelRes = await api('/looks/look_default_01/command', {
+    method: 'POST',
+    body: JSON.stringify({
+      commandId: randomUUID(),
+      lookId: 'look_default_01',
+      expectedRevision: currentLook.revision,
+      action: 'SET_GARMENT_MODEL',
+      payload: { modelId: 'aodai_remix_raglan' },
+      timestamp: new Date().toISOString(),
+    }),
+  });
+  assert.strictEqual(setModelRes.status, 200);
+  currentLook = setModelRes.data.look;
+
   const editAfterLbRes = await api('/looks/look_default_01/command', {
     method: 'POST',
     body: JSON.stringify({
@@ -331,7 +345,7 @@ try {
   assert.strictEqual(editAfterLbRes.status, 200);
   currentLook = editAfterLbRes.data.look;
   assert.strictEqual(currentLook.config.collarStyle, 'boat');
-  assert.strictEqual(currentLook.revision, 7);
+  assert.strictEqual(currentLook.revision, 8);
 
   // Verify Lookbook snapshot in DB was NOT mutated by subsequent edits
   const recheckLbRes = await api('/lookbook');

@@ -119,15 +119,18 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
     if (isBusyEffective || isExporting) return;
     setIsExporting(true);
     try {
-      showNotification('Đang tạo và kết xuất ảnh minh họa 3D có thương hiệu Dáng Việt...', 'info');
+      showNotification('Đang tạo và kết xuất ảnh minh họa có thương hiệu Dáng Việt...', 'info');
+      // Freeze snapshot so concurrent mutation doesn't taint exported data
+      const frozenLook = JSON.parse(JSON.stringify(look));
+
       const canvasEl = document.querySelector('.aodai-3d-container canvas') as HTMLCanvasElement | null;
       const svgEl = document.querySelector('.col-visualizer svg') as SVGSVGElement | null;
 
-      const eventItem = events.find((e) => e.id === look.eventId);
-      const styleItem = styles.find((s) => s.id === look.styleId);
+      const eventItem = events.find((e) => e.id === frozenLook.eventId);
+      const styleItem = styles.find((s) => s.id === frozenLook.styleId);
 
       await exportCustomizationPng({
-        look,
+        look: frozenLook,
         canvasElement: canvasEl,
         svgElement: svgEl,
         eventLabel: eventItem?.name,

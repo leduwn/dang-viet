@@ -140,6 +140,53 @@ export function getModelCapability(modelId: GarmentModelId): ModelCapability {
   return MODEL_CAPABILITIES[modelId] || MODEL_CAPABILITIES.aodai_traditional_v2;
 }
 
+export const COLLAR_LABELS: Record<CollarStyle, string> = {
+  traditional_high: 'Cổ cao truyền thống (4.2cm)',
+  round: 'Cổ tròn thanh thoát',
+  boat: 'Cổ thuyền kiêu sa',
+  v_neck: 'Cổ V cách tân',
+};
+
+export const SLEEVE_LABELS: Record<SleeveStyle, string> = {
+  traditional_long: 'Tay dài truyền thống',
+  raglan: 'Tay raglan kinh điển',
+  elbow: 'Tay lửng tươi trẻ',
+  slit: 'Tay xẻ cách điệu',
+};
+
+export const FABRIC_LABELS: Record<Fabric, string> = {
+  silk_ha_dong: 'Lụa Vạn Phúc - Hà Đông',
+  brocade_hue: 'Gấm hoa triều đình Huế',
+  voile_chiffon: 'Tơ voan bồng bềnh',
+  linen_modern: 'Đũi tơ tự nhiên cách tân',
+};
+
+export const PATTERN_LABELS: Record<Pattern, string> = {
+  plain: 'Vải trơn thuần khiết',
+  lotus: 'Họa tiết Hoa sen',
+  cloud: 'Họa tiết Vân mây ngũ sắc',
+  crane: 'Họa tiết Chim hạc phi thiên',
+  geometric_genz: 'Kỷ hà Gen Z Remix',
+};
+
+export const BODY_SHAPE_LABELS: Record<BodyShape, string> = {
+  standard: 'Dáng cơ bản (1.66m)',
+  petite: 'Dáng nhỏ nhắn (~1.56m)',
+  tall_slender: 'Dáng cao thanh (~1.72m)',
+  broad_shoulders: 'Khung vai rộng',
+  curvy_hips: 'Đường cong hông nở',
+  plus_size: 'Vóc dáng đầy đặn',
+};
+
+export const ACCESSORY_LABELS: Record<AccessoryId, string> = {
+  man_truyen_thong: 'Mấn lụa đội đầu',
+  non_la: 'Nón lá Bài thơ',
+  chuoi_ngoc: 'Chuỗi ngọc trai',
+  quat_xep: 'Quạt xếp lụa tre',
+  tui_coi: 'Túi cói đan mộc',
+  guoc_moc: 'Guốc mộc quai nhung',
+};
+
 export const GarmentConfigSchema = z.object({
   garmentType: z.literal('aodai').default('aodai'),
   primaryColor: ColorSchema,
