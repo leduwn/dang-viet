@@ -288,3 +288,44 @@
   node scripts/test-viewer-isolation.mjs
   npm run build
   ```
+
+---
+
+## Mốc 11: Pipeline Nhập Avatar Bên Ngoài và Kiểm Tra Tương Thích
+
+- **Trạng thái:** Hoàn thành 100% (Đã kiểm chứng toàn diện trên Windows & Khronos glTF Validator)
+- **Các thành phần đã triển khai:**
+  - **Khắc phục lỗi normal vector Khronos glTF Validator:**
+    - Cập nhật thuật toán tính pháp tuyến `computeVertexNormals` trong `scripts/3d-generators/avatar-mesh.mjs`.
+    - Phục hồi các vector suy biến độ dài bằng 0 tại cực đỉnh tóc và chóp nón lá về vector đơn vị chuẩn $(0, 1, 0)$ hoặc vành đai lân cận.
+    - Chạy `validate-3d-assets.mjs`: Xác nhận 13/13 tài nguyên glTF 2.0 đạt 0 lỗi, 0 cảnh báo.
+  - **Hợp đồng dữ liệu & Ma trận tương thích bộ ba (Tri-factor Compatibility Matrix):**
+    - `packages/contracts/src/index.ts`: Bổ sung `AvatarSpecSchema`, `GarmentCompatibilitySchema`, lệnh `SET_AVATAR`, trường `avatarId` trong `GarmentConfig` và `LockState`.
+    - `packages/domain/src/command-handler.ts`: Xử lý lệnh `SET_AVATAR` với kiểm tra revision OCC, khóa thuộc tính và rẽ nhánh undo.
+    - `apps/web/public/models/catalog_manifest.json`: Khai báo mảng `avatars` (`avatar_v2`, `avatar_base`) và ma trận tương thích bộ ba `(avatarId@version, garmentModelId@version, bodyShape)` với 3 trạng thái (`verified`, `untested`, `unsupported`).
+  - **Công cụ dòng lệnh CLI Avatar Pipeline (`scripts/avatar-pipeline.mjs`):**
+    - Lệnh `inspect <path>`: Kiểm tra cấu trúc nhị phân glTF 2.0, Khronos Validator, AABB bounding box (chiều cao 1.50m - 1.80m), đếm morph targets, phân tích material slots và 5 điểm neo phụ kiện (sockets).
+    - Lệnh `register <path>`: Tính mã băm mật mã SHA-256, sao chép tệp an toàn vào `public/models/avatars/`, cập nhật nguyên tử `catalog_manifest.json` và khởi tạo ma trận tương thích ban đầu (`untested`).
+  - **Kiến trúc Mesh, Vật liệu & Dynamic Sockets Tracking:**
+    - `apps/web/src/3d/MorphController.ts`: Bổ sung từ điển quy đổi danh xưng `MORPH_ALIASES` hỗ trợ các công cụ AI bên ngoài. Tính toán tọa độ biến dạng thời gian thực cho 5 attachment sockets (`head`, `neck`, `right_hand`, `left_hand`, `feet`) tránh xuyên mesh khi thay đổi vóc dáng.
+    - `apps/web/src/3d/MaterialFactory.ts` & `AvatarInstance.tsx`: Bảo tồn `baseColorTexture` gốc khi avatar AI có sẵn texture nướng sẵn, clone mutable material riêng biệt theo từng viewer instance.
+    - `apps/web/src/3d/RenderSpec.ts`: Tách `avatarUrl` độc lập theo `config.avatarId`, tương thích ngược với các bản phối cũ thiếu trường `avatarId`.
+  - **Giao diện Thẩm định 3D Độc lập (Avatar Inspector UI):**
+    - Tạo `apps/web/src/components/AvatarInspector.tsx` (route `/inspector`): Trang bị 4 góc máy ảnh cố định (Trước, Nghiêng, Sau, Góc 3/4), chức năng `Fit Bounds`, công tắc bật/tắt `Wireframe`, 5 thanh trượt morphs, gizmo điểm neo sockets và bảng thống kê kỹ thuật.
+    - `AoDai3DViewer.tsx` & `OutfitRoom.tsx`: Hiển thị huy hiệu tương thích thời gian thực, thanh chọn avatar và nút khóa `locks.avatarId`.
+  - **Bộ kiểm thử tự động toàn diện:**
+    - `scripts/test-avatar-pipeline.mjs`: Bao phủ 20 ca kiểm thử thuộc 7 nhóm (contracts, tương thích ngược, ma trận tương thích, domain command, morph controller & sockets tracking, CLI inspect thực tế, fixtures hỏng, đăng ký manifest nguyên tử) - Đạt chuẩn 100%.
+    - `scripts/test-playwright.mjs`: Bổ sung kịch bản kiểm tra rào chắn phản hồi AI muộn (Late AI response) và cô lập dữ liệu khi xuất PNG.
+  - **Tài liệu hướng dẫn kỹ thuật:**
+    - Biên soạn `docs/AVATAR_IMPORT_GUIDE.md`: Chuẩn hóa tiêu chuẩn nhân trắc học, morphs, sockets, bảo tồn vật liệu, hướng dẫn chạy CLI và khắc phục lỗi thường gặp.
+
+- **Lệnh kiểm tra:**
+
+  ```powershell
+  node --experimental-strip-types scripts/test-avatar-pipeline.mjs
+  node scripts/validate-3d-assets.mjs
+  node scripts/test-flow.mjs
+  node scripts/test-harden.mjs
+  node scripts/test-playwright.mjs
+  npm run build
+  ```
