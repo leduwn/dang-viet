@@ -17,6 +17,7 @@ interface AvatarInstanceProps {
   morphWeights: Record<string, number>;
   skinMaterialSpec: MaterialSpec;
   hairMaterialSpec: MaterialSpec;
+  eyesMaterialSpec?: MaterialSpec;
 }
 
 export const AvatarInstance: React.FC<AvatarInstanceProps> = ({
@@ -24,6 +25,7 @@ export const AvatarInstance: React.FC<AvatarInstanceProps> = ({
   morphWeights,
   skinMaterialSpec,
   hairMaterialSpec,
+  eyesMaterialSpec,
 }) => {
   const gltf = useGLTF(url);
 
@@ -41,22 +43,35 @@ export const AvatarInstance: React.FC<AvatarInstanceProps> = ({
     return MaterialFactory.createHairMaterial(hairMaterialSpec);
   }, [hairMaterialSpec.color, hairMaterialSpec.roughness, hairMaterialSpec.metalness]);
 
+  const eyesMaterial = useMemo(() => {
+    return MaterialFactory.createEyesMaterial(eyesMaterialSpec || {
+      color: '#2B221B',
+      roughness: 0.15,
+      metalness: 0.0,
+    });
+  }, [eyesMaterialSpec?.color, eyesMaterialSpec?.roughness, eyesMaterialSpec?.metalness]);
+
   // 3. Assign materials to respective primitives
   useEffect(() => {
     instanceScene.traverse((node) => {
       const mesh = node as THREE.Mesh;
       if (mesh.isMesh) {
-        // Multi-primitive glTF: Primitive 0 is Skin, Primitive 1 is Hair
+        // Multi-primitive glTF: Match by material name or mesh name
+        const matName = ((mesh.material as THREE.Material)?.name || '').toLowerCase();
+        const meshName = (mesh.name || '').toLowerCase();
+
         if (Array.isArray(mesh.material)) {
-          mesh.material = [skinMaterial, hairMaterial];
-        } else if (mesh.name.toLowerCase().includes('hair')) {
+          mesh.material = [skinMaterial, hairMaterial, eyesMaterial];
+        } else if (meshName.includes('hair') || matName.includes('hair')) {
           mesh.material = hairMaterial;
+        } else if (meshName.includes('eye') || matName.includes('eye')) {
+          mesh.material = eyesMaterial;
         } else {
           mesh.material = skinMaterial;
         }
       }
     });
-  }, [instanceScene, skinMaterial, hairMaterial]);
+  }, [instanceScene, skinMaterial, hairMaterial, eyesMaterial]);
 
   // 4. Synchronize morph target weights
   useEffect(() => {
@@ -69,8 +84,9 @@ export const AvatarInstance: React.FC<AvatarInstanceProps> = ({
       ResourceLoader.disposeInstance(instanceScene);
       skinMaterial.dispose();
       hairMaterial.dispose();
+      eyesMaterial.dispose();
     };
-  }, [instanceScene, skinMaterial, hairMaterial]);
+  }, [instanceScene, skinMaterial, hairMaterial, eyesMaterial]);
 
   return <primitive object={instanceScene} />;
 };

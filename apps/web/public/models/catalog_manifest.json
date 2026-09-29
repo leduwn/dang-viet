@@ -126,6 +126,35 @@
   ],
   "models": [
     {
+      "id": "aodai_traditional_v2",
+      "name": "Áo Dài Cổ Cao 4.2cm Chuẩn V2 (DCC Master)",
+      "category": "classic",
+      "meshUrl": "/models/aodai_traditional_v2.glb",
+      "pantsUrl": "/models/pants_silk_v2.glb",
+      "avatarUrl": "/models/avatar_v2.glb",
+      "materialSlots": [
+        "AoDaiMaterial"
+      ],
+      "features": {
+        "collar": "Cổ đứng 4.2cm thành dày 2 lớp nẹp viền khép kín",
+        "sleeve": "Tay dài ráp vai suôn tự nhiên có độ chùng dập dềnh",
+        "flaps": "Tà kép liền khối xẻ eo cao nẹp viền không xuyên thấu",
+        "pants": "Quần lụa hai ống rời có cạp và đũng 3D hoàn chỉnh"
+      },
+      "supportedMorphs": [
+        "morph_petite",
+        "morph_tall_slender",
+        "morph_broad_shoulders",
+        "morph_curvy_hips",
+        "morph_plus_size"
+      ],
+      "metadata": {
+        "author": "Dáng Việt Digital Studio & Blender Studio (CC0 Human Base Mesh)",
+        "license": "CC-BY-4.0",
+        "createdVia": "Blender 3.6 LTS Headless Pipeline"
+      }
+    },
+    {
       "id": "aodai_classic_01",
       "name": "Áo Dài Cổ Đứng Truyền Thống",
       "category": "classic",

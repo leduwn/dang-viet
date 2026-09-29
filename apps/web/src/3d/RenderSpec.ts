@@ -33,10 +33,29 @@ export interface RenderSpec {
   pantsMaterial: MaterialSpec;
   skinMaterial: MaterialSpec;
   hairMaterial: MaterialSpec;
+  eyesMaterial: MaterialSpec;
   accessories: AccessorySpec[];
   cameraTarget: [number, number, number];
   cameraInitialPos: [number, number, number];
 }
+
+export const GARMENT_MODEL_CATALOG: Record<string, { garmentUrl: string; pantsUrl: string; avatarUrl: string }> = {
+  aodai_traditional_v2: {
+    garmentUrl: '/models/aodai_traditional_v2.glb',
+    pantsUrl: '/models/pants_silk_v2.glb',
+    avatarUrl: '/models/avatar_v2.glb',
+  },
+  aodai_classic_01: {
+    garmentUrl: '/models/aodai_classic_01.glb',
+    pantsUrl: '/models/pants_silk.glb',
+    avatarUrl: '/models/avatar_base.glb',
+  },
+  aodai_remix_raglan: {
+    garmentUrl: '/models/aodai_remix_raglan.glb',
+    pantsUrl: '/models/pants_silk.glb',
+    avatarUrl: '/models/avatar_base.glb',
+  },
+};
 
 const ACCESSORY_CATALOG: Record<AccessoryId, { url: string; socket: AccessorySpec['socket'] }> = {
   man_truyen_thong: { url: '/models/accessories/man_truyen_thong.glb', socket: 'head' },
@@ -97,9 +116,10 @@ export function computeMorphWeights(bodyShape: BodyShape = 'standard'): Record<s
 
 export function createRenderSpec(config: GarmentConfig): RenderSpec {
   const morphWeights = computeMorphWeights(config.bodyShape);
-  const garmentUrl = config.modelId === 'aodai_remix_raglan'
-    ? '/models/aodai_remix_raglan.glb'
-    : '/models/aodai_classic_01.glb';
+  const modelEntry = GARMENT_MODEL_CATALOG[config.modelId] || GARMENT_MODEL_CATALOG['aodai_traditional_v2'];
+  const garmentUrl = modelEntry.garmentUrl;
+  const pantsUrl = modelEntry.pantsUrl;
+  const avatarUrl = modelEntry.avatarUrl;
 
   const fabricPbr = getFabricPbr(config.fabric);
 
@@ -113,9 +133,9 @@ export function createRenderSpec(config: GarmentConfig): RenderSpec {
     }));
 
   return {
-    avatarUrl: '/models/avatar_base.glb',
+    avatarUrl,
     garmentUrl,
-    pantsUrl: '/models/pants_silk.glb',
+    pantsUrl,
     morphWeights,
     garmentMaterial: {
       color: config.primaryColor.hex,
@@ -138,6 +158,11 @@ export function createRenderSpec(config: GarmentConfig): RenderSpec {
       color: '#1C1A18', // Traditional deep black hair
       roughness: 0.82,
       metalness: 0.05,
+    },
+    eyesMaterial: {
+      color: '#2B221B', // Deep dark brown eyes
+      roughness: 0.15,
+      metalness: 0.0,
     },
     accessories,
     cameraTarget: [0, 0.95, 0],

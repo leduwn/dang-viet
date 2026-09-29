@@ -59,6 +59,7 @@ export type BodyShape = typeof VALID_BODY_SHAPES[number];
 export const BodyShapeEnum = z.enum(VALID_BODY_SHAPES);
 
 export const VALID_GARMENT_MODELS = [
+  'aodai_traditional_v2',
   'aodai_classic_01',
   'aodai_remix_raglan',
 ] as const;
@@ -75,7 +76,7 @@ export const GarmentConfigSchema = z.object({
   pattern: PatternEnum.default('plain'),
   accessories: z.array(AccessoryIdEnum).default([]),
   bodyShape: BodyShapeEnum.default('standard'),
-  modelId: GarmentModelIdEnum.default('aodai_classic_01'),
+  modelId: GarmentModelIdEnum.default('aodai_traditional_v2'),
 });
 export type GarmentConfig = z.infer<typeof GarmentConfigSchema>;
 

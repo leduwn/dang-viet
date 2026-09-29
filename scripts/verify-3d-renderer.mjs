@@ -170,13 +170,21 @@ try {
     const btn = page.locator(`button[title="${title}"]`);
     if (await btn.count() > 0) {
       await btn.click();
-      await page.waitForTimeout(600); // Allow smooth camera lerp
+      await page.waitForTimeout(700); // Allow smooth camera lerp
     }
   }
 
+  // Ensure V2 model is selected
+  const v2Btn = page.locator('button', { hasText: 'Chuẩn V2 (Cổ 4.2cm)' }).first();
+  if (await v2Btn.count() > 0) {
+    await v2Btn.click();
+    await page.waitForTimeout(800);
+  }
+
+  const viewerLoc = page.locator('.aodai-3d-container').first();
+
   // Front view
   await selectCameraView('Góc nhìn chính diện');
-  const viewerLoc = page.locator('.aodai-3d-container').first();
   await viewerLoc.screenshot({ path: path.join(outDir, '01_view_front.png') });
   console.log('   ✓ 01_view_front.png (Trước)');
 
@@ -195,39 +203,66 @@ try {
   await viewerLoc.screenshot({ path: path.join(outDir, '04_view_right.png') });
   console.log('   ✓ 04_view_right.png (Phải)');
 
-  // Collar Closeup
-  await selectCameraView('Cận cảnh Cổ áo');
+  // Collar Closeup (4.2cm high collar with folded hem)
+  await selectCameraView('Cận cảnh cổ áo');
   await viewerLoc.screenshot({ path: path.join(outDir, '05_closeup_collar.png') });
-  console.log('   ✓ 05_closeup_collar.png (Cận cảnh Cổ áo)');
+  console.log('   ✓ 05_closeup_collar.png (Cận cảnh Cổ áo 4.2cm nẹp viền)');
 
-  // Hem / Slit Closeup
-  await selectCameraView('Cận cảnh Eo & Tà áo');
+  // Waist / Slit Closeup
+  await selectCameraView('Cận cảnh eo và xẻ tà');
   await viewerLoc.screenshot({ path: path.join(outDir, '06_closeup_waist_slit.png') });
-  console.log('   ✓ 06_closeup_waist_slit.png (Cận cảnh Eo & Tà áo)');
+  console.log('   ✓ 06_closeup_waist_slit.png (Cận cảnh Eo & Tà xẻ cao)');
 
-  // Reset View
-  await selectCameraView('Đặt lại góc nhìn chuẩn');
-  await page.waitForTimeout(400);
+  // Flaps / Pants Hem Closeup
+  await selectCameraView('Cận cảnh gấu tà và quần lụa');
+  await viewerLoc.screenshot({ path: path.join(outDir, '07_closeup_hem_pants.png') });
+  console.log('   ✓ 07_closeup_hem_pants.png (Cận cảnh Gấu tà & Quần lụa 2 ống)');
 
-  // 4. Capture all 5 Body Shape Presets
-  console.log('\n[4/4] Testing all 5 Body Shape presets with morph synchronization...');
+  // Reset View to full body front
+  await selectCameraView('Đặt lại camera ban đầu');
+  await page.waitForTimeout(500);
+
+  // 4. Capture all 6 Body Shape Presets
+  console.log('\n[4/4] Testing all Body Shape presets with morph synchronization...');
   const shapes = [
-    { id: 'standard', name: 'Dáng cơ bản', file: '07_shape_standard.png' },
-    { id: 'petite', name: 'Thon gọn (Petite)', file: '08_shape_petite.png' },
-    { id: 'tall_slender', name: 'Cao thanh mảnh', file: '09_shape_tall_slender.png' },
-    { id: 'broad_shoulders', name: 'Vai ngang', file: '10_shape_broad_shoulders.png' },
-    { id: 'curvy_hips', name: 'Hông nở', file: '11_shape_curvy_hips.png' },
-    { id: 'plus_size', name: 'Đầy đặn (Plus size)', file: '12_shape_plus_size.png' },
+    { label: 'Dáng cơ bản', file: '08_shape_standard.png', name: 'Dáng cơ bản' },
+    { label: 'Nhỏ nhắn', file: '09_shape_petite.png', name: 'Nhỏ nhắn (Petite)' },
+    { label: 'Cao thanh', file: '10_shape_tall_slender.png', name: 'Cao thanh mảnh' },
+    { label: 'Vai rộng', file: '11_shape_broad_shoulders.png', name: 'Khung vai rộng' },
+    { label: 'Hông nở', file: '12_shape_curvy_hips.png', name: 'Hông nở' },
+    { label: 'Đầy đặn', file: '13_shape_plus_size.png', name: 'Đầy đặn (Plus size)' },
   ];
 
   for (const s of shapes) {
-    const shapeSelect = page.locator('.aodai-3d-toolbar select');
-    if (await shapeSelect.count() > 0) {
-      await shapeSelect.first().selectOption(s.id);
-      await page.waitForTimeout(500); // Allow morph weights update
+    const shapeBtn = page.locator('button', { hasText: s.label }).first();
+    if (await shapeBtn.count() > 0) {
+      await shapeBtn.click();
+      await page.waitForTimeout(600); // Allow morph weights update
     }
     await viewerLoc.screenshot({ path: path.join(outDir, s.file) });
     console.log(`   ✓ ${s.file} (${s.name})`);
+  }
+
+  // Side-by-side Compare View snapshot
+  console.log('\nCapturing Side-by-side Compare Modal...');
+  const compareBtn = page.locator('button:has-text("So sánh")').first();
+  if (await compareBtn.count() > 0) {
+    await compareBtn.click();
+    await page.waitForSelector('.compare-modal', { timeout: 8000 });
+    // Switch compare modal to 3D mode
+    const mode3dBtn = page.locator('.compare-modal button:has-text("3D Không gian")').first();
+    if (await mode3dBtn.count() > 0) {
+      await mode3dBtn.click();
+      await page.waitForTimeout(2000); // Allow both canvas instances to mount and render
+    }
+    await page.screenshot({ path: path.join(outDir, '14_compare_v1_vs_v2.png') });
+    console.log('   ✓ 14_compare_v1_vs_v2.png (Đối sánh trực quan)');
+    // Close modal
+    const closeBtn = page.locator('.compare-modal button').first();
+    if (await closeBtn.count() > 0) {
+      await closeBtn.click();
+      await page.waitForTimeout(500);
+    }
   }
 
   // Mobile viewport snapshot
@@ -237,29 +272,18 @@ try {
   await mobilePage.goto(`${APP_URL}/?tab=studio`, { waitUntil: 'networkidle' });
   await mobilePage.waitForSelector('.aodai-3d-container canvas', { timeout: 15000 });
   await mobilePage.waitForTimeout(2000);
-  await mobilePage.screenshot({ path: path.join(outDir, '13_mobile_studio.png'), fullPage: false });
-  console.log('   ✓ 13_mobile_studio.png');
+  await mobilePage.screenshot({ path: path.join(outDir, '15_mobile_iphone14.png'), fullPage: false });
+  console.log('   ✓ 15_mobile_iphone14.png (iPhone 14)');
   await mobilePage.close();
 
-  // Side-by-side Compare View snapshot
-  console.log('\nCapturing Side-by-side Compare Modal...');
-  const compareBtn = page.locator('button:has-text("So sánh")').first();
-  if (await compareBtn.count() > 0) {
-    await compareBtn.click();
-    await page.waitForSelector('.compare-modal', { timeout: 8000 });
-    await page.waitForTimeout(2500); // Allow both canvas instances to render
-    await page.screenshot({ path: path.join(outDir, '14_compare_side_by_side.png') });
-    console.log('   ✓ 14_compare_side_by_side.png');
-  }
-
   console.log('\n======================================================');
-  console.log(`  KIỂM TRA HOÀN TẤT: 14 ảnh đánh giá đã được xuất vào:`);
+  console.log(`  KIỂM TRA HOÀN TẤT: 15 ảnh đánh giá đã được xuất vào:`);
   console.log(`  ${outDir}`);
   console.log('======================================================');
 
   // Verify all files were written with > 0 bytes
   const writtenFiles = fs.readdirSync(outDir);
-  assert(writtenFiles.length >= 10, 'Must have at least 10 evaluation screenshots');
+  assert(writtenFiles.length >= 15, 'Must have at least 15 evaluation screenshots');
   for (const f of writtenFiles) {
     const fsize = fs.statSync(path.join(outDir, f)).size;
     assert(fsize > 1000, `Screenshot file ${f} is too small: ${fsize} bytes`);

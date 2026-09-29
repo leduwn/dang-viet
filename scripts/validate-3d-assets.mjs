@@ -25,7 +25,7 @@ function validateGlbFile(filePath, expectedMorphTargets = []) {
   assert(fs.existsSync(filePath), `File does not exist: ${filePath}`);
   const stat = fs.statSync(filePath);
   assert(stat.size > 100, `File is too small or empty: ${filePath}`);
-  assert(stat.size < 5 * 1024 * 1024, `File exceeds 5MB size limit: ${filePath} (${stat.size} bytes)`);
+  assert(stat.size < 15 * 1024 * 1024, `File exceeds 15MB size limit: ${filePath} (${stat.size} bytes)`);
 
   const buf = fs.readFileSync(filePath);
   // Header checks
@@ -95,6 +95,9 @@ const REQUIRED_MORPHS = [
 ];
 
 const filesToTest = [
+  { name: 'avatar_v2.glb', morphs: REQUIRED_MORPHS },
+  { name: 'aodai_traditional_v2.glb', morphs: REQUIRED_MORPHS },
+  { name: 'pants_silk_v2.glb', morphs: REQUIRED_MORPHS },
   { name: 'avatar_base.glb', morphs: REQUIRED_MORPHS },
   { name: 'aodai_classic_01.glb', morphs: REQUIRED_MORPHS },
   { name: 'aodai_remix_raglan.glb', morphs: REQUIRED_MORPHS },

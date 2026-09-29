@@ -3,6 +3,13 @@ dist/
 build/
 .env
 .env.local
+tools/
+assets_src/vendor/*
+!assets_src/vendor/blender-studio/
+assets_src/vendor/blender-studio/*
+!assets_src/vendor/blender-studio/LICENSE.txt
+*.blend1
+*.blend@
 *.log
 data/
 backups/

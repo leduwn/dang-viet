@@ -1,0 +1,4 @@
+Human Base Meshes v1.4.1
+Author: Blender Studio and community contributions
+License: Creative Commons Zero (CC0 1.0 Universal - Public Domain)
+Source: https://studio.blender.org/characters/human-base-meshes/

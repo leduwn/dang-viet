@@ -49,4 +49,14 @@ export class MaterialFactory {
       side: THREE.FrontSide,
     });
   }
+
+  static createEyesMaterial(spec: MaterialSpec): THREE.MeshStandardMaterial {
+    return new THREE.MeshStandardMaterial({
+      name: 'Instance_EyesMaterial',
+      color: new THREE.Color(spec.color),
+      roughness: spec.roughness,
+      metalness: spec.metalness,
+      side: THREE.FrontSide,
+    });
+  }
 }

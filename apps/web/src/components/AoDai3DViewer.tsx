@@ -58,6 +58,7 @@ const BODY_SHAPE_LABELS: Record<BodyShape, { label: string; desc: string }> = {
 };
 
 const GARMENT_MODEL_LABELS: Record<GarmentModelId, { label: string; desc: string }> = {
+  aodai_traditional_v2: { label: 'Chuẩn V2 (Cổ 4.2cm)', desc: 'Cổ cao 4.2cm thành dày 2 lớp, tà kép xẻ eo, quần lụa 3D' },
   aodai_classic_01: { label: 'Cổ đứng truyền thống', desc: 'Cổ 3.8cm, tà dài qua gối xẻ eo' },
   aodai_remix_raglan: { label: 'Cách tân tay Raglan', desc: 'Cổ thuyền, tà lỡ midi hiện đại' },
 };
@@ -262,6 +263,24 @@ export const AoDai3DViewer: React.FC<AoDai3DViewerProps> = ({
             >
               Eo/Tà
             </button>
+            <button
+              type="button"
+              className="btn-view"
+              title="Cận cảnh gấu tà và quần lụa"
+              onClick={() => setViewAngle('flaps')}
+              style={{
+                border: 'none',
+                background: 'transparent',
+                fontSize: '0.72rem',
+                fontWeight: 600,
+                padding: '3px 7px',
+                borderRadius: '14px',
+                cursor: 'pointer',
+                color: 'var(--accent-blue)',
+              }}
+            >
+              Gấu/Quần
+            </button>
 
             <button
               type="button"
@@ -332,12 +351,13 @@ export const AoDai3DViewer: React.FC<AoDai3DViewerProps> = ({
             />
 
             <Suspense fallback={null}>
-              {/* 1. Avatar Model with separate skin and hair material slots */}
+              {/* 1. Avatar Model with separate skin, hair, and eyes material slots */}
               <AvatarInstance
                 url={renderSpec.avatarUrl}
                 morphWeights={renderSpec.morphWeights}
                 skinMaterialSpec={renderSpec.skinMaterial}
                 hairMaterialSpec={renderSpec.hairMaterial}
+                eyesMaterialSpec={renderSpec.eyesMaterial}
               />
 
               {/* 2. Silk Pants and Selected Ao Dai Model */}

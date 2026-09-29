@@ -227,12 +227,64 @@
       - Kiểm tra chuyển đổi qua lại giữa 2D và 3D (`2d-fallback-active.png`).
       - Kiểm tra đối sánh 2 bộ trong Lookbook ở chế độ 3D (`3d-compare-modal.png`).
       - Đo đạc hiệu năng: Đạt trung bình **61 FPS**, thời gian khung hình **16.4 ms/frame**.
+
+---
+
+## Mốc 10: Bộ Mẫu 3D Chuẩn Đầu Tiên — Avatar Nữ Bán Hiện Thực, Áo Dài Cổ Đứng 4.2cm, Quần Lụa & Pipeline Asset V2
+
+- **Trạng thái:** Hoàn thành 100% (Đã kiểm chứng toàn diện trên Windows, Playwright & Visual Test Suite)
+- **Các thành phần đã triển khai:**
+  - **Môi trường DCC & Nguồn Base Mesh mở CC0 chuẩn xác thực:**
+    - Khởi tạo công cụ tải tự động `scripts/setup-3d-tools.mjs`: Tải và giải nén Blender 3.6.23 LTS Portable vào `tools/blender/` (cô lập trong repository, không đụng chạm PATH hay registry hệ thống, được loại trừ qua `.gitignore`).
+    - Nạp base mesh nữ giải phẫu chuẩn `GEO-body_female_realistic` (10,582 đỉnh, quad topology, tỷ lệ giải phẫu chân thực) từ **Blender Studio — Human Base Meshes Bundle v1.4.1** (giấy phép Creative Commons CC0 1.0 Universal).
+    - Lưu trữ giấy phép CC0 tại `assets_src/vendor/blender-studio/LICENSE.txt`.
+  - **File nguồn tác nghiệp Master Scene & Headless Pipeline Script:**
+    - `assets_src/models/dangviet_master_v2.blend`: File Blender master scene chứa toàn bộ mesh nhân vật, tóc búi truyền thống, áo dài v2, quần lụa v2, modifier, UV unwrapped và 5 shape keys đồng bộ.
+    - `assets_src/scripts/export_v2.py`: Kịch bản Python headless tự động hóa toàn bộ pipeline dựng hình, áp dụng shape keys, làm dày nẹp viền (solid folded hem 1.8mm) và xuất các file glTF binary (`.glb`) tuân thủ 100% đặc tả Khronos glTF 2.0.
+  - **Bộ Asset 3D Runtime có phiên bản (V2):**
+    - `apps/web/public/models/avatar_v2.glb` (7,454 KB, 42,340 đỉnh, chiều cao 1.639m):
+      - Phân tách 3 slot vật liệu PBR độc lập: `Avatar_Skin` (da), `Avatar_Hair` (tóc), `Avatar_Eyes` (mắt).
+      - Búi tóc chignon truyền thống tại ụ chẩm kết hợp màng tóc ôm sát da đầu trích xuất trực tiếp từ 440 đa giác vòm sọ của base mesh với độ dôi pháp tuyến 3.5mm, không xuyên thủng hộp sọ.
+      - Mắt có giác mạc và con ngươi độc lập.
+      - 5 shape keys đồng bộ: `morph_petite`, `morph_tall_slender`, `morph_broad_shoulders`, `morph_curvy_hips`, `morph_plus_size`.
+    - `apps/web/public/models/aodai_traditional_v2.glb` (245 KB, 1,588 đỉnh, chiều cao 1.258m):
+      - Cổ đứng cao 4.2cm (từ Z=1.395m đến Z=1.437m), thành nẹp gập 2 lớp kín mép (folded closed rim 1.8mm), không bị mất mặt hay đen viền khi quan sát 360°.
+      - Tay raglan 3D quét theo khung trực chuẩn tiếp tuyến (orthonormal tangent frame) dọc quỹ đạo cánh tay A-pose, đỉnh vai có vòm cầu bo tròn tiếp giáp tự nhiên với cơ thang và xương đòn.
+      - Hai tà trước và sau liền khối xẻ cao từ eo (Z=1.015m) rủ xuống trên mắt cá (Z=0.180m), độ dôi cơ thể 29mm-46mm ôm sát đường cong tự nhiên, nẹp gập viền tà 1.8mm.
+      - 5 shape keys biến dạng đồng bộ hoàn toàn với Avatar.
+    - `apps/web/public/models/pants_silk_v2.glb` (134 KB, 864 đỉnh, chiều cao 0.985m):
+      - Cạp quần (Z=1.025m), cấu trúc xương chậu và đáy đũng 3D (Z=0.690m - 0.740m), hai ống suông palazzo riêng biệt rủ dài chạm mu bàn chân (Z=0.040m).
+      - Bán kính hông và đũng mở rộng bao trùm hoàn toàn đùi và hông dưới khe xẻ tà, loại bỏ 100% hiện tượng lộ da hay xuyên thấu.
+      - Nẹp gập viền gấu quần 1.5mm, 5 shape keys đồng bộ.
+  - **Tích hợp Kiến trúc Renderer Độc lập & Manifest:**
+    - Cập nhật `apps/web/public/models/catalog_manifest.json`: Khai báo model `aodai_traditional_v2` với các đường dẫn `/models/aodai_traditional_v2.glb`, `/models/pants_silk_v2.glb`, `/models/avatar_v2.glb`, 3 slots vật liệu và 5 morph targets.
+    - Cập nhật `packages/contracts/src/index.ts`: Bổ sung `'aodai_traditional_v2'` vào `VALID_GARMENT_MODELS`.
+    - `apps/web/src/3d/RenderSpec.ts`: Ánh xạ `GARMENT_MODEL_CATALOG` và bổ sung `eyesMaterial` spec.
+    - `apps/web/src/3d/MaterialFactory.ts`: Bổ sung phương thức `createEyesMaterial`.
+    - `apps/web/src/3d/AvatarInstance.tsx`: Phân bổ vật liệu theo tên slot `Avatar_Skin`, `Avatar_Hair`, `Avatar_Eyes`, giải phóng bộ nhớ khi unmount.
+    - `apps/web/src/components/AoDai3DViewer.tsx`: Thêm nút chọn "Chuẩn V2 (Cổ 4.2cm)" và các góc nhìn cận cảnh: Cổ áo (`collar`), Eo/Tà (`waist`), Gấu/Quần (`flaps`).
+  - **Tương thích Ngược & Tương thích AI DesignProposal:**
+    - Giữ nguyên vẹn các asset v1 (`avatar_base.glb`, `aodai_classic_01.glb`, `pants_silk.glb`). Các Look cũ mở trong Lookbook tiếp tục render chính xác với asset v1.
+    - Bản phối mới với model v2 hiển thị mượt mà; hỗ trợ so sánh đối chiếu song song v1 vs v2 trong `CompareModal` với 2 canvas 3D độc lập.
+    - AI DesignProposal tôn trọng khả năng của model v2, không tạo lệnh vi phạm thuộc tính bị khóa.
+  - **Kiểm chứng Toàn diện & Nghiệm thu Hình ảnh:**
+    - `scripts/validate-3d-assets.mjs`: Xác thực 13/13 asset glTF 2.0 đạt chuẩn Khronos 100%.
+    - `scripts/verify-3d-renderer.mjs`: Chạy Playwright Chromium WebGL, đo đạc hiệu năng render loop rAF thực tế trong trình duyệt và xuất 15 ảnh nghiệm thu tại `screenshots/3d-eval/`:
+      - 4 góc nhìn toàn thân: Trước (`01_view_front.png`), Sau (`02_view_back.png`), Trái (`03_view_left.png`), Phải (`04_view_right.png`).
+      - 3 góc cận cảnh kỹ thuật: Cổ áo 4.2cm nẹp viền (`05_closeup_collar.png`), Eo & Tà xẻ cao (`06_closeup_waist_slit.png`), Gấu tà & Quần lụa 2 ống (`07_closeup_hem_pants.png`).
+      - 6 preset vóc dáng biến dạng đồng bộ: Dáng cơ bản (`08_shape_standard.png`), Nhỏ nhắn (`09_shape_petite.png`), Cao thanh mảnh (`10_shape_tall_slender.png`), Khung vai rộng (`11_shape_broad_shoulders.png`), Hông nở (`12_shape_curvy_hips.png`), Đầy đặn (`13_shape_plus_size.png`).
+      - Đối sánh trực quan song song trong modal: `14_compare_v1_vs_v2.png`.
+      - Giao diện di động iPhone 14 (390x844): `15_mobile_iphone14.png`.
+    - Kiểm thử tự động hệ thống: `test-flow.mjs`, `test-harden.mjs`, `test-proposal-flow.mjs`, `test-viewer-isolation.mjs` đều vượt qua 100%.
+
 - **Lệnh kiểm tra:**
 
   ```powershell
   node scripts/validate-3d-assets.mjs
+  node scripts/verify-3d-renderer.mjs
   node scripts/test-flow.mjs
   node scripts/test-harden.mjs
-  node scripts/test-playwright.mjs
+  node scripts/test-proposal-flow.mjs
+  node scripts/test-viewer-isolation.mjs
   npm run build
   ```
