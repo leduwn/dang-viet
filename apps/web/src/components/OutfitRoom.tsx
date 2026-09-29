@@ -178,6 +178,7 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
           accessories: 'phụ kiện',
           bodyShape: 'vóc dáng',
           modelId: 'mẫu áo dài',
+          avatarId: 'nhân vật avatar',
         };
         const label = fieldLabels[field] || field;
         const isLocked = res.look.locks[field];
@@ -803,6 +804,8 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
                 locks={look.locks}
                 onBodyShapeChange={(shape) => handleCommand('SET_BODY_SHAPE', { bodyShape: shape })}
                 onModelChange={(modelId) => handleCommand('SET_GARMENT_MODEL', { modelId })}
+                onAvatarChange={(avatarId) => handleCommand('SET_AVATAR', { avatarId })}
+                customMatrix={catalog?.compatibilityMatrix}
               />
             </div>
           ) : (
@@ -1082,6 +1085,99 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
                   {catalog.patterns.map((pat: any) => (
                     <option key={pat.id} value={pat.id}>{pat.name}</option>
                   ))}
+                </select>
+              </div>
+            </div>
+
+            {/* 4.5. NHÂN VẬT & VÓC DÁNG */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                  <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                    Nhân vật Avatar
+                  </label>
+                  <button
+                    disabled={isBusyEffective}
+                    onClick={() => handleToggleLock('avatarId')}
+                    title={look.locks.avatarId ? 'Mở khóa avatar' : 'Khóa avatar'}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.2rem',
+                      fontSize: '0.70rem',
+                      color: look.locks.avatarId ? 'var(--accent-red)' : 'var(--text-muted)',
+                      fontWeight: 600,
+                      cursor: isBusyEffective ? 'not-allowed' : 'pointer',
+                      border: 'none',
+                      background: 'transparent',
+                    }}
+                  >
+                    {look.locks.avatarId ? <Lock size={12} /> : <Unlock size={12} />}
+                  </button>
+                </div>
+                <select
+                  value={look.config.avatarId || 'avatar_v2'}
+                  disabled={look.locks.avatarId || isBusyEffective}
+                  onChange={(e) => handleCommand('SET_AVATAR', { avatarId: e.target.value })}
+                  style={{
+                    width: '100%',
+                    padding: '0.45rem',
+                    borderRadius: 'var(--radius-sm)',
+                    border: '1px solid var(--border-medium)',
+                    background: 'var(--bg-subtle)',
+                    fontSize: '0.8rem',
+                    cursor: (look.locks.avatarId || isBusyEffective) ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  <option value="avatar_v2">Avatar V2 (DCC Master)</option>
+                  <option value="avatar_base">Avatar V1 (Dáng Việt Studio)</option>
+                </select>
+              </div>
+
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                  <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                    Vóc dáng cơ thể
+                  </label>
+                  <button
+                    disabled={isBusyEffective}
+                    onClick={() => handleToggleLock('bodyShape')}
+                    title={look.locks.bodyShape ? 'Mở khóa vóc dáng' : 'Khóa vóc dáng'}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.2rem',
+                      fontSize: '0.70rem',
+                      color: look.locks.bodyShape ? 'var(--accent-red)' : 'var(--text-muted)',
+                      fontWeight: 600,
+                      cursor: isBusyEffective ? 'not-allowed' : 'pointer',
+                      border: 'none',
+                      background: 'transparent',
+                    }}
+                  >
+                    {look.locks.bodyShape ? <Lock size={12} /> : <Unlock size={12} />}
+                  </button>
+                </div>
+                <select
+                  value={look.config.bodyShape || 'standard'}
+                  disabled={look.locks.bodyShape || isBusyEffective}
+                  onChange={(e) => handleCommand('SET_BODY_SHAPE', { bodyShape: e.target.value })}
+                  style={{
+                    width: '100%',
+                    padding: '0.45rem',
+                    borderRadius: 'var(--radius-sm)',
+                    border: '1px solid var(--border-medium)',
+                    background: 'var(--bg-subtle)',
+                    fontSize: '0.8rem',
+                    cursor: (look.locks.bodyShape || isBusyEffective) ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  <option value="standard">Dáng cơ bản (1.66m)</option>
+                  <option value="petite">Nhỏ nhắn (~1.56m)</option>
+                  <option value="tall_slender">Cao thanh (~1.72m)</option>
+                  <option value="broad_shoulders">Vai rộng</option>
+                  <option value="curvy_hips">Hông nở</option>
+                  <option value="plus_size">Đầy đặn</option>
                 </select>
               </div>
             </div>

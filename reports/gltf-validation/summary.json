@@ -74,10 +74,10 @@
   {
     "file": "accessories/non_la.glb",
     "fullPath": "C:\\Users\\duwn\\Documents\\viet-phoi\\apps\\web\\public\\models\\accessories\\non_la.glb",
-    "sizeBytes": 14964,
+    "sizeBytes": 14984,
     "sizeFormatted": "14.6 KB",
-    "status": "ERROR",
-    "numErrors": 1,
+    "status": "PASS",
+    "numErrors": 0,
     "numWarnings": 0,
     "numInfos": 1,
     "version": "2.0",
@@ -92,20 +92,14 @@
         "message": "This object may be unused.",
         "severity": 2,
         "pointer": "/meshes/0/primitives/0/attributes/TEXCOORD_0"
-      },
-      {
-        "code": "ACCESSOR_VECTOR3_NON_UNIT",
-        "message": "Vector3 at accessor indices 84..86 is not of unit length: 0.",
-        "severity": 0,
-        "pointer": "/meshes/0/primitives/0/attributes/NORMAL"
       }
     ]
   },
   {
     "file": "accessories/quat_xep.glb",
     "fullPath": "C:\\Users\\duwn\\Documents\\viet-phoi\\apps\\web\\public\\models\\accessories\\quat_xep.glb",
-    "sizeBytes": 2084,
-    "sizeFormatted": "2.0 KB",
+    "sizeBytes": 1980,
+    "sizeFormatted": "1.9 KB",
     "status": "PASS",
     "numErrors": 0,
     "numWarnings": 0,
@@ -219,8 +213,8 @@
     "fullPath": "C:\\Users\\duwn\\Documents\\viet-phoi\\apps\\web\\public\\models\\avatar_base.glb",
     "sizeBytes": 118032,
     "sizeFormatted": "115.3 KB",
-    "status": "ERROR",
-    "numErrors": 1,
+    "status": "PASS",
+    "numErrors": 0,
     "numWarnings": 0,
     "numInfos": 2,
     "version": "2.0",
@@ -241,12 +235,6 @@
         "message": "This object may be unused.",
         "severity": 2,
         "pointer": "/meshes/0/primitives/1/attributes/TEXCOORD_0"
-      },
-      {
-        "code": "ACCESSOR_VECTOR3_NON_UNIT",
-        "message": "Vector3 at accessor indices 54..56 is not of unit length: 0.",
-        "severity": 0,
-        "pointer": "/meshes/0/primitives/1/attributes/NORMAL"
       }
     ]
   },

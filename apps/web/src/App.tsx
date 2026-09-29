@@ -29,13 +29,14 @@ import { OutfitRoom } from './components/OutfitRoom.tsx';
 import { DesignStudio } from './components/DesignStudio.tsx';
 import { LookbookSection } from './components/LookbookSection.tsx';
 import { CompareModal } from './components/CompareModal.tsx';
+import { AvatarInspector } from './components/AvatarInspector.tsx';
 
 export const App: React.FC = () => {
-  const [currentTab, setCurrentTab] = useState<'explore' | 'studio' | 'design' | 'lookbook'>(() => {
+  const [currentTab, setCurrentTab] = useState<'explore' | 'studio' | 'design' | 'lookbook' | 'inspector'>(() => {
     try {
       const params = new URLSearchParams(window.location.search);
       const tab = params.get('tab');
-      if (tab === 'studio' || tab === 'design' || tab === 'lookbook') return tab;
+      if (tab === 'studio' || tab === 'design' || tab === 'lookbook' || tab === 'inspector') return tab;
     } catch {}
     return 'explore';
   });
@@ -574,6 +575,7 @@ export const App: React.FC = () => {
               if (look.locks.accessories) preservedLocks.push('Phụ kiện');
               if (look.locks.bodyShape && look.config.bodyShape !== item.snapshotConfig.bodyShape) preservedLocks.push('Vóc dáng');
               if (look.locks.modelId && look.config.modelId !== item.snapshotConfig.modelId) preservedLocks.push('Mẫu áo');
+              if (look.locks.avatarId && look.config.avatarId !== item.snapshotConfig.avatarId) preservedLocks.push('Nhân vật Avatar');
 
               if (preservedLocks.length > 0) {
                 setBannerMessage({
@@ -598,6 +600,10 @@ export const App: React.FC = () => {
             onDeleteItem={handleDeleteLookbookItem}
             onCompareTwo={handleCompareLookbookItems}
           />
+        )}
+
+        {currentTab === 'inspector' && (
+          <AvatarInspector />
         )}
       </main>
 

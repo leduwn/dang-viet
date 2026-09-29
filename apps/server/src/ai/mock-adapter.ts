@@ -15,6 +15,7 @@ import {
   type DesignProposal,
   type DesignProposalRequest,
   getModelCapability,
+  resolveAvatarForModel,
 } from '@dangviet/contracts';
 import { computeProposalDiff } from '@dangviet/domain';
 import { type AIAdapter } from './adapter.js';
@@ -308,6 +309,7 @@ export class MockAIAdapter implements AIAdapter {
       accessories,
       bodyShape: baseLook?.config?.bodyShape || 'standard',
       modelId: targetModel,
+      avatarId: baseLook?.config?.avatarId || resolveAvatarForModel(targetModel),
     };
 
     return { config, title, explanation, mode: 'mock', model: 'dangviet-rules-v1' };

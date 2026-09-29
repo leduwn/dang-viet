@@ -39,6 +39,11 @@ export interface RenderSpec {
   cameraInitialPos: [number, number, number];
 }
 
+export const AVATAR_URL_CATALOG: Record<string, string> = {
+  avatar_v2: '/models/avatar_v2.glb',
+  avatar_base: '/models/avatar_base.glb',
+};
+
 export const GARMENT_MODEL_CATALOG: Record<string, { garmentUrl: string; pantsUrl: string; avatarUrl: string }> = {
   aodai_traditional_v2: {
     garmentUrl: '/models/aodai_traditional_v2.glb',
@@ -119,7 +124,16 @@ export function createRenderSpec(config: GarmentConfig): RenderSpec {
   const modelEntry = GARMENT_MODEL_CATALOG[config.modelId] || GARMENT_MODEL_CATALOG['aodai_traditional_v2'];
   const garmentUrl = modelEntry.garmentUrl;
   const pantsUrl = modelEntry.pantsUrl;
-  const avatarUrl = modelEntry.avatarUrl;
+  let avatarUrl = modelEntry.avatarUrl;
+  if (config.avatarId) {
+    if (AVATAR_URL_CATALOG[config.avatarId]) {
+      avatarUrl = AVATAR_URL_CATALOG[config.avatarId];
+    } else if (config.avatarId.startsWith('/') || config.avatarId.startsWith('http')) {
+      avatarUrl = config.avatarId;
+    } else {
+      avatarUrl = `/models/avatars/${config.avatarId}.glb`;
+    }
+  }
 
   const fabricPbr = getFabricPbr(config.fabric);
 

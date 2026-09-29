@@ -22,6 +22,7 @@ import {
   VALID_GARMENT_MODELS,
   GarmentConfigSchema,
   getModelCapability,
+  resolveAvatarForModel,
 } from '@dangviet/contracts';
 import { applyRecommendation } from './rules.js';
 
@@ -42,9 +43,13 @@ export function executeCommand(
   // Pure clones - do NOT mutate currentLook
   const nextConfig: GarmentConfig = {
     ...currentLook.config,
+    avatarId: resolveAvatarForModel(currentLook.config.modelId, currentLook.config.avatarId),
     accessories: [...currentLook.config.accessories],
   };
-  const nextLocks: LockState = { ...currentLook.locks };
+  const nextLocks: LockState = {
+    ...currentLook.locks,
+    avatarId: currentLook.locks.avatarId ?? false,
+  };
   let nextTitle = currentLook.title;
   let nextEventId: EventId = currentLook.eventId;
   let nextStyleId: StyleId = currentLook.styleId;
@@ -259,6 +264,18 @@ export function executeCommand(
       break;
     }
 
+    case 'SET_AVATAR': {
+      if (nextLocks.avatarId) {
+        return { ok: false, error: 'Avatar đang bị khóa, không thể thay đổi', statusCode: 400 };
+      }
+      const avatarId = payload.avatarId as string;
+      if (!avatarId || typeof avatarId !== 'string' || avatarId.trim() === '') {
+        return { ok: false, error: 'Mã định danh avatar không hợp lệ', statusCode: 400 };
+      }
+      nextConfig.avatarId = avatarId.trim();
+      break;
+    }
+
     case 'TOGGLE_LOCK': {
       const field = payload.field as keyof LockState;
       if (field in nextLocks) {
@@ -287,6 +304,7 @@ export function executeCommand(
       if (!nextLocks.accessories) nextConfig.accessories = [...validPreset.accessories];
       if (!nextLocks.bodyShape && presetConfig.bodyShape) nextConfig.bodyShape = validPreset.bodyShape;
       if (!nextLocks.modelId && presetConfig.modelId) nextConfig.modelId = validPreset.modelId;
+      if (!nextLocks.avatarId && presetConfig.avatarId) nextConfig.avatarId = validPreset.avatarId;
 
       if (payload.title) nextTitle = String(payload.title);
       if (payload.explanation) nextExplanation = String(payload.explanation);
@@ -311,6 +329,7 @@ export function executeCommand(
       if (!nextLocks.accessories) nextConfig.accessories = [...validDesign.accessories];
       if (!nextLocks.bodyShape && designConfig.bodyShape) nextConfig.bodyShape = validDesign.bodyShape;
       if (!nextLocks.modelId && designConfig.modelId) nextConfig.modelId = validDesign.modelId;
+      if (!nextLocks.avatarId && designConfig.avatarId) nextConfig.avatarId = validDesign.avatarId;
 
       if (payload.title) nextTitle = String(payload.title);
       if (payload.explanation) nextExplanation = String(payload.explanation);

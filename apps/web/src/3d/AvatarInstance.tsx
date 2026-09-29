@@ -34,74 +34,61 @@ export const AvatarInstance: React.FC<AvatarInstanceProps> = ({
     return ResourceLoader.cloneScene(gltf.scene);
   }, [gltf.scene]);
 
-  // 2. Create dedicated instance materials once per URL
-  const skinMaterial = useMemo(() => {
-    return MaterialFactory.createSkinMaterial(skinMaterialSpec);
-  }, [url]);
-
-  const hairMaterial = useMemo(() => {
-    return MaterialFactory.createHairMaterial(hairMaterialSpec);
-  }, [url]);
-
-  const eyesMaterial = useMemo(() => {
-    return MaterialFactory.createEyesMaterial(eyesMaterialSpec || {
-      color: '#2B221B',
-      roughness: 0.15,
-      metalness: 0.0,
-    });
-  }, [url]);
-
-  // Mutate material properties in-place without triggering shader re-compilation
-  useEffect(() => {
-    MaterialFactory.updateMaterial(skinMaterial, skinMaterialSpec);
-  }, [skinMaterial, skinMaterialSpec]);
-
-  useEffect(() => {
-    MaterialFactory.updateMaterial(hairMaterial, hairMaterialSpec);
-  }, [hairMaterial, hairMaterialSpec]);
-
-  useEffect(() => {
-    if (eyesMaterialSpec) {
-      MaterialFactory.updateMaterial(eyesMaterial, eyesMaterialSpec);
-    }
-  }, [eyesMaterial, eyesMaterialSpec]);
-
-  // 3. Assign materials to respective primitives
-  useEffect(() => {
+  // 2. Create isolated adapted materials per primitive, strictly preserving any pre-baked textures
+  const allocatedMaterials = useMemo(() => {
+    const materials: THREE.MeshStandardMaterial[] = [];
     instanceScene.traverse((node) => {
       const mesh = node as THREE.Mesh;
       if (mesh.isMesh) {
-        // Multi-primitive glTF: Match by material name or mesh name
+        const origMat = (Array.isArray(mesh.material) ? mesh.material[0] : mesh.material) as THREE.Material | null;
         const matName = ((mesh.material as THREE.Material)?.name || '').toLowerCase();
         const meshName = (mesh.name || '').toLowerCase();
 
-        if (Array.isArray(mesh.material)) {
-          mesh.material = [skinMaterial, hairMaterial, eyesMaterial];
-        } else if (meshName.includes('hair') || matName.includes('hair')) {
-          mesh.material = hairMaterial;
-        } else if (meshName.includes('eye') || matName.includes('eye')) {
-          mesh.material = eyesMaterial;
-        } else {
-          mesh.material = skinMaterial;
+        let slotType: 'skin' | 'hair' | 'eyes' | 'static' = 'skin';
+        let spec = skinMaterialSpec;
+
+        if (meshName.includes('hair') || matName.includes('hair') || matName.includes('toc')) {
+          slotType = 'hair';
+          spec = hairMaterialSpec;
+        } else if (meshName.includes('eye') || matName.includes('eye') || matName.includes('mat')) {
+          slotType = 'eyes';
+          spec = eyesMaterialSpec || { color: '#2B221B', roughness: 0.15, metalness: 0.0 };
         }
+
+        const adaptedMat = MaterialFactory.createAdaptedAvatarMaterial(origMat, spec, slotType);
+        materials.push(adaptedMat);
+        mesh.material = adaptedMat;
       }
     });
-  }, [instanceScene, skinMaterial, hairMaterial, eyesMaterial]);
+    return materials;
+  }, [instanceScene]);
 
-  // 4. Synchronize morph target weights
+  // Mutate material properties in-place without triggering shader re-compilation
+  useEffect(() => {
+    allocatedMaterials.forEach((mat) => {
+      const lower = mat.name.toLowerCase();
+      if (lower.includes('hair')) {
+        MaterialFactory.updateMaterial(mat, hairMaterialSpec);
+      } else if (lower.includes('eye')) {
+        if (eyesMaterialSpec) MaterialFactory.updateMaterial(mat, eyesMaterialSpec);
+      } else {
+        MaterialFactory.updateMaterial(mat, skinMaterialSpec);
+      }
+    });
+  }, [allocatedMaterials, skinMaterialSpec, hairMaterialSpec, eyesMaterialSpec]);
+
+  // 3. Synchronize morph target weights
   useEffect(() => {
     MorphController.applyMorphWeights(instanceScene, morphWeights);
   }, [instanceScene, morphWeights]);
 
-  // 5. Cleanup instance resources on unmount (prevents double disposal)
+  // 4. Cleanup instance resources on unmount (prevents double disposal or memory leaks)
   useEffect(() => {
     return () => {
       ResourceLoader.disposeInstance(instanceScene, false);
-      skinMaterial.dispose();
-      hairMaterial.dispose();
-      eyesMaterial.dispose();
+      allocatedMaterials.forEach((m) => m.dispose());
     };
-  }, [instanceScene, skinMaterial, hairMaterial, eyesMaterial]);
+  }, [instanceScene, allocatedMaterials]);
 
   return <primitive object={instanceScene} />;
 };

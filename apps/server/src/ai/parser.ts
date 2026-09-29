@@ -18,6 +18,7 @@ import {
   VALID_GARMENT_MODELS,
   GarmentConfigSchema,
   ColorSchema,
+  resolveAvatarForModel,
 } from '@dangviet/contracts';
 import { dbRepo } from '../db.js';
 
@@ -266,6 +267,21 @@ export function parseModelChatOutput(rawText: string, currentLook: Look): Parsed
         break;
       }
 
+      case 'SET_AVATAR': {
+        if (currentLook.locks.avatarId) continue;
+        const avatarId = typeof payload.avatarId === 'string' ? payload.avatarId.trim() : '';
+        if (!avatarId) continue;
+        commands.push({
+          commandId: randomUUID(),
+          lookId: currentLook.id,
+          expectedRevision: nextExpectedRev++,
+          action: 'SET_AVATAR',
+          payload: { avatarId },
+          timestamp: new Date().toISOString(),
+        });
+        break;
+      }
+
       case 'SET_EVENT': {
         if (!['ky_yeu', 'choi_tet', 'ngay_hoi_truong'].includes(payload.eventId)) continue;
         commands.push({
@@ -378,6 +394,10 @@ export function parseModelDesignOutput(
   const explanation = typeof json.explanation === 'string' && json.explanation.trim().length > 0
     ? json.explanation.trim()
     : 'Thiết kế Việt phục sáng tạo kết hợp hoa văn và sắc màu đương đại.';
+
+  if (json.config && typeof json.config === 'object' && !json.config.avatarId) {
+    json.config.avatarId = resolveAvatarForModel(json.config.modelId);
+  }
 
   const parse = GarmentConfigSchema.safeParse(json.config);
   if (!parse.success) {

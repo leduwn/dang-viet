@@ -41,6 +41,7 @@ export const LookbookSection: React.FC<LookbookSectionProps> = ({
           accessories: false,
           bodyShape: false,
           modelId: false,
+          avatarId: false,
         },
         explanation: item.notes || 'Bản phối lưu trữ Lookbook',
         revision: item.revision,

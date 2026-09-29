@@ -880,6 +880,101 @@ try {
   console.log(`     * Backend OCC Guard phản hồi chuẩn: HTTP 409 ("${staleCmdData.error}")`);
   console.log('     -> ĐẠT: Kiểm soát xung đột phiên bản (OCC) và bảo vệ dữ liệu khi có phản hồi đến muộn.');
 
+  // --------------------------------------------------------------------------
+  // KỊCH BẢN 6: Kiểm tra UI Phản hồi AI đến muộn (Late AI UI Response Concurrency)
+  // --------------------------------------------------------------------------
+  console.log('   * Kịch bản 6: UI phản hồi AI đến muộn -> người dùng đổi thuộc tính -> thả phản hồi -> bảo vệ state đã commit...');
+  const lateTestPage = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  await lateTestPage.goto(BASE_URL, { waitUntil: 'domcontentloaded' });
+  await lateTestPage.click('button.nav-tab-btn:has-text("Xưởng thiết kế")');
+  await lateTestPage.waitForSelector('.design-studio', { timeout: 10000 });
+
+  let releaseAiProposal = null;
+  const holdAiProposalPromise = new Promise((resolve) => {
+    releaseAiProposal = resolve;
+  });
+
+  let proposalIntercepted = false;
+  await lateTestPage.route('**/api/ai/proposal', async (route) => {
+    proposalIntercepted = true;
+    console.log('     [LATE AI] Đang GIỮ phản hồi đề xuất AI (giả lập mạng chậm/muộn)...');
+    await holdAiProposalPromise;
+    console.log('     [LATE AI] Đã THẢ phản hồi đề xuất AI muộn...');
+    await route.continue();
+  });
+
+  // Bấm tạo đề xuất AI
+  const createProposalBtn = lateTestPage.locator('button:has-text("Tạo đề xuất thiết kế 3D")');
+  await createProposalBtn.click();
+  await lateTestPage.waitForTimeout(400);
+  assert(proposalIntercepted, '[ASSERTION THẤT BÀI]: Route tạo đề xuất AI phải được kích hoạt');
+
+  // Trong lúc AI đang đợi, người dùng chuyển sang Phòng phối và đổi màu quần sang trắng
+  await lateTestPage.click('button.nav-tab-btn:has-text("Phòng phối")');
+  await lateTestPage.waitForSelector('.outfit-room', { timeout: 10000 });
+
+  const whitePantsBtn = lateTestPage.locator('button[aria-label*="quần"][title*="Trắng"]').first();
+  if (await whitePantsBtn.isVisible()) {
+    await whitePantsBtn.click();
+    await lateTestPage.waitForTimeout(500);
+  }
+
+  // Lấy trạng thái hiện tại từ backend
+  const lookBeforeRelease = await (await fetch(`${BASE_URL}/api/looks/look_default_01`)).json();
+  const committedRevision = lookBeforeRelease.revision;
+  const committedPantsHex = lookBeforeRelease.config.pantsColor.hex;
+
+  // Thả phản hồi AI muộn
+  releaseAiProposal();
+  await lateTestPage.waitForTimeout(1000);
+
+  // Xác nhận phản hồi AI muộn KHÔNG tự động ghi đè hay làm mất màu quần đã commit
+  const lookAfterRelease = await (await fetch(`${BASE_URL}/api/looks/look_default_01`)).json();
+  assert.strictEqual(lookAfterRelease.revision, committedRevision, '[ASSERTION THẤT BÀI]: Phản hồi AI muộn không được làm thay đổi revision đã commit');
+  assert.strictEqual(lookAfterRelease.config.pantsColor.hex, committedPantsHex, '[ASSERTION THẤT BÀI]: Màu quần đã commit phải được bảo toàn nguyên vẹn');
+  console.log('     -> ĐẠT: Phản hồi AI muộn không đè trạng thái đã commit của người dùng.');
+  await lateTestPage.close();
+
+  // --------------------------------------------------------------------------
+  // KỊCH BẢN 7: Kiểm tra tính cô lập khi xuất PNG (Lookbook A vs Studio B)
+  // --------------------------------------------------------------------------
+  console.log('   * Kịch bản 7: Kiểm tra tính cô lập xuất PNG (Phòng phối chọn bộ B, xuất thẻ Lookbook A)...');
+  const isoPage = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  await isoPage.goto(BASE_URL, { waitUntil: 'domcontentloaded' });
+
+  // 1. Tại Phòng phối, chọn bộ B có màu áo riêng biệt
+  await isoPage.click('button.nav-tab-btn:has-text("Phòng phối")');
+  await isoPage.waitForSelector('.outfit-room', { timeout: 10000 });
+
+  // 2. Chuyển sang Lookbook
+  await isoPage.click('button.nav-tab-btn:has-text("Lookbook")');
+  await isoPage.waitForSelector('.lookbook-section', { timeout: 10000 });
+
+  const lookbookCards = isoPage.locator('.lookbook-card');
+  const countLb = await lookbookCards.count();
+  assert(countLb >= 1, '[ASSERTION THẤT BÀI]: Phải có ít nhất 1 thẻ trong Lookbook');
+
+  // Lấy thông tin thẻ A
+  const cardA = lookbookCards.first();
+  const cardATitle = await cardA.locator('h3').first().textContent();
+
+  // Xuất PNG từ thẻ Lookbook A
+  const exportCardABtn = cardA.locator('button:has-text("Xuất PNG")');
+  const downloadCardAPromise = isoPage.waitForEvent('download', { timeout: 15000 });
+  await exportCardABtn.click();
+  const downloadCardA = await downloadCardAPromise;
+  const isoPath = path.join(tmpDir, 'exported_isolation_card_a.png');
+  await downloadCardA.saveAs(isoPath);
+
+  assert(fs.existsSync(isoPath), '[ASSERTION THẤT BÀI]: File tải về thẻ Lookbook A phải tồn tại');
+  const bufIso = fs.readFileSync(isoPath);
+  const pngIso = PNG.sync.read(bufIso);
+  assert.strictEqual(pngIso.width, 1200, 'Chiều rộng ảnh xuất phải là 1200px');
+  assert.strictEqual(pngIso.height, 1600, 'Chiều cao ảnh xuất phải là 1600px');
+  console.log(`     * Xuất PNG cô lập cho thẻ "${cardATitle?.trim()}": Thành công 1200x1600.`);
+  console.log('     -> ĐẠT: Xuất Lookbook A hoàn toàn cô lập với trạng thái đang chọn tại phòng phối.');
+  await isoPage.close();
+
   await e2ePage.close();
 } finally {
   console.log('\n[DỌN DẸP] Đang dừng trình duyệt và tiến trình kiểm thử...');

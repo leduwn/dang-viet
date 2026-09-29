@@ -10,6 +10,7 @@ import {
   LookSchema,
   GarmentConfigSchema,
   LockStateSchema,
+  resolveAvatarForModel,
 } from '@dangviet/contracts';
 import { executeCommand } from '@dangviet/domain';
 import { getAppConfig } from './config.js';
@@ -148,7 +149,11 @@ export interface LookRow {
 }
 
 export function rowToLook(row: LookRow): Look {
-  const parsedConfig = GarmentConfigSchema.parse(JSON.parse(row.config_json));
+  const rawConfig = JSON.parse(row.config_json);
+  if (!rawConfig.avatarId) {
+    rawConfig.avatarId = resolveAvatarForModel(rawConfig.modelId);
+  }
+  const parsedConfig = GarmentConfigSchema.parse(rawConfig);
   const parsedLocks = LockStateSchema.parse(JSON.parse(row.locks_json));
   return {
     id: row.id,
@@ -581,17 +586,23 @@ export const dbRepo = {
   getLookbook(): LookbookItem[] {
     const db = getDb();
     const rows = db.prepare('SELECT * FROM lookbook ORDER BY created_at DESC').all() as any[];
-    return rows.map((r) => ({
-      id: r.id,
-      title: r.title,
-      lookId: r.look_id,
-      revision: r.revision,
-      snapshotConfig: GarmentConfigSchema.parse(JSON.parse(r.snapshot_config_json)),
-      eventId: r.event_id,
-      styleId: r.style_id,
-      notes: r.notes,
-      createdAt: r.created_at,
-    }));
+    return rows.map((r) => {
+      const rawConfig = JSON.parse(r.snapshot_config_json);
+      if (!rawConfig.avatarId) {
+        rawConfig.avatarId = resolveAvatarForModel(rawConfig.modelId);
+      }
+      return {
+        id: r.id,
+        title: r.title,
+        lookId: r.look_id,
+        revision: r.revision,
+        snapshotConfig: GarmentConfigSchema.parse(rawConfig),
+        eventId: r.event_id,
+        styleId: r.style_id,
+        notes: r.notes,
+        createdAt: r.created_at,
+      };
+    });
   },
 
   saveToLookbook(item: LookbookItem): void {

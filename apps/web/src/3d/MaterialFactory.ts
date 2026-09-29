@@ -62,12 +62,45 @@ export class MaterialFactory {
   }
 
   /**
+   * Adapts an avatar primitive material while strictly preserving original textures
+   * (diffuse map, normal map, roughness map). Prevents flat color overrides from
+   * destroying pre-baked realistic avatar textures.
+   */
+  static createAdaptedAvatarMaterial(
+    originalMaterial: THREE.Material | null,
+    spec: MaterialSpec,
+    slotType: 'skin' | 'hair' | 'eyes' | 'static' = 'skin'
+  ): THREE.MeshStandardMaterial {
+    const isStd = originalMaterial instanceof THREE.MeshStandardMaterial;
+    const originalMap = isStd ? originalMaterial.map : null;
+    const hasTexture = Boolean(originalMap);
+
+    return new THREE.MeshStandardMaterial({
+      name: `Instance_${slotType}_${originalMaterial?.name || 'Material'}`,
+      // If texture exists, keep neutral white base to avoid tint distortions unless specifically requested
+      color: hasTexture ? new THREE.Color(0xffffff) : new THREE.Color(spec.color),
+      roughness: spec.roughness !== undefined ? spec.roughness : (isStd ? originalMaterial.roughness : 0.65),
+      metalness: spec.metalness !== undefined ? spec.metalness : (isStd ? originalMaterial.metalness : 0.0),
+      map: originalMap,
+      normalMap: isStd ? originalMaterial.normalMap : null,
+      roughnessMap: isStd ? originalMaterial.roughnessMap : null,
+      metalnessMap: isStd ? originalMaterial.metalnessMap : null,
+      aoMap: isStd ? originalMaterial.aoMap : null,
+      side: THREE.FrontSide,
+    });
+  }
+
+  /**
    * Mutates material properties in-place without re-allocating or disposing shader programs.
    * Eliminates 1-frame black flashes during color/fabric switching.
+   * Preserves textures if material has an active texture map.
    */
   static updateMaterial(material: THREE.MeshStandardMaterial, spec: MaterialSpec): void {
     if (!material) return;
-    material.color.set(spec.color);
+    // Only override base color if material has no texture map, preserving photorealistic maps
+    if (!material.map) {
+      material.color.set(spec.color);
+    }
     material.roughness = spec.roughness;
     material.metalness = spec.metalness;
     if (spec.transparent !== undefined) {

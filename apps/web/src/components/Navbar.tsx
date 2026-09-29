@@ -1,11 +1,11 @@
 import React from 'react';
 import { type AIStatus } from '@dangviet/contracts';
-import { Sparkles, Compass, Shirt, Palette, Bookmark } from 'lucide-react';
+import { Sparkles, Compass, Shirt, Palette, Bookmark, ShieldCheck } from 'lucide-react';
 import { BrandLogo } from './BrandLogo.tsx';
 
 interface NavbarProps {
-  currentTab: 'explore' | 'studio' | 'design' | 'lookbook';
-  onSelectTab: (tab: 'explore' | 'studio' | 'design' | 'lookbook') => void;
+  currentTab: 'explore' | 'studio' | 'design' | 'lookbook' | 'inspector';
+  onSelectTab: (tab: 'explore' | 'studio' | 'design' | 'lookbook' | 'inspector') => void;
   aiStatus: AIStatus | null;
 }
 
@@ -61,6 +61,13 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onSelectTab, aiStatu
         >
           <Bookmark size={17} />
           <span>Lookbook</span>
+        </button>
+        <button
+          className={`nav-tab-btn ${currentTab === 'inspector' ? 'active' : ''}`}
+          onClick={() => onSelectTab('inspector')}
+        >
+          <ShieldCheck size={17} />
+          <span>Thẩm định Avatar</span>
         </button>
       </nav>
 

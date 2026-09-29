@@ -18,8 +18,12 @@ import {
   type BodyShape,
   type GarmentModelId,
   type LockState,
+  type GarmentCompatibilityRecord,
   VALID_BODY_SHAPES,
   VALID_GARMENT_MODELS,
+  STANDARD_AVATAR_IDS,
+  getCompatibilityStatus,
+  resolveAvatarForModel,
 } from '@dangviet/contracts';
 import {
   RotateCcw,
@@ -27,6 +31,9 @@ import {
   User,
   Sliders,
   Lock,
+  CheckCircle2,
+  AlertTriangle,
+  XCircle,
 } from 'lucide-react';
 
 import { createRenderSpec } from '../3d/RenderSpec.ts';
@@ -43,9 +50,11 @@ export interface AoDai3DViewerProps {
   autoRotateDefault?: boolean;
   onBodyShapeChange?: (shape: BodyShape) => void;
   onModelChange?: (modelId: GarmentModelId) => void;
+  onAvatarChange?: (avatarId: string) => void;
   disabled?: boolean;
   locks?: LockState;
   showToolbar?: boolean;
+  customMatrix?: GarmentCompatibilityRecord[];
 }
 
 const BODY_SHAPE_LABELS: Record<BodyShape, { label: string; desc: string }> = {
@@ -63,6 +72,11 @@ const GARMENT_MODEL_LABELS: Record<GarmentModelId, { label: string; desc: string
   aodai_remix_raglan: { label: 'Cách tân tay Raglan', desc: 'Cổ thuyền, tà lỡ midi hiện đại' },
 };
 
+const AVATAR_LABELS: Record<string, { label: string; desc: string }> = {
+  avatar_v2: { label: 'Avatar V2', desc: 'Avatar Nữ chuẩn V2 (DCC Master tỷ lệ chuẩn 1.64m)' },
+  avatar_base: { label: 'Avatar V1', desc: 'Avatar Nữ cơ bản V1 (Dáng Việt Studio 1.67m)' },
+};
+
 export const AoDai3DViewer: React.FC<AoDai3DViewerProps> = ({
   config,
   className = '',
@@ -70,9 +84,11 @@ export const AoDai3DViewer: React.FC<AoDai3DViewerProps> = ({
   autoRotateDefault = false,
   onBodyShapeChange,
   onModelChange,
+  onAvatarChange,
   disabled = false,
   locks,
   showToolbar = true,
+  customMatrix,
 }) => {
   const [autoRotate, setAutoRotate] = useState<boolean>(autoRotateDefault);
   const [viewAngle, setViewAngle] = useState<ViewAngle | null>(null);
@@ -84,9 +100,16 @@ export const AoDai3DViewer: React.FC<AoDai3DViewerProps> = ({
 
   const activeShape = config.bodyShape || 'standard';
   const activeModel = config.modelId || 'aodai_classic_01';
+  const resolvedAvatarId = resolveAvatarForModel(config.modelId, config.avatarId);
+
+  // Compute tri-factor compatibility
+  const compatibility = useMemo(() => {
+    return getCompatibilityStatus(resolvedAvatarId, activeModel, activeShape, customMatrix);
+  }, [resolvedAvatarId, activeModel, activeShape, customMatrix]);
 
   const isShapeLocked = !!locks?.bodyShape;
   const isModelLocked = !!locks?.modelId;
+  const isAvatarLocked = !!locks?.avatarId;
 
   const handleShapeSelect = (shape: BodyShape) => {
     if (disabled || isShapeLocked) return;
@@ -99,6 +122,13 @@ export const AoDai3DViewer: React.FC<AoDai3DViewerProps> = ({
     if (disabled || isModelLocked) return;
     if (onModelChange) {
       onModelChange(modelId);
+    }
+  };
+
+  const handleAvatarSelect = (avatarId: string) => {
+    if (disabled || isAvatarLocked) return;
+    if (onAvatarChange) {
+      onAvatarChange(avatarId);
     }
   };
 
@@ -306,8 +336,54 @@ export const AoDai3DViewer: React.FC<AoDai3DViewerProps> = ({
             </button>
           </div>
 
-          {/* Right: 360 Rotate Toggle */}
-          <div style={{ pointerEvents: 'auto' }}>
+          {/* Right: Compatibility Status & 360 Rotate Toggle */}
+          <div style={{ pointerEvents: 'auto', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            {/* Compatibility Badge */}
+            <div
+              title={`Trạng thái tương thích (Avatar - Áo - Dáng): ${compatibility.reason}`}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                padding: '3px 8px',
+                borderRadius: '16px',
+                fontSize: '0.68rem',
+                fontWeight: 700,
+                backdropFilter: 'blur(8px)',
+                background:
+                  compatibility.status === 'verified'
+                    ? 'rgba(232, 245, 233, 0.92)'
+                    : compatibility.status === 'unsupported'
+                    ? 'rgba(255, 235, 238, 0.92)'
+                    : 'rgba(255, 243, 224, 0.92)',
+                color:
+                  compatibility.status === 'verified'
+                    ? '#2E7D32'
+                    : compatibility.status === 'unsupported'
+                    ? '#C62828'
+                    : '#E65100',
+                border: `1px solid ${
+                  compatibility.status === 'verified'
+                    ? 'rgba(46, 125, 50, 0.35)'
+                    : compatibility.status === 'unsupported'
+                    ? 'rgba(198, 40, 40, 0.35)'
+                    : 'rgba(230, 81, 0, 0.35)'
+                }`,
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
+              }}
+            >
+              {compatibility.status === 'verified' && <CheckCircle2 size={11} />}
+              {compatibility.status === 'untested' && <AlertTriangle size={11} />}
+              {compatibility.status === 'unsupported' && <XCircle size={11} />}
+              <span>
+                {compatibility.status === 'verified'
+                  ? '[Đã kiểm chứng]'
+                  : compatibility.status === 'unsupported'
+                  ? '[Không tương thích]'
+                  : '[Chưa thử nghiệm]'}
+              </span>
+            </div>
+
             <button
               type="button"
               onClick={() => setAutoRotate(!autoRotate)}
@@ -490,6 +566,59 @@ export const AoDai3DViewer: React.FC<AoDai3DViewerProps> = ({
                         borderRadius: '12px',
                         cursor: isDisabledOption ? 'not-allowed' : 'pointer',
                         opacity: isModelLocked ? 0.75 : 1,
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      {meta.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Avatar Model Selector */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+              <span
+                style={{
+                  fontSize: '0.73rem',
+                  fontWeight: 700,
+                  color: 'var(--text-secondary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '3px',
+                }}
+              >
+                <User size={12} />
+                Nhân vật:
+                {isAvatarLocked && (
+                  <span title="Avatar đang bị khóa">
+                    <Lock size={11} color="var(--accent-red)" />
+                  </span>
+                )}
+              </span>
+              <div style={{ display: 'flex', gap: '3px' }}>
+                {STANDARD_AVATAR_IDS.map((avId) => {
+                  const isSelected = resolvedAvatarId === avId;
+                  const meta = AVATAR_LABELS[avId] || { label: avId, desc: `Avatar ID: ${avId}` };
+                  const isDisabledOption = disabled || isAvatarLocked;
+
+                  return (
+                    <button
+                      key={avId}
+                      type="button"
+                      disabled={isDisabledOption}
+                      onClick={() => handleAvatarSelect(avId)}
+                      title={isAvatarLocked ? 'Avatar đang bị khóa trong Look' : meta.desc}
+                      style={{
+                        border: isSelected ? '1px solid #7B1FA2' : '1px solid var(--border-light)',
+                        background: isSelected ? 'rgba(123, 31, 162, 0.08)' : '#FFFFFF',
+                        color: isSelected ? '#7B1FA2' : 'var(--text-primary)',
+                        fontWeight: isSelected ? 700 : 500,
+                        fontSize: '0.70rem',
+                        padding: '2px 7px',
+                        borderRadius: '12px',
+                        cursor: isDisabledOption ? 'not-allowed' : 'pointer',
+                        opacity: isAvatarLocked ? 0.75 : 1,
                         transition: 'all 0.15s ease',
                       }}
                     >

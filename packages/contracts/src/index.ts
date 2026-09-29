@@ -66,6 +66,120 @@ export const VALID_GARMENT_MODELS = [
 export type GarmentModelId = typeof VALID_GARMENT_MODELS[number];
 export const GarmentModelIdEnum = z.enum(VALID_GARMENT_MODELS);
 
+// ==========================================
+// 1b. Independent Avatar Contract Schemas
+// ==========================================
+
+export const STANDARD_AVATAR_IDS = ['avatar_v2', 'avatar_base'] as const;
+export type StandardAvatarId = (typeof STANDARD_AVATAR_IDS)[number];
+export type AvatarId = StandardAvatarId | (string & {});
+
+export const AttachmentSocketSchema = z.object({
+  position: z.tuple([z.number(), z.number(), z.number()]),
+  rotation: z.tuple([z.number(), z.number(), z.number()]).optional(),
+  scale: z.tuple([z.number(), z.number(), z.number()]).optional(),
+  trackedFeature: z.string().optional(),
+});
+export type AttachmentSocket = z.infer<typeof AttachmentSocketSchema>;
+
+export const AvatarMaterialBindingSchema = z.object({
+  slot: z.string(),
+  type: z.enum(['skin', 'hair', 'eyes', 'static']),
+  defaultColor: z.string().optional(),
+  preserveTexture: z.boolean().default(true),
+});
+export type AvatarMaterialBinding = z.infer<typeof AvatarMaterialBindingSchema>;
+
+export const AvatarSpecSchema = z.object({
+  avatarId: z.string().min(1),
+  assetVersion: z.string().default('1.0.0'),
+  glbPath: z.string().min(1),
+  displayName: z.string().min(1),
+  category: z.enum(['adult_female', 'stylized_female']).default('adult_female'),
+  license: z.string().default('CC-BY-4.0'),
+  source: z.string().default('internal'),
+  author: z.string().optional(),
+  bounds: z.object({
+    min: z.tuple([z.number(), z.number(), z.number()]),
+    max: z.tuple([z.number(), z.number(), z.number()]),
+    height: z.number().positive(),
+  }),
+  materialBindings: z.record(AvatarMaterialBindingSchema).default({}),
+  supportedBodyPresets: z.array(BodyShapeEnum).default([...VALID_BODY_SHAPES]),
+  rigStatus: z.object({
+    isRigged: z.boolean().default(false),
+    skeletonType: z.string().optional(),
+    hasMorphTargets: z.boolean().default(true),
+  }),
+  sockets: z.record(AttachmentSocketSchema).default({}),
+  morphAliases: z.record(z.string()).optional(),
+  checksumSha256: z.string().optional(),
+  registeredAt: z.string().optional(),
+});
+export type AvatarSpec = z.infer<typeof AvatarSpecSchema>;
+
+export const CompatibilityStatusEnum = z.enum(['verified', 'untested', 'unsupported']);
+export type CompatibilityStatus = z.infer<typeof CompatibilityStatusEnum>;
+
+export const GarmentCompatibilitySchema = z.object({
+  avatarId: z.string(),
+  avatarVersion: z.string().default('1.0.0'),
+  garmentModelId: GarmentModelIdEnum,
+  garmentVersion: z.string().default('1.0.0'),
+  bodyShape: BodyShapeEnum,
+  status: CompatibilityStatusEnum.default('untested'),
+  reason: z.string().optional(),
+  verifiedAt: z.string().optional(),
+});
+export type GarmentCompatibilityRecord = z.infer<typeof GarmentCompatibilitySchema>;
+
+/**
+ * Backward compatibility fallback resolver:
+ * Maps legacy look / lookbook item lacking avatarId to its historically matching avatar asset.
+ */
+export function resolveAvatarForModel(modelId?: GarmentModelId, avatarId?: string): string {
+  if (avatarId && avatarId.trim() !== '') {
+    return avatarId;
+  }
+  if (modelId === 'aodai_traditional_v2') {
+    return 'avatar_v2';
+  }
+  return 'avatar_base';
+}
+
+/**
+ * Triplet compatibility evaluator:
+ * Evaluates compatibility status between (avatarId, garmentModelId, bodyShape).
+ */
+export function getCompatibilityStatus(
+  avatarId: string,
+  garmentModelId: GarmentModelId,
+  bodyShape: BodyShape = 'standard',
+  customMatrix?: GarmentCompatibilityRecord[]
+): { status: CompatibilityStatus; reason: string } {
+  if (Array.isArray(customMatrix)) {
+    const matched = customMatrix.find(
+      (m) => m.avatarId === avatarId && m.garmentModelId === garmentModelId && m.bodyShape === bodyShape
+    );
+    if (matched) {
+      return { status: matched.status, reason: matched.reason || '' };
+    }
+  }
+
+  // Built-in verified pairings
+  if (avatarId === 'avatar_v2' && garmentModelId === 'aodai_traditional_v2') {
+    return { status: 'verified', reason: 'Thiết kế đồng bộ chuẩn V2 (DCC Master)' };
+  }
+  if (avatarId === 'avatar_base' && (garmentModelId === 'aodai_classic_01' || garmentModelId === 'aodai_remix_raglan')) {
+    return { status: 'verified', reason: 'Thiết kế đồng bộ chuẩn V1 (Dáng Việt Studio)' };
+  }
+  if (avatarId === 'avatar_base' && garmentModelId === 'aodai_traditional_v2') {
+    return { status: 'unsupported', reason: 'Mẫu áo V2 yêu cầu avatar V2 có phom giải phẫu tỷ lệ chuẩn' };
+  }
+
+  return { status: 'untested', reason: 'Chưa qua kiểm thử tương thích trong phòng phối' };
+}
+
 export interface ModelCapability {
   id: GarmentModelId;
   name: string;
@@ -198,6 +312,7 @@ export const GarmentConfigSchema = z.object({
   accessories: z.array(AccessoryIdEnum).default([]),
   bodyShape: BodyShapeEnum.default('standard'),
   modelId: GarmentModelIdEnum.default('aodai_traditional_v2'),
+  avatarId: z.string().default('avatar_v2'),
 });
 export type GarmentConfig = z.infer<typeof GarmentConfigSchema>;
 
@@ -211,6 +326,7 @@ export const LockStateSchema = z.object({
   accessories: z.boolean().default(false),
   bodyShape: z.boolean().default(false),
   modelId: z.boolean().default(false),
+  avatarId: z.boolean().default(false),
 });
 export type LockState = z.infer<typeof LockStateSchema>;
 
@@ -318,6 +434,7 @@ export const CommandActionEnum = z.enum([
   'SET_ACCESSORIES',
   'SET_BODY_SHAPE',
   'SET_GARMENT_MODEL',
+  'SET_AVATAR',
   'TOGGLE_LOCK',
   'APPLY_PRESET',
   'RESET_OUTFIT',
@@ -416,16 +533,24 @@ export const SetGarmentModelCommandSchema = BaseCommandSchema.extend({
   }),
 });
 
+export const SetAvatarCommandSchema = BaseCommandSchema.extend({
+  action: z.literal('SET_AVATAR'),
+  payload: z.object({
+    avatarId: z.string().min(1),
+  }),
+});
+
 export const ToggleLockCommandSchema = BaseCommandSchema.extend({
   action: z.literal('TOGGLE_LOCK'),
   payload: z.object({
-    field: z.enum(['primaryColor', 'pantsColor', 'collarStyle', 'sleeveStyle', 'fabric', 'pattern', 'accessories', 'bodyShape', 'modelId']),
+    field: z.enum(['primaryColor', 'pantsColor', 'collarStyle', 'sleeveStyle', 'fabric', 'pattern', 'accessories', 'bodyShape', 'modelId', 'avatarId']),
   }),
 });
 
 export const DesignGarmentConfigSchema = GarmentConfigSchema.extend({
   modelId: GarmentModelIdEnum.optional(),
   bodyShape: BodyShapeEnum.optional(),
+  avatarId: z.string().optional(),
 });
 export type DesignGarmentConfig = z.infer<typeof DesignGarmentConfigSchema>;
 
@@ -469,6 +594,7 @@ export const CommandPayloadSchema = z.discriminatedUnion('action', [
   SetAccessoriesCommandSchema,
   SetBodyShapeCommandSchema,
   SetGarmentModelCommandSchema,
+  SetAvatarCommandSchema,
   ToggleLockCommandSchema,
   ApplyPresetCommandSchema,
   ApplyDesignCommandSchema,

@@ -31,12 +31,48 @@ export function computeVertexNormals(positions, indices) {
     normals[i2] += nx; normals[i2 + 1] += ny; normals[i2 + 2] += nz;
   }
 
-  // Normalize
+  // Normalize with zero-vector recovery for degenerate / polar seam vertices
+  const posArr = positions;
   for (let i = 0; i < normals.length; i += 3) {
-    const l = Math.hypot(normals[i], normals[i + 1], normals[i + 2]) || 1;
-    normals[i] /= l;
-    normals[i + 1] /= l;
-    normals[i + 2] /= l;
+    const l = Math.hypot(normals[i], normals[i + 1], normals[i + 2]);
+    if (l > 1e-8) {
+      normals[i] /= l;
+      normals[i + 1] /= l;
+      normals[i + 2] /= l;
+    } else {
+      // Mark degenerate normal for recovery
+      normals[i] = NaN;
+    }
+  }
+
+  // Second pass: resolve degenerate vertices by borrowing normal from co-located vertices or upward fallback
+  for (let i = 0; i < normals.length; i += 3) {
+    if (!Number.isNaN(normals[i])) continue;
+    const px = posArr[i];
+    const py = posArr[i + 1];
+    const pz = posArr[i + 2];
+    let resolved = false;
+
+    for (let j = 0; j < normals.length; j += 3) {
+      if (j === i || Number.isNaN(normals[j])) continue;
+      const dx = posArr[j] - px;
+      const dy = posArr[j + 1] - py;
+      const dz = posArr[j + 2] - pz;
+      if (dx * dx + dy * dy + dz * dz < 1e-10) {
+        normals[i] = normals[j];
+        normals[i + 1] = normals[j + 1];
+        normals[i + 2] = normals[j + 2];
+        resolved = true;
+        break;
+      }
+    }
+
+    if (!resolved) {
+      // Absolute fallback: unit normal pointing upward (0, 1, 0)
+      normals[i] = 0;
+      normals[i + 1] = 1;
+      normals[i + 2] = 0;
+    }
   }
   return normals;
 }

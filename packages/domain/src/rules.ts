@@ -9,6 +9,7 @@ import {
   type SleeveStyle,
   type Fabric,
   type Pattern,
+  resolveAvatarForModel,
 } from '@dangviet/contracts';
 
 export interface StyleRule {
@@ -232,6 +233,7 @@ export function applyRecommendation(
     accessories: locks.accessories ? currentConfig.accessories : [...rule.recommendedAccessories],
     bodyShape: locks.bodyShape ? currentConfig.bodyShape : (currentConfig.bodyShape || 'standard'),
     modelId: locks.modelId ? currentConfig.modelId : (currentConfig.modelId || 'aodai_classic_01'),
+    avatarId: locks.avatarId ? currentConfig.avatarId : (currentConfig.avatarId || resolveAvatarForModel(currentConfig.modelId)),
   };
 
   return {

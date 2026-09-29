@@ -1,9 +1,9 @@
 {
   "mimeType": "model/gltf-binary",
   "validatorVersion": "2.0.0-dev.3.10",
-  "validatedAt": "2026-09-29T04:15:47.591Z",
+  "validatedAt": "2026-09-29T07:38:51.713Z",
   "issues": {
-    "numErrors": 1,
+    "numErrors": 0,
     "numWarnings": 0,
     "numInfos": 1,
     "numHints": 0,
@@ -13,12 +13,6 @@
         "message": "This object may be unused.",
         "severity": 2,
         "pointer": "/meshes/0/primitives/0/attributes/TEXCOORD_0"
-      },
-      {
-        "code": "ACCESSOR_VECTOR3_NON_UNIT",
-        "message": "Vector3 at accessor indices 84..86 is not of unit length: 0.",
-        "severity": 0,
-        "pointer": "/meshes/0/primitives/0/attributes/NORMAL"
       }
     ],
     "truncated": false
