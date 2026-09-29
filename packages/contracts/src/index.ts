@@ -66,6 +66,80 @@ export const VALID_GARMENT_MODELS = [
 export type GarmentModelId = typeof VALID_GARMENT_MODELS[number];
 export const GarmentModelIdEnum = z.enum(VALID_GARMENT_MODELS);
 
+export interface ModelCapability {
+  id: GarmentModelId;
+  name: string;
+  category: 'classic' | 'remix';
+  supportedCollars: readonly CollarStyle[];
+  supportedSleeves: readonly SleeveStyle[];
+  supportedFabrics: readonly Fabric[];
+  supportedPatterns: readonly Pattern[];
+  supportedAccessories: readonly AccessoryId[];
+  supportedBodyShapes: readonly BodyShape[];
+  incompatibleOptionMessages: Record<string, string>;
+}
+
+export const MODEL_CAPABILITIES: Record<GarmentModelId, ModelCapability> = {
+  aodai_traditional_v2: {
+    id: 'aodai_traditional_v2',
+    name: 'Áo Dài Cổ Cao 4.2cm Chuẩn V2 (DCC Master)',
+    category: 'classic',
+    supportedCollars: ['traditional_high'] as const,
+    supportedSleeves: ['traditional_long'] as const,
+    supportedFabrics: ['silk_ha_dong', 'brocade_hue', 'linen_modern', 'voile_chiffon'] as const,
+    supportedPatterns: ['plain'] as const,
+    supportedAccessories: ['man_truyen_thong', 'non_la', 'chuoi_ngoc', 'quat_xep', 'tui_coi', 'guoc_moc'] as const,
+    supportedBodyShapes: ['standard', 'petite', 'tall_slender', 'broad_shoulders', 'curvy_hips', 'plus_size'] as const,
+    incompatibleOptionMessages: {
+      round: 'Mẫu cổ cao 4.2cm truyền thống không hỗ trợ cổ tròn; hãy chuyển sang mẫu Remix Raglan để dùng cổ tròn.',
+      boat: 'Mẫu truyền thống chuẩn v2 chỉ dùng cổ đứng 4.2cm; chuyển sang Remix Raglan để dùng cổ thuyền.',
+      v_neck: 'Mẫu truyền thống chuẩn v2 không hỗ trợ cổ chữ V.',
+      raglan: 'Mẫu truyền thống dùng tay dài ráp vai; chuyển sang Remix Raglan để dùng tay raglan.',
+      elbow: 'Mẫu truyền thống chuẩn v2 giữ tay dài truyền thống trang nhã; chuyển sang Remix Raglan để dùng tay lửng.',
+      slit: 'Mẫu truyền thống chuẩn v2 không hỗ trợ tay xẻ.',
+      pattern_notice: 'Mẫu 3D v2 hiện kết xuất chất liệu trơn (PBR); hoa văn in đang được phát triển.',
+    },
+  },
+  aodai_remix_raglan: {
+    id: 'aodai_remix_raglan',
+    name: 'Áo Dài Cách Tân Tay Raglan',
+    category: 'remix',
+    supportedCollars: ['boat', 'round', 'v_neck'] as const,
+    supportedSleeves: ['raglan', 'elbow', 'slit'] as const,
+    supportedFabrics: ['silk_ha_dong', 'brocade_hue', 'linen_modern', 'voile_chiffon'] as const,
+    supportedPatterns: ['plain'] as const,
+    supportedAccessories: ['man_truyen_thong', 'non_la', 'chuoi_ngoc', 'quat_xep', 'tui_coi', 'guoc_moc'] as const,
+    supportedBodyShapes: ['standard', 'petite', 'tall_slender', 'broad_shoulders', 'curvy_hips', 'plus_size'] as const,
+    incompatibleOptionMessages: {
+      traditional_high: 'Mẫu Remix Raglan thiết kế cổ thoáng hiện đại; hãy chuyển sang Mẫu Chuẩn V2 để dùng cổ đứng 4.2cm.',
+      traditional_long: 'Mẫu Remix dùng tay raglan năng động; chuyển sang Mẫu Chuẩn V2 để dùng tay dài truyền thống.',
+    },
+  },
+  aodai_classic_01: {
+    id: 'aodai_classic_01',
+    name: 'Áo Dài Cổ Đứng Truyền Thống (Legacy v1)',
+    category: 'classic',
+    supportedCollars: ['traditional_high'] as const,
+    supportedSleeves: ['traditional_long'] as const,
+    supportedFabrics: ['silk_ha_dong', 'brocade_hue', 'linen_modern', 'voile_chiffon'] as const,
+    supportedPatterns: ['plain'] as const,
+    supportedAccessories: ['man_truyen_thong', 'non_la', 'chuoi_ngoc', 'quat_xep', 'tui_coi', 'guoc_moc'] as const,
+    supportedBodyShapes: ['standard', 'petite', 'tall_slender', 'broad_shoulders', 'curvy_hips', 'plus_size'] as const,
+    incompatibleOptionMessages: {
+      round: 'Mẫu cổ đứng truyền thống v1 không hỗ trợ cổ tròn.',
+      boat: 'Mẫu cổ đứng truyền thống v1 không hỗ trợ cổ thuyền.',
+      v_neck: 'Mẫu cổ đứng truyền thống v1 không hỗ trợ cổ chữ V.',
+      raglan: 'Mẫu cổ đứng truyền thống v1 dùng tay dài ráp vai.',
+      elbow: 'Mẫu cổ đứng truyền thống v1 không hỗ trợ tay lửng.',
+      slit: 'Mẫu cổ đứng truyền thống v1 không hỗ trợ tay xẻ.',
+    },
+  },
+};
+
+export function getModelCapability(modelId: GarmentModelId): ModelCapability {
+  return MODEL_CAPABILITIES[modelId] || MODEL_CAPABILITIES.aodai_traditional_v2;
+}
+
 export const GarmentConfigSchema = z.object({
   garmentType: z.literal('aodai').default('aodai'),
   primaryColor: ColorSchema,
@@ -302,11 +376,17 @@ export const ToggleLockCommandSchema = BaseCommandSchema.extend({
   }),
 });
 
+export const DesignGarmentConfigSchema = GarmentConfigSchema.extend({
+  modelId: GarmentModelIdEnum.optional(),
+  bodyShape: BodyShapeEnum.optional(),
+});
+export type DesignGarmentConfig = z.infer<typeof DesignGarmentConfigSchema>;
+
 export const ApplyPresetCommandSchema = BaseCommandSchema.extend({
   action: z.literal('APPLY_PRESET'),
   payload: z.object({
     presetId: z.string().optional(),
-    config: GarmentConfigSchema,
+    config: DesignGarmentConfigSchema,
     title: z.string().optional(),
     explanation: z.string().optional(),
   }),
@@ -316,7 +396,7 @@ export const ApplyDesignCommandSchema = BaseCommandSchema.extend({
   action: z.literal('APPLY_DESIGN'),
   payload: z.object({
     designId: z.string().optional(),
-    config: GarmentConfigSchema,
+    config: DesignGarmentConfigSchema,
     title: z.string().optional(),
     explanation: z.string().optional(),
     eventId: EventIdEnum.optional(),
@@ -518,6 +598,15 @@ export const DesignProposalRequestSchema = z.object({
   styleId: StyleIdEnum,
   targetLookId: z.string(),
   expectedRevision: z.number(),
+  history: z
+    .array(
+      z.object({
+        role: z.enum(['user', 'assistant']),
+        content: z.string(),
+      })
+    )
+    .optional(),
+  activeProposalConfig: GarmentConfigSchema.optional(),
 });
 export type DesignProposalRequest = z.infer<typeof DesignProposalRequestSchema>;
 

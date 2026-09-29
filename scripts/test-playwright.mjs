@@ -359,7 +359,7 @@ try {
     { name: 'Nhỏ nhắn', file: '3d-body-petite.png' },
     { name: 'Đầy đặn', file: '3d-body-plus-size.png' },
     { name: 'Cao thanh', file: '3d-body-tall-slender.png' },
-    { name: 'Chuẩn Á Đông', file: '3d-body-standard.png' },
+    { name: 'Dáng cơ bản', file: '3d-body-standard.png' },
   ];
   for (const st of shapesToTest) {
     const shapeBtn = page3D.locator(`button:has-text("${st.name}")`).first();
@@ -513,11 +513,11 @@ try {
   const collarSelect = testPage.locator('label:has-text("Cổ áo")').locator('..').locator('select');
   assert.strictEqual(await collarSelect.count(), 1, '[ASSERTION THẤT BÀI]: Không tìm thấy thẻ select Cổ áo bằng locator chuẩn');
 
-  // Exact locator for Tay áo select
-  const sleeveSelect = testPage.locator('label:has-text("Tay áo")').locator('..').locator('select');
-  assert.strictEqual(await sleeveSelect.count(), 1, '[ASSERTION THẤT BÀI]: Không tìm thấy thẻ select Tay áo bằng locator chuẩn');
+  // Exact locator for Chất liệu vải select
+  const testFabricSelect = testPage.locator('label:has-text("Chất liệu vải")').locator('..').locator('select');
+  assert.strictEqual(await testFabricSelect.count(), 1, '[ASSERTION THẤT BÀI]: Không tìm thấy thẻ select Chất liệu vải bằng locator chuẩn');
 
-  console.log('     * Đã xác định đầy đủ các locator tương tác: Chat, Hoàn tác, Đặt lại, Select Cổ áo, Select Tay áo');
+  console.log('     * Đã xác định đầy đủ các locator tương tác: Chat, Hoàn tác, Đặt lại, Select Cổ áo, Select Chất liệu vải');
 
   // 2. Intercept AI Chat to return deterministic 2 sequential commands
   await testPage.route('**/api/ai/chat', async (route) => {
@@ -529,7 +529,7 @@ try {
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
-        reply: 'Tôi gợi ý đổi kiểu tay áo sang tay raglan và đổi màu quần sang đen tuyền.',
+        reply: 'Tôi gợi ý đổi chất liệu vải sang voan tơ chiffon và đổi màu quần sang đen tuyền.',
         explanation: 'Phong cách thanh lịch phù hợp kỷ yếu',
         mode: 'mock',
         model: 'test-guard-model',
@@ -538,8 +538,8 @@ try {
             commandId: '99999999-0001-4000-8000-000000000001',
             lookId: 'look_default_01',
             expectedRevision: curRev,
-            action: 'SET_SLEEVE',
-            payload: { sleeveStyle: 'raglan' },
+            action: 'SET_FABRIC',
+            payload: { fabric: 'voile_chiffon' },
             timestamp: new Date().toISOString(),
           },
           {
@@ -602,8 +602,8 @@ try {
 
   // Assert exactly 1 command pending
   assert.strictEqual(commandRequests.length, 1, '[ASSERTION THẤT BÀI]: Phải có đúng 1 command AI đang pending');
-  assert.strictEqual(commandRequests[0].action, 'SET_SLEEVE', '[ASSERTION THẤT BÀI]: Command đầu tiên phải là SET_SLEEVE');
-  console.log('     * Assertion trạng thái pending: ĐÚNG 1 command AI đang pending (SET_SLEEVE)');
+  assert.strictEqual(commandRequests[0].action, 'SET_FABRIC', '[ASSERTION THẤT BÀI]: Command đầu tiên phải là SET_FABRIC');
+  console.log('     * Assertion trạng thái pending: ĐÚNG 1 command AI đang pending (SET_FABRIC)');
 
   // 5. Test (A) Disabled UI controls: Check disabled properties
   const isUndoDisabled = await undoBtn.isDisabled();
@@ -615,8 +615,8 @@ try {
   const isCollarDisabled = await collarSelect.isDisabled();
   assert(isCollarDisabled, '[ASSERTION THẤT BÀI]: Select Cổ áo phải ở trạng thái disabled khi hệ thống đang bận');
 
-  const isSleeveDisabled = await sleeveSelect.isDisabled();
-  assert(isSleeveDisabled, '[ASSERTION THẤT BÀI]: Select Tay áo phải ở trạng thái disabled khi hệ thống đang bận');
+  const isFabricDisabled = await testFabricSelect.isDisabled();
+  assert(isFabricDisabled, '[ASSERTION THẤT BÀI]: Select Chất liệu vải phải ở trạng thái disabled khi hệ thống đang bận');
 
   console.log('     -> KIỂM TRA (A) DISABLED UI: ĐẠT (Các nút và select đều có thuộc tính disabled)');
 
@@ -649,13 +649,13 @@ try {
   console.log('     * Thả phản hồi lệnh AI đầu tiên...');
   holdFirstCommandResolver();
 
-  // Wait for sleeveSelect value to become 'raglan'
+  // Wait for fabricSelect value to become 'voile_chiffon'
   await testPage.waitForFunction(
     () => {
       const select = Array.from(document.querySelectorAll('select')).find((s) =>
-        s.previousElementSibling?.textContent?.includes('Tay áo')
-      ) || document.querySelectorAll('select')[1];
-      return select && select.value === 'raglan';
+        s.previousElementSibling?.textContent?.includes('Chất liệu vải')
+      );
+      return select && select.value === 'voile_chiffon';
     },
     { timeout: 8000 }
   );
@@ -663,9 +663,9 @@ try {
   assert.strictEqual(commandRequests.length, 2, '[ASSERTION THẤT BÀI]: Cả 2 command AI phải được gửi lên server');
   assert.strictEqual(commandRequests[1].action, 'SET_PANTS_COLOR', '[ASSERTION THẤT BÀI]: Command thứ hai phải là SET_PANTS_COLOR');
 
-  const currentSleeveValue = await sleeveSelect.inputValue();
-  assert.strictEqual(currentSleeveValue, 'raglan', '[ASSERTION THẤT BÀI]: UI phải hiển thị giá trị tay áo mới là "raglan"');
-  console.log('     * Assertion thực thi 2 lệnh AI: ĐẠT (sleeve=raglan, pants=black)');
+  const currentFabricValue = await testFabricSelect.inputValue();
+  assert.strictEqual(currentFabricValue, 'voile_chiffon', '[ASSERTION THẤT BÀI]: UI phải hiển thị giá trị chất liệu mới là "voile_chiffon"');
+  console.log('     * Assertion thực thi 2 lệnh AI: ĐẠT (fabric=voile_chiffon, pants=black)');
 
   // 8. Test interaction re-opening and RESET_OUTFIT
   console.log('     * Kiểm tra giao diện mở lại tương tác bình thường sau khi hoàn thành...');

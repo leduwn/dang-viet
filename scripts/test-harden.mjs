@@ -98,10 +98,11 @@ try {
       styleId: 'thanh_lich',
       config: {
         garmentType: 'aodai',
+        modelId: 'aodai_remix_raglan',
         primaryColor: { hex: '#F8F5EE', name: 'Trắng sứ ngà', family: 'white' },
         pantsColor: { hex: '#FFFFFF', name: 'Trắng tinh khôi', family: 'white' },
-        collarStyle: 'traditional_high',
-        sleeveStyle: 'traditional_long',
+        collarStyle: 'round',
+        sleeveStyle: 'raglan',
         fabric: 'silk_ha_dong',
         pattern: 'plain',
         accessories: [],
@@ -261,7 +262,7 @@ try {
   });
   assert.strictEqual(undo1.status, 200);
   assert.strictEqual(undo1.data.look.revision, 5, 'Revision phải tăng đơn điệu lên 5 để tránh xung đột');
-  assert.strictEqual(undo1.data.look.config.collarStyle, 'traditional_high', 'Cổ áo đã được khôi phục về traditional_high');
+  assert.strictEqual(undo1.data.look.config.collarStyle, initialCollar, `Cổ áo đã được khôi phục về ${initialCollar}`);
   assert.strictEqual(undo1.data.look.config.pantsColor.name, 'Đen tuyền dạ hội', 'Màu quần vẫn giữ ở bước 2');
   currentLook = undo1.data.look;
 
@@ -567,6 +568,9 @@ try {
       timestamp: new Date().toISOString(),
     }),
   });
+  if (userFastAction.status !== 200) {
+    console.error('userFastAction error details:', userFastAction);
+  }
   assert.strictEqual(userFastAction.status, 200);
 
   // Phản hồi AI đến muộn (mang expectedRevision cũ)

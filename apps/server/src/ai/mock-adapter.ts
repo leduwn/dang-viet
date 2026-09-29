@@ -14,6 +14,7 @@ import {
   type AccessoryId,
   type DesignProposal,
   type DesignProposalRequest,
+  getModelCapability,
 } from '@dangviet/contracts';
 import { computeProposalDiff } from '@dangviet/domain';
 import { type AIAdapter } from './adapter.js';
@@ -255,29 +256,28 @@ export class MockAIAdapter implements AIAdapter {
     baseLook?: Look
   ): Promise<{ config: GarmentConfig; title: string; explanation: string; mode?: 'mock' | 'live'; model?: string }> {
     const text = req.prompt.toLowerCase();
+    const targetModel = baseLook?.config?.modelId || 'aodai_traditional_v2';
+    const capability = getModelCapability(targetModel);
 
-    // Gen Z remix style logic
+    // Initial palette matching prompt
     let primaryColor: Color = { hex: '#2E8B7A', name: 'Xanh ngọc bích', family: 'green' };
-    let pantsColor: Color = { hex: '#E8A598', name: 'Hồng sen phấn', family: 'pink' };
-    let collarStyle: CollarStyle = 'v_neck';
-    let sleeveStyle: SleeveStyle = 'slit';
-    let fabric: Fabric = 'voile_chiffon';
-    let pattern: Pattern = 'geometric_genz';
-    const accessories: AccessoryId[] = ['quat_xep', 'tui_coi'];
+    let pantsColor: Color = { hex: '#FFFFFF', name: 'Trắng tinh khôi', family: 'white' };
+    let collarStyle: CollarStyle = capability.supportedCollars[0];
+    let sleeveStyle: SleeveStyle = capability.supportedSleeves[0];
+    let fabric: Fabric = capability.supportedFabrics[0];
+    let pattern: Pattern = capability.supportedPatterns[0];
+    const accessories: AccessoryId[] = ['quat_xep'];
 
     if (text.includes('sen') || text.includes('hồng')) {
       primaryColor = { hex: '#E8A598', name: 'Hồng sen phấn', family: 'pink' };
       pantsColor = { hex: '#FFFFFF', name: 'Trắng tinh khôi', family: 'white' };
-      pattern = 'lotus';
-    } else if (text.includes('gấm') || text.includes('vàng') || text.includes('hoàng gia')) {
+    } else if (text.includes('gấm') || text.includes('vàng') || text.includes('hoàng gia') || text.includes('đỏ')) {
       primaryColor = { hex: '#B83A24', name: 'Đỏ son hoàng gia', family: 'red' };
-      pantsColor = { hex: '#E5A93C', name: 'Vàng hoàng yến', family: 'yellow' };
-      fabric = 'brocade_hue';
-      pattern = 'cloud';
+      pantsColor = { hex: '#FFFFFF', name: 'Trắng tinh khôi', family: 'white' };
+      if (capability.supportedFabrics.includes('brocade_hue')) fabric = 'brocade_hue';
     } else if (text.includes('mây') || text.includes('xanh')) {
       primaryColor = { hex: '#1F4E5B', name: 'Xanh cố đô trầm', family: 'blue' };
-      pantsColor = { hex: '#70A9A1', name: 'Xanh thiên thanh', family: 'blue' };
-      pattern = 'cloud';
+      pantsColor = { hex: '#FFFFFF', name: 'Trắng tinh khôi', family: 'white' };
     }
 
     // Preserve locked fields from baseLook if provided
@@ -294,8 +294,8 @@ export class MockAIAdapter implements AIAdapter {
       }
     }
 
-    const title = `Thiết kế Remix: ${primaryColor.name} & ${pantsColor.name}`;
-    const explanation = `Thiết kế phá cách kết hợp giữa phom dáng áo dài truyền thống với phong cách phối màu tương phản Gen Z (${primaryColor.name} cùng ${pantsColor.name}), họa tiết ${pattern === 'geometric_genz' ? 'kỷ hà đương đại' : pattern} tạo diện mạo tràn đầy năng lượng tươi mới.`;
+    const title = `Thiết kế: ${primaryColor.name} & ${pantsColor.name}`;
+    const explanation = `Thiết kế kết hợp hài hòa giữa phom dáng chuẩn mực (${capability.name}) với bảng màu ${primaryColor.name} và ${pantsColor.name}.`;
 
     const config: GarmentConfig = {
       garmentType: 'aodai',
@@ -307,7 +307,7 @@ export class MockAIAdapter implements AIAdapter {
       pattern,
       accessories,
       bodyShape: baseLook?.config?.bodyShape || 'standard',
-      modelId: baseLook?.config?.modelId || 'aodai_traditional_v2',
+      modelId: targetModel,
     };
 
     return { config, title, explanation, mode: 'mock', model: 'dangviet-rules-v1' };
@@ -317,32 +317,239 @@ export class MockAIAdapter implements AIAdapter {
     req: DesignProposalRequest,
     baseLook: Look
   ): Promise<DesignProposal> {
-    const structured = await this.generateStructuredDesign(
-      {
-        prompt: req.prompt,
-        eventId: req.eventId,
-        styleId: req.styleId,
-        baseLookId: req.targetLookId,
-      },
-      baseLook
-    );
-
-    // Strictly preserve bodyShape and locks from baseLook
-    structured.config.bodyShape = baseLook.config.bodyShape;
-
-    const diff = computeProposalDiff(baseLook.config, structured.config);
-
-    // Citations from published culture cards if relevant
-    const cards = dbRepo.getCultureCards('published');
+    const text = req.prompt.toLowerCase().trim();
+    const unsupportedRequests: string[] = [];
+    const warnings: string[] = [];
     const citations: Array<{ title: string; source: string; ref: string }> = [];
-    if (cards.length > 0) {
-      const topCard = cards[0];
-      citations.push({
-        title: topCard.title,
-        source: topCard.sourceName,
-        ref: topCard.sourceEvidence,
-      });
+
+    // 1. Determine starting base configuration: activeProposalConfig if follow-up, else baseLook.config
+    const isFollowUp = Boolean(
+      req.activeProposalConfig &&
+      (text.includes('phương án vừa') || text.includes('đề xuất vừa') || text.includes('chỉnh tiếp') || text.includes('sửa lại') || text.includes('tiếp tục'))
+    );
+    const sourceConfig = isFollowUp && req.activeProposalConfig ? req.activeProposalConfig : baseLook.config;
+
+    let targetModelId = sourceConfig.modelId || 'aodai_traditional_v2';
+    if (text.includes('raglan') || text.includes('cách tân') || text.includes('remix')) {
+      if (baseLook.locks.modelId) {
+        warnings.push('Mẫu áo dài đang bị khóa nên giữ nguyên mẫu hiện tại.');
+      } else {
+        targetModelId = 'aodai_remix_raglan';
+      }
+    } else if (text.includes('truyền thống v2') || text.includes('cổ 4.2cm') || text.includes('cổ đứng')) {
+      if (baseLook.locks.modelId) {
+        warnings.push('Mẫu áo dài đang bị khóa nên giữ nguyên mẫu hiện tại.');
+      } else {
+        targetModelId = 'aodai_traditional_v2';
+      }
     }
+
+    const capability = getModelCapability(targetModelId);
+
+    // Deep clone starting config
+    const proposedConfig: GarmentConfig = {
+      ...sourceConfig,
+      modelId: targetModelId,
+      accessories: [...sourceConfig.accessories],
+      // Body shape is strictly invariant to user's body
+      bodyShape: baseLook.config.bodyShape,
+    };
+
+    // 2. Color processing
+    // Pants Color
+    if (text.includes('quần')) {
+      if (baseLook.locks.pantsColor) {
+        warnings.push('Màu quần đang bị khóa nên giữ nguyên theo khóa của bạn.');
+      } else {
+        if (text.includes('trắng')) {
+          proposedConfig.pantsColor = { hex: '#FFFFFF', name: 'Trắng tinh khôi', family: 'white' };
+        } else if (text.includes('đen')) {
+          proposedConfig.pantsColor = { hex: '#1E1B18', name: 'Đen tuyền dạ hội', family: 'black' };
+        } else if (text.includes('vàng')) {
+          proposedConfig.pantsColor = { hex: '#E5A93C', name: 'Vàng hoàng yến', family: 'yellow' };
+        } else if (text.includes('hồng')) {
+          proposedConfig.pantsColor = { hex: '#E8A598', name: 'Hồng sen phấn', family: 'pink' };
+        } else if (text.includes('xanh')) {
+          proposedConfig.pantsColor = { hex: '#70A9A1', name: 'Xanh thiên thanh', family: 'blue' };
+        }
+      }
+    }
+
+    // Primary Shirt Color
+    if (text.includes('giữ màu áo') || text.includes('giữ nguyên màu áo')) {
+      // Explicitly keep shirt color
+      proposedConfig.primaryColor = baseLook.config.primaryColor;
+    } else if (text.includes('áo') || text.includes('màu đỏ') || text.includes('màu xanh') || text.includes('màu vàng') || text.includes('màu hồng') || text.includes('màu lam') || text.includes('màu tím')) {
+      if (baseLook.locks.primaryColor) {
+        warnings.push('Màu áo đang bị khóa nên giữ nguyên theo khóa của bạn.');
+      } else {
+        if (text.includes('đỏ')) {
+          proposedConfig.primaryColor = { hex: '#B83A24', name: 'Đỏ son hoàng gia', family: 'red' };
+        } else if (text.includes('xanh ngọc')) {
+          proposedConfig.primaryColor = { hex: '#2E8B7A', name: 'Xanh ngọc bích', family: 'green' };
+        } else if (text.includes('xanh') || text.includes('lam')) {
+          proposedConfig.primaryColor = { hex: '#1F4E5B', name: 'Xanh cố đô trầm', family: 'blue' };
+        } else if (text.includes('vàng')) {
+          proposedConfig.primaryColor = { hex: '#E5A93C', name: 'Vàng hoàng yến', family: 'yellow' };
+        } else if (text.includes('hồng') || text.includes('sen')) {
+          proposedConfig.primaryColor = { hex: '#E8A598', name: 'Hồng sen phấn', family: 'pink' };
+        } else if (text.includes('tím')) {
+          proposedConfig.primaryColor = { hex: '#5D3A68', name: 'Tím huế trầm', family: 'purple' };
+        } else if (text.includes('trắng')) {
+          proposedConfig.primaryColor = { hex: '#F8F5EE', name: 'Trắng sứ ngà', family: 'white' };
+        }
+      }
+    }
+
+    // 3. Collar check vs Capability
+    if (text.includes('cổ tròn')) {
+      if (capability.supportedCollars.includes('round')) {
+        if (baseLook.locks.collarStyle) warnings.push('Cổ áo đang bị khóa.');
+        else proposedConfig.collarStyle = 'round';
+      } else {
+        unsupportedRequests.push(capability.incompatibleOptionMessages.round || `Mẫu áo ${capability.name} không hỗ trợ cổ tròn.`);
+      }
+    } else if (text.includes('cổ thuyền')) {
+      if (capability.supportedCollars.includes('boat')) {
+        if (baseLook.locks.collarStyle) warnings.push('Cổ áo đang bị khóa.');
+        else proposedConfig.collarStyle = 'boat';
+      } else {
+        unsupportedRequests.push(capability.incompatibleOptionMessages.boat || `Mẫu áo ${capability.name} không hỗ trợ cổ thuyền.`);
+      }
+    } else if (text.includes('cổ v') || text.includes('chữ v')) {
+      if (capability.supportedCollars.includes('v_neck')) {
+        if (baseLook.locks.collarStyle) warnings.push('Cổ áo đang bị khóa.');
+        else proposedConfig.collarStyle = 'v_neck';
+      } else {
+        unsupportedRequests.push(capability.incompatibleOptionMessages.v_neck || `Mẫu áo ${capability.name} không hỗ trợ cổ chữ V.`);
+      }
+    } else if (text.includes('cổ cao') || text.includes('cổ đứng')) {
+      if (capability.supportedCollars.includes('traditional_high')) {
+        if (baseLook.locks.collarStyle) warnings.push('Cổ áo đang bị khóa.');
+        else proposedConfig.collarStyle = 'traditional_high';
+      }
+    }
+
+    // 4. Sleeve check vs Capability
+    if (text.includes('tay lửng')) {
+      if (capability.supportedSleeves.includes('elbow')) {
+        if (baseLook.locks.sleeveStyle) warnings.push('Tay áo đang bị khóa.');
+        else proposedConfig.sleeveStyle = 'elbow';
+      } else {
+        unsupportedRequests.push(capability.incompatibleOptionMessages.elbow || `Mẫu áo ${capability.name} không hỗ trợ tay lửng.`);
+      }
+    } else if (text.includes('tay xẻ')) {
+      if (capability.supportedSleeves.includes('slit')) {
+        if (baseLook.locks.sleeveStyle) warnings.push('Tay áo đang bị khóa.');
+        else proposedConfig.sleeveStyle = 'slit';
+      } else {
+        unsupportedRequests.push(capability.incompatibleOptionMessages.slit || `Mẫu áo ${capability.name} không hỗ trợ tay xẻ.`);
+      }
+    } else if (text.includes('tay raglan')) {
+      if (capability.supportedSleeves.includes('raglan')) {
+        if (baseLook.locks.sleeveStyle) warnings.push('Tay áo đang bị khóa.');
+        else proposedConfig.sleeveStyle = 'raglan';
+      } else {
+        unsupportedRequests.push(capability.incompatibleOptionMessages.raglan || `Mẫu áo ${capability.name} không hỗ trợ tay raglan.`);
+      }
+    }
+
+    // 5. Fabric & Style nuances
+    if (text.includes('thanh lịch') || text.includes('lụa')) {
+      if (!baseLook.locks.fabric && capability.supportedFabrics.includes('silk_ha_dong')) {
+        proposedConfig.fabric = 'silk_ha_dong';
+      }
+    } else if (text.includes('gấm')) {
+      if (!baseLook.locks.fabric && capability.supportedFabrics.includes('brocade_hue')) {
+        proposedConfig.fabric = 'brocade_hue';
+      }
+    } else if (text.includes('voan')) {
+      if (!baseLook.locks.fabric && capability.supportedFabrics.includes('voile_chiffon')) {
+        proposedConfig.fabric = 'voile_chiffon';
+      }
+    }
+
+    // Ensure collar/sleeve/fabric/pattern remain valid under target capability
+    if (!capability.supportedCollars.includes(proposedConfig.collarStyle)) {
+      proposedConfig.collarStyle = capability.supportedCollars[0];
+    }
+    if (!capability.supportedSleeves.includes(proposedConfig.sleeveStyle)) {
+      proposedConfig.sleeveStyle = capability.supportedSleeves[0];
+    }
+    if (!capability.supportedFabrics.includes(proposedConfig.fabric)) {
+      proposedConfig.fabric = capability.supportedFabrics[0];
+    }
+    if (!capability.supportedPatterns.includes(proposedConfig.pattern)) {
+      proposedConfig.pattern = capability.supportedPatterns[0];
+    }
+
+    // 6. Accessories
+    if (text.includes('bớt phụ kiện') || text.includes('ít phụ kiện') || text.includes('bỏ bớt phụ kiện') || text.includes('giảm phụ kiện')) {
+      if (baseLook.locks.accessories) {
+        warnings.push('Phụ kiện đang bị khóa nên giữ nguyên.');
+      } else {
+        proposedConfig.accessories = proposedConfig.accessories.filter(a => a === 'quat_xep').slice(0, 1);
+      }
+    } else if (text.includes('không phụ kiện') || text.includes('bỏ hết phụ kiện') || text.includes('bỏ phụ kiện')) {
+      if (baseLook.locks.accessories) {
+        warnings.push('Phụ kiện đang bị khóa nên giữ nguyên.');
+      } else {
+        proposedConfig.accessories = [];
+      }
+    } else if (text.includes('chỉ giữ nón lá') || text.includes('chỉ lấy nón lá')) {
+      if (baseLook.locks.accessories) {
+        warnings.push('Phụ kiện đang bị khóa nên giữ nguyên.');
+      } else {
+        proposedConfig.accessories = ['non_la'];
+      }
+    } else if (text.includes('chỉ giữ mấn')) {
+      if (baseLook.locks.accessories) {
+        warnings.push('Phụ kiện đang bị khóa nên giữ nguyên.');
+      } else {
+        proposedConfig.accessories = ['man_truyen_thong'];
+      }
+    } else {
+      if (!baseLook.locks.accessories) {
+        if (text.includes('bỏ túi')) proposedConfig.accessories = proposedConfig.accessories.filter(a => a !== 'tui_coi');
+        if (text.includes('bỏ nón')) proposedConfig.accessories = proposedConfig.accessories.filter(a => a !== 'non_la');
+        if (text.includes('bỏ mấn')) proposedConfig.accessories = proposedConfig.accessories.filter(a => a !== 'man_truyen_thong');
+        if (text.includes('bỏ quạt')) proposedConfig.accessories = proposedConfig.accessories.filter(a => a !== 'quat_xep');
+        if (text.includes('bỏ ngọc')) proposedConfig.accessories = proposedConfig.accessories.filter(a => a !== 'chuoi_ngoc');
+        if (text.includes('thêm nón') && !proposedConfig.accessories.includes('non_la')) {
+          proposedConfig.accessories.push('non_la');
+          proposedConfig.accessories = proposedConfig.accessories.filter(a => a !== 'man_truyen_thong');
+        }
+        if (text.includes('thêm mấn') && !proposedConfig.accessories.includes('man_truyen_thong')) {
+          proposedConfig.accessories.push('man_truyen_thong');
+          proposedConfig.accessories = proposedConfig.accessories.filter(a => a !== 'non_la');
+        }
+        if (text.includes('thêm quạt') && !proposedConfig.accessories.includes('quat_xep')) {
+          proposedConfig.accessories.push('quat_xep');
+        }
+      }
+    }
+
+    // 7. Citations from published culture cards
+    const cards = dbRepo.getCultureCards('published');
+    if (cards.length > 0) {
+      if (proposedConfig.fabric === 'silk_ha_dong') {
+        const cLua = cards.find(x => x.id === 'card_verified_lua_van_phuc');
+        if (cLua) citations.push({ title: cLua.title, source: cLua.sourceName, ref: cLua.slug });
+      }
+      const cLichSu = cards.find(x => x.id === 'card_verified_lich_su_ao_dai');
+      if (cLichSu && !citations.some(c => c.ref === cLichSu.slug)) {
+        citations.push({ title: cLichSu.title, source: cLichSu.sourceName, ref: cLichSu.slug });
+      }
+    }
+
+    // 8. Title and explanation
+    const title = `Thiết kế: ${proposedConfig.primaryColor.name} & ${proposedConfig.pantsColor.name}`;
+    let explanation = `Bộ phối được tinh chỉnh theo yêu cầu: sắc ${proposedConfig.primaryColor.name} kết hợp cùng quần ${proposedConfig.pantsColor.name}.`;
+    if (unsupportedRequests.length > 0) {
+      explanation += ` Lưu ý: ${unsupportedRequests.join(' ')}`;
+    }
+
+    const diff = computeProposalDiff(baseLook.config, proposedConfig);
 
     return {
       schemaVersion: '2.0.0',
@@ -350,12 +557,12 @@ export class MockAIAdapter implements AIAdapter {
       targetLookId: baseLook.id,
       baseRevision: baseLook.revision,
       catalogVersion: '2.0.0',
-      title: structured.title,
-      proposedConfig: structured.config,
+      title,
+      proposedConfig,
       diff,
-      explanation: structured.explanation,
-      unsupportedRequests: [],
-      warnings: [],
+      explanation,
+      unsupportedRequests,
+      warnings,
       citations,
       mode: 'mock',
       model: 'dangviet-rules-v1',

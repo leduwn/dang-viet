@@ -342,7 +342,7 @@ export const AoDai3DViewer: React.FC<AoDai3DViewerProps> = ({
             dpr={[1, 1.75]} // Bound DPR for mobile performance & battery preservation
             camera={{ position: renderSpec.cameraInitialPos, fov: 42 }}
             style={{ width: '100%', height: '100%' }}
-            gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
+            gl={{ antialias: true, alpha: true, powerPreference: 'high-performance', preserveDrawingBuffer: true }}
           >
             <SceneManager
               autoRotate={autoRotate}

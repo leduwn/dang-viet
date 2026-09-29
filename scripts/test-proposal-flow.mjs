@@ -115,9 +115,9 @@ const bodyShapeProposal = {
   proposedConfig: {
     ...baseLook.config,
     bodyShape: 'tall_slender', // AI suggested changing body shape
-    collarStyle: 'v_neck',
+    collarStyle: 'traditional_high',
   },
-  diff: { changedFields: ['bodyShape', 'collarStyle'], addedAccessories: [], removedAccessories: [], colorChanges: [] },
+  diff: { changedFields: ['bodyShape'], addedAccessories: [], removedAccessories: [], colorChanges: [] },
   explanation: 'Đề xuất đổi phom dáng',
   unsupportedRequests: [],
   warnings: [],
@@ -190,11 +190,13 @@ const validProposal = {
   title: 'Thiết kế Hợp lệ Mới',
   proposedConfig: {
     ...baseLook.config,
+    modelId: 'aodai_remix_raglan',
     collarStyle: 'round',
+    sleeveStyle: 'raglan',
     fabric: 'linen_modern',
     accessories: ['quat_xep'],
   },
-  diff: { changedFields: ['collarStyle', 'fabric', 'accessories'], addedAccessories: ['quat_xep'], removedAccessories: ['non_la'], colorChanges: [] },
+  diff: { changedFields: ['modelId', 'collarStyle', 'sleeveStyle', 'fabric', 'accessories'], addedAccessories: ['quat_xep'], removedAccessories: ['non_la'], colorChanges: [] },
   explanation: 'Thiết kế mới hợp lệ',
   unsupportedRequests: [],
   warnings: [],

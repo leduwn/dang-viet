@@ -48,6 +48,14 @@ export const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [viewingDesignTitle, setViewingDesignTitle] = useState<string | null>(null);
+  const [bannerMessage, setBannerMessage] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
+
+  useEffect(() => {
+    if (bannerMessage) {
+      const timer = setTimeout(() => setBannerMessage(null), 4500);
+      return () => clearTimeout(timer);
+    }
+  }, [bannerMessage]);
 
   // Synchronous in-flight mutation guard preventing rapid double clicks
   const isMutatingRef = useRef(false);
@@ -408,6 +416,35 @@ export const App: React.FC = () => {
     <div className="app-container">
       <Navbar currentTab={currentTab} onSelectTab={setCurrentTab} aiStatus={aiStatus} />
 
+      {bannerMessage && (
+        <div
+          style={{
+            maxWidth: '1200px',
+            margin: '0.75rem auto 0 auto',
+            padding: '0.65rem 1.25rem',
+            borderRadius: 'var(--radius-md)',
+            background: bannerMessage.type === 'success' ? '#E8F5E9' : bannerMessage.type === 'info' ? '#E1F5FE' : '#FFEBEE',
+            color: bannerMessage.type === 'success' ? '#2E7D32' : bannerMessage.type === 'info' ? '#0277BD' : '#C62828',
+            border: `1px solid ${bannerMessage.type === 'success' ? '#A5D6A7' : bannerMessage.type === 'info' ? '#81D4FA' : '#FFCDD2'}`,
+            fontSize: '0.86rem',
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            boxShadow: 'var(--shadow-sm)',
+            zIndex: 99,
+          }}
+        >
+          <span>{bannerMessage.text}</span>
+          <button
+            onClick={() => setBannerMessage(null)}
+            style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontWeight: 700, fontSize: '0.9rem', color: 'inherit' }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       <main style={{ flex: 1 }}>
         {currentTab === 'explore' && (
           <ExploreSection
@@ -436,6 +473,7 @@ export const App: React.FC = () => {
             styles={meta.styles}
             colors={meta.colors}
             catalog={meta.catalog}
+            cultureCards={cultureCards}
             onDispatchCommand={handleDispatchCommand}
             onUndo={handleUndo}
             onReset={handleReset}
@@ -453,13 +491,15 @@ export const App: React.FC = () => {
             currentLook={look}
             events={meta.events}
             styles={meta.styles}
-            onRequestProposal={async (prompt, eventId, styleId) => {
+            onRequestProposal={async (prompt, eventId, styleId, history, activeProposalConfig) => {
               return requestDesignProposal({
                 targetLookId: look.id,
                 prompt,
                 eventId: eventId as any,
                 styleId: styleId as any,
                 expectedRevision: look.revision,
+                history,
+                activeProposalConfig,
               });
             }}
             onApplyProposal={async (proposal, eventId, styleId) => {
@@ -524,6 +564,29 @@ export const App: React.FC = () => {
             lookbookItems={lookbookItems}
             onOpenInStudio={(item) => {
               setCurrentTab('studio');
+              const preservedLocks: string[] = [];
+              if (look.locks.primaryColor && look.config.primaryColor.hex !== item.snapshotConfig.primaryColor.hex) preservedLocks.push('Màu áo');
+              if (look.locks.pantsColor && look.config.pantsColor.hex !== item.snapshotConfig.pantsColor.hex) preservedLocks.push('Màu quần');
+              if (look.locks.collarStyle && look.config.collarStyle !== item.snapshotConfig.collarStyle) preservedLocks.push('Cổ áo');
+              if (look.locks.sleeveStyle && look.config.sleeveStyle !== item.snapshotConfig.sleeveStyle) preservedLocks.push('Tay áo');
+              if (look.locks.fabric && look.config.fabric !== item.snapshotConfig.fabric) preservedLocks.push('Chất liệu');
+              if (look.locks.pattern && look.config.pattern !== item.snapshotConfig.pattern) preservedLocks.push('Họa tiết');
+              if (look.locks.accessories) preservedLocks.push('Phụ kiện');
+              if (look.locks.bodyShape && look.config.bodyShape !== item.snapshotConfig.bodyShape) preservedLocks.push('Vóc dáng');
+              if (look.locks.modelId && look.config.modelId !== item.snapshotConfig.modelId) preservedLocks.push('Mẫu áo');
+
+              if (preservedLocks.length > 0) {
+                setBannerMessage({
+                  text: `Mở bản phối '${item.title}': Đang bảo lưu các thuộc tính bị khóa (${preservedLocks.join(', ')}).`,
+                  type: 'info',
+                });
+              } else {
+                setBannerMessage({
+                  text: `Đã mở bản phối '${item.title}' vào phòng phối đồ.`,
+                  type: 'success',
+                });
+              }
+
               handleDispatchCommand('APPLY_DESIGN', {
                 config: item.snapshotConfig,
                 title: item.title,

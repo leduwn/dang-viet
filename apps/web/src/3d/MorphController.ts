@@ -35,6 +35,7 @@ export class MorphController {
     const tallW = weights.morph_tall_slender || 0.0;
     const broadW = weights.morph_broad_shoulders || 0.0;
     const plusW = weights.morph_plus_size || 0.0;
+    const curvyW = weights.morph_curvy_hips || 0.0;
 
     switch (socketName) {
       case 'head': {
@@ -60,7 +61,8 @@ export class MorphController {
 
       case 'right_hand': {
         // Right hand base [0.290, 0.770, 0.000]
-        const xOffset = -0.026 * petiteW + 0.012 * tallW + 0.024 * broadW + 0.035 * plusW;
+        // Offset laterally (X) for broad shoulders, plus size, and curvy hips to avoid clipping through thighs/hips
+        const xOffset = -0.026 * petiteW + 0.012 * tallW + 0.024 * broadW + 0.035 * plusW + 0.032 * curvyW;
         const yOffset = -0.042 * petiteW + 0.032 * tallW;
         return {
           position: [xOffset, yOffset, 0],
@@ -70,7 +72,7 @@ export class MorphController {
 
       case 'left_hand': {
         // Left hand base [-0.290, 0.770, 0.000]
-        const xOffset = 0.026 * petiteW - 0.012 * tallW - 0.024 * broadW - 0.035 * plusW;
+        const xOffset = 0.026 * petiteW - 0.012 * tallW - 0.024 * broadW - 0.035 * plusW - 0.032 * curvyW;
         const yOffset = -0.042 * petiteW + 0.032 * tallW;
         return {
           position: [xOffset, yOffset, 0],

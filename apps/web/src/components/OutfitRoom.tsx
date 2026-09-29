@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   type Look,
   type EventItem,
@@ -8,9 +8,11 @@ import {
   type CommandAction,
   type MutationResult,
   type SaveLookbookResult,
+  type CultureCard,
 } from '@dangviet/contracts';
 import { AoDaiVisualizer } from './AoDaiVisualizer.tsx';
 import { AoDai3DViewer } from './AoDai3DViewer.tsx';
+import { exportCustomizationPng } from '../utils/exportImage.ts';
 import {
   Lock,
   Unlock,
@@ -21,6 +23,13 @@ import {
   GitCompare,
   Check,
   Info,
+  Download,
+  BookOpen,
+  CheckCircle2,
+  AlertCircle,
+  ChevronDown,
+  ChevronUp,
+  ExternalLink,
 } from 'lucide-react';
 
 interface OutfitRoomProps {
@@ -29,6 +38,7 @@ interface OutfitRoomProps {
   styles: StyleItem[];
   colors: Color[];
   catalog: any;
+  cultureCards?: CultureCard[];
   onDispatchCommand: (action: CommandAction, payload: any) => Promise<MutationResult>;
   onUndo: () => Promise<MutationResult>;
   onReset: () => Promise<MutationResult>;
@@ -49,6 +59,7 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
   styles,
   colors,
   catalog,
+  cultureCards = [],
   onDispatchCommand,
   onUndo,
   onReset,
@@ -80,15 +91,55 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
   const [isAiThinking, setIsAiThinking] = useState(false);
   const [isMutating, setIsMutating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [expandedCardId, setExpandedCardId] = useState<string | null>(null);
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [mobileTab, setMobileTab] = useState<'customize' | 'ai'>('customize');
   const [visualizerMode, setVisualizerMode] = useState<'3d' | '2d'>('3d');
+
+  const publishedCards = useMemo(() => cultureCards.filter((c) => c.status === 'published'), [cultureCards]);
+  const relevantCards = useMemo(() => {
+    if (cultureCards.length === 0) return [];
+    // Prioritize published cards, then review cards
+    return [...cultureCards].sort((a, b) => {
+      if (a.status === 'published' && b.status !== 'published') return -1;
+      if (a.status !== 'published' && b.status === 'published') return 1;
+      return 0;
+    }).slice(0, 4);
+  }, [cultureCards]);
 
   const isBusyEffective = isMutating || isBusy || isLoading;
 
   const showNotification = (msg: string, type: 'success' | 'error' | 'info' = 'success') => {
     setNotification({ message: msg, type });
     setTimeout(() => setNotification(null), 3500);
+  };
+
+  const handleExportPngAction = async () => {
+    if (isBusyEffective || isExporting) return;
+    setIsExporting(true);
+    try {
+      showNotification('Đang tạo và kết xuất ảnh minh họa 3D có thương hiệu Dáng Việt...', 'info');
+      const canvasEl = document.querySelector('.aodai-3d-container canvas') as HTMLCanvasElement | null;
+      const svgEl = document.querySelector('.col-visualizer svg') as SVGSVGElement | null;
+
+      const eventItem = events.find((e) => e.id === look.eventId);
+      const styleItem = styles.find((s) => s.id === look.styleId);
+
+      await exportCustomizationPng({
+        look,
+        canvasElement: canvasEl,
+        svgElement: svgEl,
+        eventLabel: eventItem?.name,
+        styleLabel: styleItem?.name,
+      });
+
+      showNotification('Đã xuất ảnh bản phối thành công (1200x1600 PNG)!', 'success');
+    } catch (err: any) {
+      showNotification(`Lỗi xuất ảnh: ${err.message}`, 'error');
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const handleCommand = async (action: CommandAction, payload: any) => {
@@ -478,6 +529,155 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
               <GitCompare size={15} />
               <span>So sánh 2 bộ</span>
             </button>
+
+            <button
+              onClick={handleExportPngAction}
+              disabled={isBusyEffective || isExporting}
+              title="Xuất ảnh bản phối độ phân giải cao 1200x1600 kèm thông tin và logo Dáng Việt"
+              style={{
+                gridColumn: 'span 2',
+                padding: '0.65rem',
+                borderRadius: 'var(--radius-md)',
+                background: 'rgba(184, 58, 36, 0.08)',
+                color: 'var(--accent-red)',
+                fontWeight: 700,
+                fontSize: '0.84rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.45rem',
+                border: '1.5px solid var(--accent-red)',
+                cursor: (isBusyEffective || isExporting) ? 'not-allowed' : 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <Download size={16} />
+              <span>{isExporting ? 'Đang xuất ảnh...' : 'Xuất ảnh bản phối 3D (PNG)'}</span>
+            </button>
+          </div>
+
+          {/* ======================================================== */}
+          {/* CULTURAL CITATIONS & VERIFIED SOURCES ACCORDION */}
+          {/* ======================================================== */}
+          <div
+            style={{
+              background: 'var(--bg-surface)',
+              borderRadius: 'var(--radius-lg)',
+              padding: '1.15rem',
+              border: '1px solid var(--border-light)',
+              boxShadow: 'var(--shadow-sm)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.65rem',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <BookOpen size={16} className="text-accent-red" />
+                <h3 style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
+                  Tư liệu văn hóa xác thực
+                </h3>
+              </div>
+              <span
+                style={{
+                  fontSize: '0.68rem',
+                  padding: '0.15rem 0.45rem',
+                  borderRadius: 'var(--radius-full)',
+                  background: 'var(--accent-blue-soft)',
+                  color: 'var(--accent-blue)',
+                  fontWeight: 700,
+                }}
+              >
+                {publishedCards.length} bài đã kiểm chứng
+              </span>
+            </div>
+
+            <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.45, margin: 0 }}>
+              Dáng Việt đối chiếu nguồn sử liệu và hiện vật bảo tàng. Chỉ tư liệu có căn cứ khoa học mới được gắn nhãn [Đã kiểm chứng].
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.2rem' }}>
+              {relevantCards.map((card) => {
+                const isPublished = card.status === 'published';
+                const isExpanded = expandedCardId === card.id;
+                return (
+                  <div
+                    key={card.id}
+                    style={{
+                      background: 'var(--bg-subtle)',
+                      borderRadius: 'var(--radius-md)',
+                      padding: '0.65rem',
+                      border: `1px solid ${isPublished ? 'rgba(46, 125, 50, 0.25)' : 'rgba(230, 81, 0, 0.25)'}`,
+                    }}
+                  >
+                    <div
+                      onClick={() => setExpandedCardId(isExpanded ? null : card.id)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        justifyContent: 'space-between',
+                        cursor: 'pointer',
+                        gap: '0.4rem',
+                      }}
+                    >
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.25rem', flexWrap: 'wrap' }}>
+                          <span
+                            style={{
+                              fontSize: '0.66rem',
+                              fontWeight: 700,
+                              padding: '0.1rem 0.4rem',
+                              borderRadius: 'var(--radius-full)',
+                              background: isPublished ? '#E8F5E9' : '#FFF3E0',
+                              color: isPublished ? '#2E7D32' : '#E65100',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.2rem',
+                            }}
+                          >
+                            {isPublished ? <CheckCircle2 size={10} /> : <AlertCircle size={10} />}
+                            {isPublished ? '[Đã kiểm chứng]' : '[Đang thẩm định]'}
+                          </span>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                            {card.sourceName}
+                          </span>
+                        </div>
+                        <h4 style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
+                          {card.title}
+                        </h4>
+                      </div>
+                      <button
+                        type="button"
+                        style={{ border: 'none', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px' }}
+                      >
+                        {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                      </button>
+                    </div>
+
+                    {isExpanded && (
+                      <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid var(--border-light)', fontSize: '0.76rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                        <p style={{ margin: '0 0 0.4rem 0' }}>{card.content}</p>
+                        {card.sourceUrl && (
+                          <a
+                            href={card.sourceUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{ color: 'var(--accent-blue)', textDecoration: 'underline', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+                          >
+                            Nguồn tham chiếu <ExternalLink size={11} />
+                          </a>
+                        )}
+                        {!isPublished && card.sourceEvidence && (
+                          <div style={{ marginTop: '0.3rem', color: '#E65100', fontStyle: 'italic' }}>
+                            Trạng thái: {card.sourceEvidence}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
 

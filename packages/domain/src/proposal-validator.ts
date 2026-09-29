@@ -17,6 +17,7 @@ import {
   VALID_PATTERNS,
   VALID_GARMENT_MODELS,
   VALID_BODY_SHAPES,
+  getModelCapability,
 } from '@dangviet/contracts';
 
 /**
@@ -158,6 +159,20 @@ export function validateDesignProposal(
   // 6. Capabilities & Catalog Boundary Checks
   if (!VALID_GARMENT_MODELS.includes(proposedConfig.modelId)) {
     errors.push(`Mẫu áo không tồn tại trong danh mục: ${proposedConfig.modelId}`);
+  } else {
+    const capability = getModelCapability(proposedConfig.modelId);
+    if (!capability.supportedCollars.includes(proposedConfig.collarStyle)) {
+      errors.push(capability.incompatibleOptionMessages[proposedConfig.collarStyle] || `Mẫu áo ${capability.name} không hỗ trợ kiểu cổ ${proposedConfig.collarStyle}`);
+    }
+    if (!capability.supportedSleeves.includes(proposedConfig.sleeveStyle)) {
+      errors.push(capability.incompatibleOptionMessages[proposedConfig.sleeveStyle] || `Mẫu áo ${capability.name} không hỗ trợ kiểu tay ${proposedConfig.sleeveStyle}`);
+    }
+    if (!capability.supportedPatterns.includes(proposedConfig.pattern)) {
+      errors.push(capability.incompatibleOptionMessages[proposedConfig.pattern] || `Mẫu áo ${capability.name} không hỗ trợ họa tiết ${proposedConfig.pattern}`);
+    }
+    if (!capability.supportedFabrics.includes(proposedConfig.fabric)) {
+      errors.push(`Mẫu áo ${capability.name} không hỗ trợ chất liệu vải ${proposedConfig.fabric}`);
+    }
   }
   if (!VALID_BODY_SHAPES.includes(proposedConfig.bodyShape)) {
     errors.push(`Vóc dáng không hợp lệ: ${proposedConfig.bodyShape}`);

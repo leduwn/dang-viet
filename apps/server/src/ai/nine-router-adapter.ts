@@ -12,6 +12,7 @@ import {
   VALID_SLEEVES,
   VALID_FABRICS,
   VALID_PATTERNS,
+  getModelCapability,
 } from '@dangviet/contracts';
 import { computeProposalDiff } from '@dangviet/domain';
 import { type AIAdapter } from './adapter.js';
@@ -367,8 +368,59 @@ BẮT BUỘC trả về định dạng JSON:
         baseLook
       );
 
+      const targetModelId = structured.config.modelId || baseLook.config.modelId || 'aodai_traditional_v2';
+      const capability = getModelCapability(targetModelId);
+      const unsupportedRequests: string[] = [];
+      const warnings: string[] = [];
+
       // Preserve bodyShape exactly from baseLook
       structured.config.bodyShape = baseLook.config.bodyShape;
+
+      // Validate against model capabilities
+      if (!capability.supportedCollars.includes(structured.config.collarStyle)) {
+        unsupportedRequests.push(capability.incompatibleOptionMessages[structured.config.collarStyle] || `Mẫu áo ${capability.name} không hỗ trợ kiểu cổ ${structured.config.collarStyle}`);
+        structured.config.collarStyle = capability.supportedCollars[0];
+      }
+      if (!capability.supportedSleeves.includes(structured.config.sleeveStyle)) {
+        unsupportedRequests.push(capability.incompatibleOptionMessages[structured.config.sleeveStyle] || `Mẫu áo ${capability.name} không hỗ trợ kiểu tay ${structured.config.sleeveStyle}`);
+        structured.config.sleeveStyle = capability.supportedSleeves[0];
+      }
+      if (!capability.supportedFabrics.includes(structured.config.fabric)) {
+        structured.config.fabric = capability.supportedFabrics[0];
+      }
+      if (!capability.supportedPatterns.includes(structured.config.pattern)) {
+        structured.config.pattern = capability.supportedPatterns[0];
+      }
+
+      // Preserve locked attributes
+      if (baseLook.locks.primaryColor && structured.config.primaryColor.hex !== baseLook.config.primaryColor.hex) {
+        warnings.push('Màu áo đang bị khóa nên được bảo lưu.');
+        structured.config.primaryColor = baseLook.config.primaryColor;
+      }
+      if (baseLook.locks.pantsColor && structured.config.pantsColor.hex !== baseLook.config.pantsColor.hex) {
+        warnings.push('Màu quần đang bị khóa nên được bảo lưu.');
+        structured.config.pantsColor = baseLook.config.pantsColor;
+      }
+      if (baseLook.locks.collarStyle && structured.config.collarStyle !== baseLook.config.collarStyle) {
+        warnings.push('Kiểu cổ áo đang bị khóa nên được bảo lưu.');
+        structured.config.collarStyle = baseLook.config.collarStyle;
+      }
+      if (baseLook.locks.sleeveStyle && structured.config.sleeveStyle !== baseLook.config.sleeveStyle) {
+        warnings.push('Kiểu tay áo đang bị khóa nên được bảo lưu.');
+        structured.config.sleeveStyle = baseLook.config.sleeveStyle;
+      }
+      if (baseLook.locks.fabric && structured.config.fabric !== baseLook.config.fabric) {
+        warnings.push('Chất liệu đang bị khóa nên được bảo lưu.');
+        structured.config.fabric = baseLook.config.fabric;
+      }
+      if (baseLook.locks.pattern && structured.config.pattern !== baseLook.config.pattern) {
+        warnings.push('Họa tiết đang bị khóa nên được bảo lưu.');
+        structured.config.pattern = baseLook.config.pattern;
+      }
+      if (baseLook.locks.accessories) {
+        warnings.push('Phụ kiện đang bị khóa nên được bảo lưu.');
+        structured.config.accessories = [...baseLook.config.accessories];
+      }
 
       const diff = computeProposalDiff(baseLook.config, structured.config);
 
@@ -379,7 +431,7 @@ BẮT BUỘC trả về định dạng JSON:
         citations.push({
           title: topCard.title,
           source: topCard.sourceName,
-          ref: topCard.sourceEvidence,
+          ref: topCard.slug,
         });
       }
 
@@ -393,8 +445,8 @@ BẮT BUỘC trả về định dạng JSON:
         proposedConfig: structured.config,
         diff,
         explanation: structured.explanation,
-        unsupportedRequests: [],
-        warnings: [],
+        unsupportedRequests,
+        warnings,
         citations,
         mode: structured.mode || 'live',
         model: structured.model || this.model,

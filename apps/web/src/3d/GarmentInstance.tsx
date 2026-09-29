@@ -38,20 +38,23 @@ export const GarmentInstance: React.FC<GarmentInstanceProps> = ({
     return ResourceLoader.cloneScene(pantsGltf.scene);
   }, [pantsGltf.scene]);
 
-  // 2. Dedicated instance materials
+  // 2. Dedicated instance materials created once per model URL
   const garmentMaterial = useMemo(() => {
     return MaterialFactory.createGarmentMaterial(garmentMaterialSpec);
-  }, [
-    garmentMaterialSpec.color,
-    garmentMaterialSpec.roughness,
-    garmentMaterialSpec.metalness,
-    garmentMaterialSpec.transparent,
-    garmentMaterialSpec.opacity,
-  ]);
+  }, [garmentUrl]);
 
   const pantsMaterial = useMemo(() => {
     return MaterialFactory.createPantsMaterial(pantsMaterialSpec);
-  }, [pantsMaterialSpec.color, pantsMaterialSpec.roughness, pantsMaterialSpec.metalness]);
+  }, [pantsUrl]);
+
+  // Mutate material properties in-place without triggering shader re-compilation or 1-frame black flash
+  useEffect(() => {
+    MaterialFactory.updateMaterial(garmentMaterial, garmentMaterialSpec);
+  }, [garmentMaterial, garmentMaterialSpec]);
+
+  useEffect(() => {
+    MaterialFactory.updateMaterial(pantsMaterial, pantsMaterialSpec);
+  }, [pantsMaterial, pantsMaterialSpec]);
 
   // 3. Assign materials
   useEffect(() => {
@@ -78,11 +81,11 @@ export const GarmentInstance: React.FC<GarmentInstanceProps> = ({
     MorphController.applyMorphWeights(clonedPantsScene, morphWeights);
   }, [clonedGarmentScene, clonedPantsScene, morphWeights]);
 
-  // 5. Cleanup on unmount
+  // 5. Cleanup on unmount or URL switch only (prevents double disposal and scene invalidation)
   useEffect(() => {
     return () => {
-      ResourceLoader.disposeInstance(clonedGarmentScene);
-      ResourceLoader.disposeInstance(clonedPantsScene);
+      ResourceLoader.disposeInstance(clonedGarmentScene, false);
+      ResourceLoader.disposeInstance(clonedPantsScene, false);
       garmentMaterial.dispose();
       pantsMaterial.dispose();
     };

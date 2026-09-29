@@ -33,14 +33,16 @@ export class ResourceLoader {
    * Safely disposes instance-owned resources (cloned materials)
    * Leaves shared geometries and textures untouched so other viewers are not broken.
    */
-  static disposeInstance(root: THREE.Object3D): void {
+  static disposeInstance(root: THREE.Object3D, disposeMaterials = true): void {
     root.traverse((node) => {
       const mesh = node as THREE.Mesh;
       if (mesh.isMesh) {
-        if (Array.isArray(mesh.material)) {
-          mesh.material.forEach((mat) => mat.dispose());
-        } else if (mesh.material) {
-          mesh.material.dispose();
+        if (disposeMaterials) {
+          if (Array.isArray(mesh.material)) {
+            mesh.material.forEach((mat) => mat.dispose());
+          } else if (mesh.material) {
+            mesh.material.dispose();
+          }
         }
         // Do NOT call mesh.geometry.dispose() here because geometries
         // are shared immutable assets cached across viewers!

@@ -14,8 +14,9 @@ export class MaterialFactory {
       color: new THREE.Color(spec.color),
       roughness: spec.roughness,
       metalness: spec.metalness,
-      transparent: spec.transparent || false,
+      transparent: Boolean(spec.transparent),
       opacity: spec.opacity !== undefined ? spec.opacity : 1.0,
+      depthWrite: true, // Crucial for voile/chiffon: prevents depth sorting artifacts with pants/back flaps
       side: THREE.FrontSide, // Clean topology with hemmed borders, DoubleSide not required
     });
   }
@@ -58,5 +59,24 @@ export class MaterialFactory {
       metalness: spec.metalness,
       side: THREE.FrontSide,
     });
+  }
+
+  /**
+   * Mutates material properties in-place without re-allocating or disposing shader programs.
+   * Eliminates 1-frame black flashes during color/fabric switching.
+   */
+  static updateMaterial(material: THREE.MeshStandardMaterial, spec: MaterialSpec): void {
+    if (!material) return;
+    material.color.set(spec.color);
+    material.roughness = spec.roughness;
+    material.metalness = spec.metalness;
+    if (spec.transparent !== undefined) {
+      material.transparent = Boolean(spec.transparent);
+    }
+    if (spec.opacity !== undefined) {
+      material.opacity = spec.opacity;
+    }
+    material.depthWrite = true;
+    material.needsUpdate = true;
   }
 }

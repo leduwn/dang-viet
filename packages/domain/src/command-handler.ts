@@ -21,6 +21,7 @@ import {
   VALID_BODY_SHAPES,
   VALID_GARMENT_MODELS,
   GarmentConfigSchema,
+  getModelCapability,
 } from '@dangviet/contracts';
 import { applyRecommendation } from './rules.js';
 
@@ -110,6 +111,11 @@ export function executeCommand(
       if (!collar || !VALID_COLLARS.includes(collar)) {
         return { ok: false, error: `Kiểu cổ áo không tồn tại trong danh mục: ${collar}`, statusCode: 400 };
       }
+      const capability = getModelCapability(nextConfig.modelId);
+      if (!capability.supportedCollars.includes(collar)) {
+        const reason = capability.incompatibleOptionMessages[collar] || `Mẫu áo ${capability.name} không hỗ trợ kiểu cổ ${collar}`;
+        return { ok: false, error: reason, statusCode: 400 };
+      }
       nextConfig.collarStyle = collar;
       break;
     }
@@ -121,6 +127,11 @@ export function executeCommand(
       const sleeve = payload.sleeveStyle as SleeveStyle;
       if (!sleeve || !VALID_SLEEVES.includes(sleeve)) {
         return { ok: false, error: `Kiểu tay áo không tồn tại trong danh mục: ${sleeve}`, statusCode: 400 };
+      }
+      const capability = getModelCapability(nextConfig.modelId);
+      if (!capability.supportedSleeves.includes(sleeve)) {
+        const reason = capability.incompatibleOptionMessages[sleeve] || `Mẫu áo ${capability.name} không hỗ trợ kiểu tay ${sleeve}`;
+        return { ok: false, error: reason, statusCode: 400 };
       }
       nextConfig.sleeveStyle = sleeve;
       break;
@@ -134,6 +145,10 @@ export function executeCommand(
       if (!fabric || !VALID_FABRICS.includes(fabric)) {
         return { ok: false, error: `Chất liệu vải không tồn tại trong danh mục: ${fabric}`, statusCode: 400 };
       }
+      const capability = getModelCapability(nextConfig.modelId);
+      if (!capability.supportedFabrics.includes(fabric)) {
+        return { ok: false, error: `Mẫu áo ${capability.name} không hỗ trợ chất liệu vải ${fabric}`, statusCode: 400 };
+      }
       nextConfig.fabric = fabric;
       break;
     }
@@ -145,6 +160,11 @@ export function executeCommand(
       const pattern = payload.pattern as Pattern;
       if (!pattern || !VALID_PATTERNS.includes(pattern)) {
         return { ok: false, error: `Họa tiết không tồn tại trong danh mục: ${pattern}`, statusCode: 400 };
+      }
+      const capability = getModelCapability(nextConfig.modelId);
+      if (!capability.supportedPatterns.includes(pattern)) {
+        const reason = capability.incompatibleOptionMessages[pattern] || capability.incompatibleOptionMessages.pattern_notice || `Mẫu áo ${capability.name} không hỗ trợ họa tiết ${pattern}`;
+        return { ok: false, error: reason, statusCode: 400 };
       }
       nextConfig.pattern = pattern;
       break;
@@ -203,6 +223,38 @@ export function executeCommand(
       if (!modelId || !VALID_GARMENT_MODELS.includes(modelId)) {
         return { ok: false, error: `Mẫu áo dài không hợp lệ trong danh mục: ${modelId}`, statusCode: 400 };
       }
+      const targetCapability = getModelCapability(modelId);
+      // Validate lock compatibility with target model capability
+      if (!targetCapability.supportedCollars.includes(nextConfig.collarStyle)) {
+        if (nextLocks.collarStyle) {
+          return {
+            ok: false,
+            error: `Không thể chuyển sang ${targetCapability.name} vì kiểu cổ áo đang bị khóa không tương thích`,
+            statusCode: 400,
+          };
+        }
+        nextConfig.collarStyle = targetCapability.supportedCollars[0];
+      }
+      if (!targetCapability.supportedSleeves.includes(nextConfig.sleeveStyle)) {
+        if (nextLocks.sleeveStyle) {
+          return {
+            ok: false,
+            error: `Không thể chuyển sang ${targetCapability.name} vì kiểu tay áo đang bị khóa không tương thích`,
+            statusCode: 400,
+          };
+        }
+        nextConfig.sleeveStyle = targetCapability.supportedSleeves[0];
+      }
+      if (!targetCapability.supportedPatterns.includes(nextConfig.pattern)) {
+        if (nextLocks.pattern) {
+          return {
+            ok: false,
+            error: `Không thể chuyển sang ${targetCapability.name} vì họa tiết đang bị khóa không tương thích`,
+            statusCode: 400,
+          };
+        }
+        nextConfig.pattern = targetCapability.supportedPatterns[0];
+      }
       nextConfig.modelId = modelId;
       break;
     }
@@ -233,8 +285,8 @@ export function executeCommand(
       if (!nextLocks.fabric) nextConfig.fabric = validPreset.fabric;
       if (!nextLocks.pattern) nextConfig.pattern = validPreset.pattern;
       if (!nextLocks.accessories) nextConfig.accessories = [...validPreset.accessories];
-      if (!nextLocks.bodyShape && validPreset.bodyShape) nextConfig.bodyShape = validPreset.bodyShape;
-      if (!nextLocks.modelId && validPreset.modelId) nextConfig.modelId = validPreset.modelId;
+      if (!nextLocks.bodyShape && presetConfig.bodyShape) nextConfig.bodyShape = validPreset.bodyShape;
+      if (!nextLocks.modelId && presetConfig.modelId) nextConfig.modelId = validPreset.modelId;
 
       if (payload.title) nextTitle = String(payload.title);
       if (payload.explanation) nextExplanation = String(payload.explanation);
@@ -257,8 +309,8 @@ export function executeCommand(
       if (!nextLocks.fabric) nextConfig.fabric = validDesign.fabric;
       if (!nextLocks.pattern) nextConfig.pattern = validDesign.pattern;
       if (!nextLocks.accessories) nextConfig.accessories = [...validDesign.accessories];
-      if (!nextLocks.bodyShape && validDesign.bodyShape) nextConfig.bodyShape = validDesign.bodyShape;
-      if (!nextLocks.modelId && validDesign.modelId) nextConfig.modelId = validDesign.modelId;
+      if (!nextLocks.bodyShape && designConfig.bodyShape) nextConfig.bodyShape = validDesign.bodyShape;
+      if (!nextLocks.modelId && designConfig.modelId) nextConfig.modelId = validDesign.modelId;
 
       if (payload.title) nextTitle = String(payload.title);
       if (payload.explanation) nextExplanation = String(payload.explanation);

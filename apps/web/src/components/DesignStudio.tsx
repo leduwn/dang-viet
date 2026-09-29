@@ -17,7 +17,9 @@ interface DesignStudioProps {
   onRequestProposal: (
     prompt: string,
     eventId: string,
-    styleId: string
+    styleId: string,
+    history?: Array<{ role: 'user' | 'assistant'; content: string }>,
+    activeProposalConfig?: GarmentConfig
   ) => Promise<DesignProposal>;
   onApplyProposal: (
     proposal: DesignProposal,
@@ -68,11 +70,17 @@ export const DesignStudio: React.FC<DesignStudioProps> = ({
     setIsGenerating(true);
     setStatusMessage(null);
     try {
-      const proposal = await onRequestProposal(prompt, selectedEvent, selectedStyle);
+      const proposal = await onRequestProposal(
+        prompt,
+        selectedEvent,
+        selectedStyle,
+        undefined,
+        activeProposal?.proposedConfig
+      );
       setActiveProposal(proposal);
       setPreviewConfig(proposal.proposedConfig);
 
-      const modeLabel = proposal.mode === 'live' ? `[Model 9router: ${proposal.model}]` : `[Mô phỏng an toàn: ${proposal.model || 'Mock'}]`;
+      const modeLabel = proposal.mode === 'live' ? `[AI Trực tuyến - 9router: ${proposal.model}]` : `[Mô phỏng an toàn - Mock Rules]`;
       setStatusMessage({
         text: `Đã sinh đề xuất thiết kế thành công! ${modeLabel}. Bạn đang ở chế độ xem trước (Preview) - chưa ghi vào cơ sở dữ liệu.`,
         type: 'success',
@@ -288,29 +296,36 @@ export const DesignStudio: React.FC<DesignStudioProps> = ({
             {/* Quick Prompt Ideas */}
             <div style={{ marginBottom: '1.25rem' }}>
               <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.35rem' }}>
-                Gợi ý chủ đề nhanh:
+                Gợi ý chủ đề & Yêu cầu tiếp nối:
               </label>
               <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => setPrompt('Giữ màu áo, đổi quần trắng và bớt phụ kiện')}
+                  style={{ fontSize: '0.75rem', background: 'var(--bg-subtle)', border: '1px solid var(--border-light)', padding: '0.3rem 0.6rem', borderRadius: 'var(--radius-full)', cursor: 'pointer' }}
+                >
+                  Giữ áo, đổi quần trắng
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPrompt('Chỉnh phương án vừa đề xuất cho thanh lịch hơn với lụa Hà Đông')}
+                  style={{ fontSize: '0.75rem', background: 'var(--bg-subtle)', border: '1px solid var(--border-light)', padding: '0.3rem 0.6rem', borderRadius: 'var(--radius-full)', cursor: 'pointer' }}
+                >
+                  Chỉnh tiếp thanh lịch hơn
+                </button>
                 <button
                   type="button"
                   onClick={() => setPrompt('Sắc lam di sản gấm hoa vân mây phối vàng hoàng yến sang trọng')}
                   style={{ fontSize: '0.75rem', background: 'var(--bg-subtle)', border: '1px solid var(--border-light)', padding: '0.3rem 0.6rem', borderRadius: 'var(--radius-full)', cursor: 'pointer' }}
                 >
-                  Sắc lam di sản
+                  Lam di sản gấm mây
                 </button>
                 <button
                   type="button"
                   onClick={() => setPrompt('Hồng sen phấn thanh thuần vải voan nhẹ nhàng cho kỷ yếu')}
                   style={{ fontSize: '0.75rem', background: 'var(--bg-subtle)', border: '1px solid var(--border-light)', padding: '0.3rem 0.6rem', borderRadius: 'var(--radius-full)', cursor: 'pointer' }}
                 >
-                  Sen hồng thanh xuân
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPrompt('Phối màu son đỏ hoàng gia và vàng mai đón Tết phúc lộc')}
-                  style={{ fontSize: '0.75rem', background: 'var(--bg-subtle)', border: '1px solid var(--border-light)', padding: '0.3rem 0.6rem', borderRadius: 'var(--radius-full)', cursor: 'pointer' }}
-                >
-                  Son đỏ khai xuân
+                  Sen hồng kỷ yếu
                 </button>
               </div>
             </div>
@@ -350,22 +365,36 @@ export const DesignStudio: React.FC<DesignStudioProps> = ({
                 boxShadow: 'var(--shadow-sm)',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.4rem' }}>
                 <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
                   2. Khác biệt thiết kế (Diff)
                 </h4>
-                <span
-                  style={{
-                    fontSize: '0.75rem',
-                    padding: '2px 8px',
-                    borderRadius: '12px',
-                    background: isStale ? '#FEE2E2' : '#E0F2FE',
-                    color: isStale ? '#991B1B' : '#0369A1',
-                    fontWeight: 600,
-                  }}
-                >
-                  v{activeProposal.baseRevision} → v{currentLook.revision + 1}
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <span
+                    style={{
+                      fontSize: '0.72rem',
+                      padding: '2px 8px',
+                      borderRadius: '12px',
+                      background: isStale ? '#FEE2E2' : '#E0F2FE',
+                      color: isStale ? '#991B1B' : '#0369A1',
+                      fontWeight: 600,
+                    }}
+                  >
+                    v{activeProposal.baseRevision} → v{currentLook.revision + 1}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: '0.72rem',
+                      padding: '2px 8px',
+                      borderRadius: '12px',
+                      background: activeProposal.mode === 'live' ? '#D1FAE5' : '#FEF3C7',
+                      color: activeProposal.mode === 'live' ? '#065F46' : '#92400E',
+                      fontWeight: 700,
+                    }}
+                  >
+                    {activeProposal.mode === 'live' ? `[AI Trực tuyến: ${activeProposal.model}]` : `[Mô phỏng an toàn: Mock Rules]`}
+                  </span>
+                </div>
               </div>
 
               {isStale && (
@@ -390,6 +419,13 @@ export const DesignStudio: React.FC<DesignStudioProps> = ({
                       <span style={{ display: 'inline-block', width: '14px', height: '14px', borderRadius: '50%', background: c.to, border: '1px solid #ccc' }} />
                     </div>
                   ))}
+
+                  {activeProposal.diff.changedFields.includes('modelId') && (
+                    <div>
+                      <span style={{ fontWeight: 600 }}>Mẫu áo: </span>
+                      <span>{currentLook.config.modelId} → {activeProposal.proposedConfig.modelId}</span>
+                    </div>
+                  )}
 
                   {activeProposal.diff.changedFields.includes('collarStyle') && (
                     <div>
@@ -432,6 +468,62 @@ export const DesignStudio: React.FC<DesignStudioProps> = ({
                       {activeProposal.diff.removedAccessories.join(', ')}
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* Unchanged / Preserved fields */}
+              <div style={{ marginTop: '0.6rem', paddingTop: '0.5rem', borderTop: '1px dashed var(--border-light)' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                  Thuộc tính giữ nguyên / bảo lưu:
+                </span>
+                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginTop: '0.3rem' }}>
+                  {!activeProposal.diff.changedFields.includes('primaryColor') && (
+                    <span style={{ fontSize: '0.72rem', background: 'var(--bg-subtle)', padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--border-light)' }}>
+                      Áo: {currentLook.config.primaryColor.name} {currentLook.locks.primaryColor ? '🔒 (Đang khóa)' : ''}
+                    </span>
+                  )}
+                  {!activeProposal.diff.changedFields.includes('pantsColor') && (
+                    <span style={{ fontSize: '0.72rem', background: 'var(--bg-subtle)', padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--border-light)' }}>
+                      Quần: {currentLook.config.pantsColor.name} {currentLook.locks.pantsColor ? '🔒 (Đang khóa)' : ''}
+                    </span>
+                  )}
+                  {!activeProposal.diff.changedFields.includes('collarStyle') && (
+                    <span style={{ fontSize: '0.72rem', background: 'var(--bg-subtle)', padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--border-light)' }}>
+                      Cổ áo {currentLook.locks.collarStyle ? '🔒' : ''}
+                    </span>
+                  )}
+                  {!activeProposal.diff.changedFields.includes('sleeveStyle') && (
+                    <span style={{ fontSize: '0.72rem', background: 'var(--bg-subtle)', padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--border-light)' }}>
+                      Tay áo {currentLook.locks.sleeveStyle ? '🔒' : ''}
+                    </span>
+                  )}
+                  <span style={{ fontSize: '0.72rem', background: 'var(--bg-subtle)', padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--border-light)', color: '#047857' }}>
+                    Vóc dáng: {currentLook.config.bodyShape} (Bảo toàn)
+                  </span>
+                </div>
+              </div>
+
+              {/* Unsupported Requests warning */}
+              {activeProposal.unsupportedRequests && activeProposal.unsupportedRequests.length > 0 && (
+                <div style={{ marginTop: '0.6rem', padding: '0.5rem 0.7rem', background: '#FFFBEB', border: '1px solid #FCD34D', borderRadius: 'var(--radius-sm)', fontSize: '0.78rem', color: '#92400E' }}>
+                  <div style={{ fontWeight: 700, marginBottom: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <AlertCircle size={14} /> Yêu cầu ngoài năng lực mẫu áo:
+                  </div>
+                  {activeProposal.unsupportedRequests.map((msg, i) => (
+                    <div key={i}>• {msg}</div>
+                  ))}
+                </div>
+              )}
+
+              {/* Warnings */}
+              {activeProposal.warnings && activeProposal.warnings.length > 0 && (
+                <div style={{ marginTop: '0.6rem', padding: '0.5rem 0.7rem', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 'var(--radius-sm)', fontSize: '0.78rem', color: '#1E40AF' }}>
+                  <div style={{ fontWeight: 700, marginBottom: '2px' }}>
+                    Lưu ý:
+                  </div>
+                  {activeProposal.warnings.map((msg, i) => (
+                    <div key={i}>• {msg}</div>
+                  ))}
                 </div>
               )}
 

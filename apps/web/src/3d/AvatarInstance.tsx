@@ -34,14 +34,14 @@ export const AvatarInstance: React.FC<AvatarInstanceProps> = ({
     return ResourceLoader.cloneScene(gltf.scene);
   }, [gltf.scene]);
 
-  // 2. Create dedicated instance materials
+  // 2. Create dedicated instance materials once per URL
   const skinMaterial = useMemo(() => {
     return MaterialFactory.createSkinMaterial(skinMaterialSpec);
-  }, [skinMaterialSpec.color, skinMaterialSpec.roughness, skinMaterialSpec.metalness]);
+  }, [url]);
 
   const hairMaterial = useMemo(() => {
     return MaterialFactory.createHairMaterial(hairMaterialSpec);
-  }, [hairMaterialSpec.color, hairMaterialSpec.roughness, hairMaterialSpec.metalness]);
+  }, [url]);
 
   const eyesMaterial = useMemo(() => {
     return MaterialFactory.createEyesMaterial(eyesMaterialSpec || {
@@ -49,7 +49,22 @@ export const AvatarInstance: React.FC<AvatarInstanceProps> = ({
       roughness: 0.15,
       metalness: 0.0,
     });
-  }, [eyesMaterialSpec?.color, eyesMaterialSpec?.roughness, eyesMaterialSpec?.metalness]);
+  }, [url]);
+
+  // Mutate material properties in-place without triggering shader re-compilation
+  useEffect(() => {
+    MaterialFactory.updateMaterial(skinMaterial, skinMaterialSpec);
+  }, [skinMaterial, skinMaterialSpec]);
+
+  useEffect(() => {
+    MaterialFactory.updateMaterial(hairMaterial, hairMaterialSpec);
+  }, [hairMaterial, hairMaterialSpec]);
+
+  useEffect(() => {
+    if (eyesMaterialSpec) {
+      MaterialFactory.updateMaterial(eyesMaterial, eyesMaterialSpec);
+    }
+  }, [eyesMaterial, eyesMaterialSpec]);
 
   // 3. Assign materials to respective primitives
   useEffect(() => {
@@ -78,10 +93,10 @@ export const AvatarInstance: React.FC<AvatarInstanceProps> = ({
     MorphController.applyMorphWeights(instanceScene, morphWeights);
   }, [instanceScene, morphWeights]);
 
-  // 5. Cleanup instance resources on unmount
+  // 5. Cleanup instance resources on unmount (prevents double disposal)
   useEffect(() => {
     return () => {
-      ResourceLoader.disposeInstance(instanceScene);
+      ResourceLoader.disposeInstance(instanceScene, false);
       skinMaterial.dispose();
       hairMaterial.dispose();
       eyesMaterial.dispose();
