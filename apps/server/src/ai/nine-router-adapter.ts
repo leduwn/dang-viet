@@ -18,6 +18,7 @@ import { computeProposalDiff } from '@dangviet/domain';
 import { type AIAdapter } from './adapter.js';
 import { MockAIAdapter } from './mock-adapter.js';
 import { parseModelChatOutput, parseModelDesignOutput } from './parser.js';
+import { imageAIAdapter } from './image-adapter.js';
 import { dbRepo } from '../db.js';
 import { getAppConfig } from '../config.js';
 
@@ -62,6 +63,8 @@ export class NineRouterAdapter implements AIAdapter {
       };
     }
 
+    const imageCap = await imageAIAdapter.verifyCapability().catch(() => ({ available: false, message: '' }));
+
     // Ping check without leaking API key
     try {
       const response = await fetch(`${this.baseUrl}/models`, {
@@ -83,9 +86,11 @@ export class NineRouterAdapter implements AIAdapter {
           capabilities: {
             textChat: true,
             structuredCommands: false, // Do not mark structuredCommands functional merely on GET /models
-            imageGen: false,
+            imageGen: imageCap.available,
           },
-          message: 'Đã kết nối tới cổng 9router (/models). Trạng thái kiểm chứng tính năng lệnh có cấu trúc được xác thực qua từng lượt gọi thực tế.',
+          message: imageCap.available
+            ? `Đã kết nối cổng 9router (/models). Tính năng tạo ảnh AI 2D (${getAppConfig().aiImageModel}) sẵn sàng.`
+            : 'Đã kết nối tới cổng 9router (/models). Trạng thái kiểm chứng tính năng lệnh có cấu trúc được xác thực qua từng lượt gọi thực tế.',
         };
       } else {
         return {
@@ -440,6 +445,8 @@ BẮT BUỘC trả về định dạng JSON:
         proposalId: randomUUID(),
         targetLookId: baseLook.id,
         baseRevision: baseLook.revision,
+        baseEventId: req.eventId || baseLook.eventId,
+        baseStyleId: req.styleId || baseLook.styleId,
         catalogVersion: '2.0.0',
         title: structured.title,
         proposedConfig: structured.config,
@@ -458,7 +465,25 @@ BẮT BUỘC trả về định dạng JSON:
   }
 
   async generateConceptImage(prompt: string): Promise<{ success: boolean; imageUrl?: string; message?: string }> {
-    return this.fallbackMock.generateConceptImage(prompt);
+    if (!imageAIAdapter.isConfigured()) {
+      return {
+        success: false,
+        message: 'Chưa cấu hình API Key cho mô hình tạo ảnh (AI_IMAGE_API_KEY hoặc AI_API_KEY).',
+      };
+    }
+    const res = await imageAIAdapter.generateImage({ prompt });
+    if (!res.success || !res.imageBuffer) {
+      return {
+        success: false,
+        message: res.error || 'Tạo ảnh concept thất bại.',
+      };
+    }
+    const base64Data = `data:${res.mimeType || 'image/jpeg'};base64,${res.imageBuffer.toString('base64')}`;
+    return {
+      success: true,
+      imageUrl: base64Data,
+      message: 'Đã tạo ảnh concept thành công bằng 9router AI.',
+    };
   }
 }
 

@@ -16,6 +16,11 @@ export interface AppConfig {
   aiApiKey: string;
   aiModel: string;
   aiTimeoutMs: number;
+  aiImageBaseUrl: string;
+  aiImageApiKey: string;
+  aiImageModel: string;
+  aiImageTimeoutMs: number;
+  imageStorageDir: string;
 }
 
 /**
@@ -112,6 +117,13 @@ export function getAppConfig(options: {
     aiApiKey: process.env.AI_API_KEY || '',
     aiModel: process.env.AI_MODEL || 'gemini-2.5-flash',
     aiTimeoutMs: Number(process.env.AI_TIMEOUT_MS) || 25000,
+    aiImageBaseUrl: (process.env.AI_IMAGE_BASE_URL || 'https://9router.duwn.id.vn/v1').replace(/\/+$/, ''),
+    aiImageApiKey: process.env.AI_IMAGE_API_KEY || process.env.AI_API_KEY || '',
+    aiImageModel: process.env.AI_IMAGE_MODEL || 'ag/gemini-3.1-flash-image',
+    aiImageTimeoutMs: Number(process.env.AI_IMAGE_TIMEOUT_MS) || 120000,
+    imageStorageDir: process.env.IMAGE_STORAGE_DIR
+      ? path.resolve(process.env.IMAGE_STORAGE_DIR)
+      : path.join(projectRoot, 'data', 'generated-images'),
   };
 }
 

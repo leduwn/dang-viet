@@ -12,9 +12,12 @@ import {
 import {
   fetchMeta,
   fetchLook,
+  fetchSession,
+  resetSessionLook,
   sendCommand,
   undoLook,
   fetchLookbook,
+  fetchLookbookItem,
   saveToLookbook,
   deleteFromLookbook,
   fetchCultureCards,
@@ -74,20 +77,29 @@ export const App: React.FC = () => {
     });
   };
 
-  // Initialize data on mount: Core data first, AI status decoupled
+  // Initialize data on mount: Core session & meta data first, AI status decoupled
   useEffect(() => {
     async function init() {
       try {
         setIsLoading(true);
-        const [metaData, initialLook, cultureData, lookbookData] = await Promise.all([
+
+        // Fetch session with fallback to fresh session if expired or not found
+        let sessionData;
+        try {
+          sessionData = await fetchSession();
+        } catch (sessErr: any) {
+          console.warn('Lỗi tải phiên hiện tại, đang tạo phiên mới:', sessErr);
+          sessionData = await resetSessionLook();
+        }
+
+        const [metaData, cultureData, lookbookData] = await Promise.all([
           fetchMeta(),
-          fetchLook('look_default_01'),
           fetchCultureCards('all'),
           fetchLookbook(),
         ]);
 
         setMeta(metaData);
-        setLook(initialLook);
+        setLook(sessionData.look);
         setCultureCards(cultureData);
         setLookbookItems(lookbookData);
         setIsLoading(false);
@@ -165,6 +177,13 @@ export const App: React.FC = () => {
         } else {
           errorMsg = `Xung đột phiên bản (REVISION_CONFLICT): Trạng thái trên giao diện không khớp với máy chủ. Đã tự động tải lại phiên bản v${freshLook.revision}.`;
         }
+      } else if (err.status === 404) {
+        try {
+          const freshSession = await resetSessionLook();
+          freshLook = freshSession.look;
+          updateLookSafe(freshLook);
+          errorMsg = 'Phiên làm việc hoặc bộ phối không tồn tại. Đã tự động làm mới bộ phối của phiên.';
+        } catch {}
       }
       return {
         success: false,
@@ -208,6 +227,13 @@ export const App: React.FC = () => {
         } else {
           errorMsg = `Xung đột phiên bản khi hoàn tác (REVISION_CONFLICT): Phiên bản v${look.revision} không khớp máy chủ v${err.currentRevision || freshLook.revision}. Đã tự động tải lại.`;
         }
+      } else if (err.status === 404) {
+        try {
+          const freshSession = await resetSessionLook();
+          freshLook = freshSession.look;
+          updateLookSafe(freshLook);
+          errorMsg = 'Phiên làm việc hoặc bộ phối không tồn tại. Đã tự động làm mới bộ phối của phiên.';
+        } catch {}
       } else {
         try {
           freshLook = await fetchLook(look.id);
@@ -452,17 +478,39 @@ export const App: React.FC = () => {
             events={meta.events}
             presets={meta.presets}
             cultureCards={cultureCards}
-            onSelectEvent={(eventId) => {
-              setCurrentTab('studio');
-              handleDispatchCommand('SET_EVENT', { eventId });
+            isBusy={isBusy}
+            onSelectEvent={async (eventId) => {
+              const res = await handleDispatchCommand('SET_EVENT', { eventId });
+              if (res.success) {
+                setCurrentTab('studio');
+              } else {
+                setBannerMessage({
+                  text: res.error || 'Lỗi khi chuyển sự kiện',
+                  type: 'error',
+                });
+              }
             }}
-            onApplyPreset={(preset) => {
-              setCurrentTab('studio');
-              handleDispatchCommand('APPLY_PRESET', {
+            onApplyPreset={async (preset) => {
+              const res = await handleDispatchCommand('APPLY_PRESET', {
+                presetId: preset.id,
                 config: preset.config,
                 title: preset.title,
                 explanation: preset.explanation,
+                eventId: preset.eventId,
+                styleId: preset.styleId,
               });
+              if (res.success) {
+                setCurrentTab('studio');
+                setBannerMessage({
+                  text: `Đã áp dụng mẫu '${preset.title}' vào phòng phối đồ.`,
+                  type: 'success',
+                });
+              } else {
+                setBannerMessage({
+                  text: res.error || 'Lỗi khi áp dụng mẫu phối đồ',
+                  type: 'error',
+                });
+              }
             }}
           />
         )}
@@ -547,15 +595,53 @@ export const App: React.FC = () => {
                 throw new Error('Đã lưu thiết kế vào cơ sở dữ liệu nhưng chưa thể làm mới danh sách Lookbook');
               }
             }}
-            onApplyToStudio={(config, title, explanation, eventId, styleId) => {
-              setCurrentTab('studio');
-              handleDispatchCommand('APPLY_DESIGN', {
+            onSaveImageToLookbook={async (item) => {
+              const resType = item.resourceType || item.designMetadata?.resourceType || (item.designMetadata?.referenceId ? 'ai_face_ref_image' : 'ai_prompt_image');
+              const newItem: LookbookItem = {
+                id: `lookbook_ai_${Date.now()}`,
+                title: item.title,
+                lookId: look.id,
+                revision: look.revision,
+                snapshotConfig: item.config,
+                eventId: look.eventId,
+                styleId: look.styleId,
+                notes: item.explanation,
+                resourceType: resType,
+                designMetadata: {
+                  ...item.designMetadata,
+                  resourceType: resType,
+                },
+                createdAt: new Date().toISOString(),
+              };
+              await saveToLookbook(newItem);
+              try {
+                const updated = await fetchLookbook();
+                setLookbookItems(updated);
+              } catch (refetchErr) {
+                console.error('Refetch lookbook failed:', refetchErr);
+                throw new Error('Đã lưu ảnh AI vào cơ sở dữ liệu nhưng chưa thể làm mới danh sách Lookbook');
+              }
+            }}
+            onApplyToStudio={async (config, title, explanation, eventId, styleId) => {
+              const res = await handleDispatchCommand('APPLY_DESIGN', {
                 config,
                 title,
                 explanation,
                 eventId: eventId as any,
                 styleId: styleId as any,
               });
+              if (res.success) {
+                setCurrentTab('studio');
+                setBannerMessage({
+                  text: `Đã chuyển thiết kế '${title}' sang Phòng phối đồ.`,
+                  type: 'success',
+                });
+              } else {
+                setBannerMessage({
+                  text: res.error || 'Lỗi khi áp dụng thiết kế',
+                  type: 'error',
+                });
+              }
             }}
           />
         )}
@@ -563,39 +649,57 @@ export const App: React.FC = () => {
         {currentTab === 'lookbook' && (
           <LookbookSection
             lookbookItems={lookbookItems}
-            onOpenInStudio={(item) => {
-              setCurrentTab('studio');
-              const preservedLocks: string[] = [];
-              if (look.locks.primaryColor && look.config.primaryColor.hex !== item.snapshotConfig.primaryColor.hex) preservedLocks.push('Màu áo');
-              if (look.locks.pantsColor && look.config.pantsColor.hex !== item.snapshotConfig.pantsColor.hex) preservedLocks.push('Màu quần');
-              if (look.locks.collarStyle && look.config.collarStyle !== item.snapshotConfig.collarStyle) preservedLocks.push('Cổ áo');
-              if (look.locks.sleeveStyle && look.config.sleeveStyle !== item.snapshotConfig.sleeveStyle) preservedLocks.push('Tay áo');
-              if (look.locks.fabric && look.config.fabric !== item.snapshotConfig.fabric) preservedLocks.push('Chất liệu');
-              if (look.locks.pattern && look.config.pattern !== item.snapshotConfig.pattern) preservedLocks.push('Họa tiết');
-              if (look.locks.accessories) preservedLocks.push('Phụ kiện');
-              if (look.locks.bodyShape && look.config.bodyShape !== item.snapshotConfig.bodyShape) preservedLocks.push('Vóc dáng');
-              if (look.locks.modelId && look.config.modelId !== item.snapshotConfig.modelId) preservedLocks.push('Mẫu áo');
-              if (look.locks.avatarId && look.config.avatarId !== item.snapshotConfig.avatarId) preservedLocks.push('Nhân vật Avatar');
-
-              if (preservedLocks.length > 0) {
+            isBusy={isBusy}
+            onOpenInStudio={async (item) => {
+              try {
+                await fetchLookbookItem(item.id);
+              } catch (err: any) {
                 setBannerMessage({
-                  text: `Mở bản phối '${item.title}': Đang bảo lưu các thuộc tính bị khóa (${preservedLocks.join(', ')}).`,
-                  type: 'info',
+                  text: `Không thể mở: Bản thiết kế '${item.title}' không tồn tại trong cơ sở dữ liệu.`,
+                  type: 'error',
                 });
-              } else {
-                setBannerMessage({
-                  text: `Đã mở bản phối '${item.title}' vào phòng phối đồ.`,
-                  type: 'success',
-                });
+                return;
               }
 
-              handleDispatchCommand('APPLY_DESIGN', {
+              const res = await handleDispatchCommand('APPLY_DESIGN', {
                 config: item.snapshotConfig,
                 title: item.title,
                 explanation: item.notes,
                 eventId: item.eventId,
                 styleId: item.styleId,
               });
+
+              if (res.success) {
+                setCurrentTab('studio');
+                const preservedLocks: string[] = [];
+                if (look.locks.primaryColor && look.config.primaryColor.hex !== item.snapshotConfig.primaryColor.hex) preservedLocks.push('Màu áo');
+                if (look.locks.pantsColor && look.config.pantsColor.hex !== item.snapshotConfig.pantsColor.hex) preservedLocks.push('Màu quần');
+                if (look.locks.collarStyle && look.config.collarStyle !== item.snapshotConfig.collarStyle) preservedLocks.push('Cổ áo');
+                if (look.locks.sleeveStyle && look.config.sleeveStyle !== item.snapshotConfig.sleeveStyle) preservedLocks.push('Tay áo');
+                if (look.locks.fabric && look.config.fabric !== item.snapshotConfig.fabric) preservedLocks.push('Chất liệu');
+                if (look.locks.pattern && look.config.pattern !== item.snapshotConfig.pattern) preservedLocks.push('Họa tiết');
+                if (look.locks.accessories) preservedLocks.push('Phụ kiện');
+                if (look.locks.bodyShape && look.config.bodyShape !== item.snapshotConfig.bodyShape) preservedLocks.push('Vóc dáng');
+                if (look.locks.modelId && look.config.modelId !== item.snapshotConfig.modelId) preservedLocks.push('Mẫu áo');
+                if (look.locks.avatarId && look.config.avatarId !== item.snapshotConfig.avatarId) preservedLocks.push('Nhân vật Avatar');
+
+                if (preservedLocks.length > 0) {
+                  setBannerMessage({
+                    text: `Mở bản phối '${item.title}': Đang bảo lưu các thuộc tính bị khóa (${preservedLocks.join(', ')}).`,
+                    type: 'info',
+                  });
+                } else {
+                  setBannerMessage({
+                    text: `Đã mở bản phối '${item.title}' vào phòng phối đồ.`,
+                    type: 'success',
+                  });
+                }
+              } else {
+                setBannerMessage({
+                  text: res.error || 'Lỗi khi mở bản phối',
+                  type: 'error',
+                });
+              }
             }}
             onDeleteItem={handleDeleteLookbookItem}
             onCompareTwo={handleCompareLookbookItems}

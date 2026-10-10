@@ -8,7 +8,8 @@ import {
 } from '@dangviet/contracts';
 import { AoDaiVisualizer } from './AoDaiVisualizer.tsx';
 import { AoDai3DViewer } from './AoDai3DViewer.tsx';
-import { Sparkles, BookmarkPlus, ArrowRight, Wand2, AlertCircle, CheckCircle2, History, RotateCcw } from 'lucide-react';
+import { AIImageStudio } from './AIImageStudio.tsx';
+import { Sparkles, BookmarkPlus, ArrowRight, Wand2, AlertCircle, CheckCircle2, History, RotateCcw, Sliders } from 'lucide-react';
 
 interface DesignStudioProps {
   currentLook: Look;
@@ -40,6 +41,22 @@ interface DesignStudioProps {
     eventId: string,
     styleId: string
   ) => void;
+  onSaveImageToLookbook?: (item: {
+    title: string;
+    config: GarmentConfig;
+    explanation: string;
+    resourceType?: 'svg_2d' | 'ai_prompt_image' | 'ai_face_ref_image';
+    designMetadata: {
+      aiImageId: string;
+      aiImageUrl: string;
+      aiImagePrompt: string;
+      aiImageStyle: string;
+      resourceType?: 'svg_2d' | 'ai_prompt_image' | 'ai_face_ref_image';
+      referenceId?: string | null;
+      parentImageId?: string | null;
+      iteration?: number;
+    };
+  }) => Promise<void>;
 }
 
 export const DesignStudio: React.FC<DesignStudioProps> = ({
@@ -50,7 +67,9 @@ export const DesignStudio: React.FC<DesignStudioProps> = ({
   onApplyProposal,
   onSaveDesignToLookbook,
   onApplyToStudio,
+  onSaveImageToLookbook,
 }) => {
+  const [activeStudioMode, setActiveStudioMode] = useState<'ai_image' | 'proposal'>('ai_image');
   const [prompt, setPrompt] = useState('Phối màu tương phản Gen Z với gam xanh ngọc và hồng sen, họa tiết kỷ hà trẻ trung');
   const [selectedEvent, setSelectedEvent] = useState<string>(currentLook.eventId || 'ngay_hoi_truong');
   const [selectedStyle, setSelectedStyle] = useState<string>(currentLook.styleId || 'tuoi_tre');
@@ -63,7 +82,48 @@ export const DesignStudio: React.FC<DesignStudioProps> = ({
   const [visualizerMode, setVisualizerMode] = useState<'3d' | '2d'>('3d');
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' | 'warning' } | null>(null);
 
-  const isStale = Boolean(activeProposal && activeProposal.baseRevision !== currentLook.revision);
+  const isStale = Boolean(
+    activeProposal &&
+      (activeProposal.baseRevision !== currentLook.revision ||
+        (activeProposal.baseEventId && activeProposal.baseEventId !== currentLook.eventId) ||
+        (activeProposal.baseStyleId && activeProposal.baseStyleId !== currentLook.styleId))
+  );
+
+  const staleReason = React.useMemo(() => {
+    if (!activeProposal) return null;
+    if (activeProposal.baseRevision !== currentLook.revision) {
+      return `Phiên bản bản phối đã thay đổi (v${activeProposal.baseRevision} → v${currentLook.revision}).`;
+    }
+    if (activeProposal.baseEventId && activeProposal.baseEventId !== currentLook.eventId) {
+      return `Bối cảnh sự kiện đã thay đổi (${activeProposal.baseEventId} → ${currentLook.eventId}).`;
+    }
+    if (activeProposal.baseStyleId && activeProposal.baseStyleId !== currentLook.styleId) {
+      return `Phong cách thẩm mỹ đã thay đổi (${activeProposal.baseStyleId} → ${currentLook.styleId}).`;
+    }
+    return null;
+  }, [activeProposal, currentLook.revision, currentLook.eventId, currentLook.styleId]);
+
+  const lockedConflicts = React.useMemo(() => {
+    if (!activeProposal) return [];
+    const conflicts: string[] = [];
+    const p = activeProposal.proposedConfig;
+    const l = currentLook.locks;
+    const c = currentLook.config;
+    if (l.primaryColor && p.primaryColor.hex !== c.primaryColor.hex) conflicts.push('Màu áo');
+    if (l.pantsColor && p.pantsColor.hex !== c.pantsColor.hex) conflicts.push('Màu quần');
+    if (l.collarStyle && p.collarStyle !== c.collarStyle) conflicts.push('Kiểu cổ áo');
+    if (l.sleeveStyle && p.sleeveStyle !== c.sleeveStyle) conflicts.push('Kiểu tay áo');
+    if (l.fabric && p.fabric !== c.fabric) conflicts.push('Chất liệu vải');
+    if (l.pattern && p.pattern !== c.pattern) conflicts.push('Họa tiết');
+    if (l.accessories) {
+      const cSet = new Set(c.accessories);
+      const pSet = new Set(p.accessories);
+      if (cSet.size !== pSet.size || ![...cSet].every((x) => pSet.has(x))) {
+        conflicts.push('Phụ kiện');
+      }
+    }
+    return conflicts;
+  }, [activeProposal, currentLook]);
 
   const handleGenerate = async () => {
     if (!prompt.trim() || isGenerating) return;
@@ -168,7 +228,7 @@ export const DesignStudio: React.FC<DesignStudioProps> = ({
   return (
     <div className="design-studio" style={{ maxWidth: '1240px', margin: '0 auto', padding: '2rem 1.5rem', width: '100%', boxSizing: 'border-box' }}>
       {/* Studio Header */}
-      <div style={{ marginBottom: '2rem' }}>
+      <div style={{ marginBottom: '1.5rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
           <Sparkles className="text-accent-red" size={24} />
           <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '2rem', color: 'var(--text-primary)' }}>
@@ -176,12 +236,94 @@ export const DesignStudio: React.FC<DesignStudioProps> = ({
           </h2>
         </div>
         <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
-          Sáng tạo thiết kế áo dài 3D thông qua hợp đồng dữ liệu chuẩn — Hỗ trợ xem trước (Preview), so sánh khác biệt (Diff) và áp dụng an toàn.
+          Sáng tạo Việt phục với trí tuệ nhân tạo: Vẽ tranh minh họa Áo dài 2D chân thực và Lập đề xuất cấu hình 3D chuẩn xác.
         </p>
       </div>
 
-      {/* Status banner */}
-      {statusMessage && (
+      {/* Studio Sub-Navigation Tabs */}
+      <div
+        style={{
+          display: 'flex',
+          gap: '0.75rem',
+          marginBottom: '2rem',
+          borderBottom: '1px solid var(--border-light)',
+          paddingBottom: '0.85rem',
+          flexWrap: 'wrap',
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setActiveStudioMode('ai_image')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            padding: '0.65rem 1.25rem',
+            borderRadius: 'var(--radius-full)',
+            border: activeStudioMode === 'ai_image' ? '1px solid var(--accent-red)' : '1px solid var(--border-medium)',
+            background: activeStudioMode === 'ai_image' ? 'var(--accent-red)' : 'var(--bg-surface)',
+            color: activeStudioMode === 'ai_image' ? '#FFFFFF' : 'var(--text-secondary)',
+            fontWeight: 700,
+            fontSize: '0.9rem',
+            cursor: 'pointer',
+            boxShadow: activeStudioMode === 'ai_image' ? 'var(--shadow-sm)' : 'none',
+            transition: 'all 0.15s ease',
+          }}
+        >
+          <Sparkles size={16} />
+          <span>🎨 Vẽ Áo Dài 2D bằng AI (Live Image Gen)</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveStudioMode('proposal')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            padding: '0.65rem 1.25rem',
+            borderRadius: 'var(--radius-full)',
+            border: activeStudioMode === 'proposal' ? '1px solid var(--accent-red)' : '1px solid var(--border-medium)',
+            background: activeStudioMode === 'proposal' ? 'var(--accent-red)' : 'var(--bg-surface)',
+            color: activeStudioMode === 'proposal' ? '#FFFFFF' : 'var(--text-secondary)',
+            fontWeight: 700,
+            fontSize: '0.9rem',
+            cursor: 'pointer',
+            boxShadow: activeStudioMode === 'proposal' ? 'var(--shadow-sm)' : 'none',
+            transition: 'all 0.15s ease',
+          }}
+        >
+          <Sliders size={16} />
+          <span>📐 Đề xuất phối đồ 3D (Design Proposal)</span>
+        </button>
+      </div>
+
+      {activeStudioMode === 'ai_image' ? (
+        <AIImageStudio
+          currentLook={currentLook}
+          events={events}
+          styles={styles}
+          onApplyConfigToStudio={(config, title, explanation) => {
+            onApplyToStudio(config, title, explanation, selectedEvent, selectedStyle);
+          }}
+          onSaveImageToLookbook={async (item) => {
+            if (onSaveImageToLookbook) {
+              await onSaveImageToLookbook(item);
+            } else {
+              await onSaveDesignToLookbook(
+                item.title,
+                item.config,
+                item.explanation,
+                selectedEvent,
+                selectedStyle
+              );
+            }
+          }}
+        />
+      ) : (
+        <>
+          {/* Status banner */}
+          {statusMessage && (
         <div
           style={{
             background:
@@ -399,7 +541,13 @@ export const DesignStudio: React.FC<DesignStudioProps> = ({
 
               {isStale && (
                 <div style={{ background: '#FEF2F2', color: '#991B1B', padding: '0.6rem 0.8rem', borderRadius: 'var(--radius-sm)', fontSize: '0.8rem', marginBottom: '0.8rem' }}>
-                  ⚠️ Bộ phối đã được chỉnh sửa kể từ khi đề xuất này được tạo (v{currentLook.revision} vs v{activeProposal.baseRevision}). Bạn cần tạo lại đề xuất mới để tránh xung đột phiên bản.
+                  ⚠️ Đề xuất thiết kế này đã hết hạn (Stale): {staleReason} Vui lòng tạo lại đề xuất mới để đảm bảo tính nhất quán.
+                </div>
+              )}
+
+              {lockedConflicts.length > 0 && (
+                <div style={{ background: '#FFFBEB', color: '#92400E', padding: '0.6rem 0.8rem', borderRadius: 'var(--radius-sm)', fontSize: '0.8rem', marginBottom: '0.8rem', border: '1px solid #FCD34D' }}>
+                  🔒 Cảnh báo thuộc tính khóa: Các thuộc tính ({lockedConflicts.join(', ')}) đang bị khóa trong bản phối chính. Khi áp dụng, hệ thống sẽ bảo lưu 100% thuộc tính đã khóa và không cho phép AI ghi đè.
                 </div>
               )}
 
@@ -803,6 +951,8 @@ export const DesignStudio: React.FC<DesignStudioProps> = ({
           </div>
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 };

@@ -556,7 +556,7 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
               }}
             >
               <Download size={16} />
-              <span>{isExporting ? 'Đang xuất ảnh...' : 'Xuất ảnh bản phối 3D (PNG)'}</span>
+              <span>{isExporting ? 'Đang xuất ảnh...' : visualizerMode === '2d' ? 'Xuất ảnh bản phối 2D (PNG)' : 'Xuất ảnh bản phối 3D (PNG)'}</span>
             </button>
           </div>
 
@@ -810,7 +810,13 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
             </div>
           ) : (
             <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
-              <AoDaiVisualizer config={look.config} size="lg" mode="detail" />
+              <AoDaiVisualizer
+                config={look.config}
+                size="lg"
+                mode="detail"
+                onModelChange={(modelId) => handleCommand('SET_GARMENT_MODEL', { modelId })}
+                onBodyShapeChange={(shape) => handleCommand('SET_BODY_SHAPE', { bodyShape: shape })}
+              />
             </div>
           )}
         </div>
@@ -987,6 +993,72 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
               </div>
             </div>
 
+            {/* 2.5. PHOM DÁNG ÁO DÀI (GARMENT MODEL) */}
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                <label style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                  Phom dáng áo dài
+                </label>
+                <button
+                  disabled={isBusyEffective}
+                  onClick={() => handleToggleLock('modelId')}
+                  title={look.locks.modelId ? 'Mở khóa mẫu áo' : 'Khóa mẫu áo'}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.2rem',
+                    fontSize: '0.70rem',
+                    color: look.locks.modelId ? 'var(--accent-red)' : 'var(--text-muted)',
+                    fontWeight: 600,
+                    cursor: isBusyEffective ? 'not-allowed' : 'pointer',
+                    border: 'none',
+                    background: 'transparent',
+                  }}
+                >
+                  {look.locks.modelId ? <Lock size={12} /> : <Unlock size={12} />}
+                  <span>{look.locks.modelId ? 'Đã khóa' : 'Khóa'}</span>
+                </button>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                <button
+                  type="button"
+                  disabled={look.locks.modelId || isBusyEffective}
+                  onClick={() => handleCommand('SET_GARMENT_MODEL', { modelId: 'aodai_traditional_v2' })}
+                  style={{
+                    padding: '0.45rem',
+                    borderRadius: 'var(--radius-sm)',
+                    border: `1.5px solid ${look.config.modelId !== 'aodai_remix_raglan' ? 'var(--accent-red)' : 'var(--border-light)'}`,
+                    background: look.config.modelId !== 'aodai_remix_raglan' ? 'var(--accent-red-soft)' : 'var(--bg-subtle)',
+                    color: look.config.modelId !== 'aodai_remix_raglan' ? 'var(--accent-red)' : 'var(--text-secondary)',
+                    fontWeight: 600,
+                    fontSize: '0.78rem',
+                    cursor: (look.locks.modelId || isBusyEffective) ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  Cổ cao truyền thống
+                </button>
+                <button
+                  type="button"
+                  disabled={look.locks.modelId || isBusyEffective}
+                  onClick={() => handleCommand('SET_GARMENT_MODEL', { modelId: 'aodai_remix_raglan' })}
+                  style={{
+                    padding: '0.45rem',
+                    borderRadius: 'var(--radius-sm)',
+                    border: `1.5px solid ${look.config.modelId === 'aodai_remix_raglan' ? 'var(--accent-red)' : 'var(--border-light)'}`,
+                    background: look.config.modelId === 'aodai_remix_raglan' ? 'var(--accent-red-soft)' : 'var(--bg-subtle)',
+                    color: look.config.modelId === 'aodai_remix_raglan' ? 'var(--accent-red)' : 'var(--text-secondary)',
+                    fontWeight: 600,
+                    fontSize: '0.78rem',
+                    cursor: (look.locks.modelId || isBusyEffective) ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  Remix cách tân Raglan
+                </button>
+              </div>
+            </div>
+
             {/* 3. CỔ ÁO & TAY ÁO */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
               <div>
@@ -1007,9 +1079,17 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
                     cursor: (look.locks.collarStyle || isBusyEffective) ? 'not-allowed' : 'pointer',
                   }}
                 >
-                  {catalog.collars.map((col: any) => (
-                    <option key={col.id} value={col.id}>{col.name}</option>
-                  ))}
+                  {catalog.collars.map((col: any) => {
+                    const isRemix = look.config.modelId === 'aodai_remix_raglan';
+                    const isTraditionalOnly = col.id === 'traditional_high';
+                    const isCompatible = isRemix ? !isTraditionalOnly : isTraditionalOnly;
+                    const suffix = isCompatible ? '' : (isRemix ? ' (Hợp phom truyền thống)' : ' (Hợp phom Remix)');
+                    return (
+                      <option key={col.id} value={col.id}>
+                        {col.name}{suffix}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
 
@@ -1031,9 +1111,17 @@ export const OutfitRoom: React.FC<OutfitRoomProps> = ({
                     cursor: (look.locks.sleeveStyle || isBusyEffective) ? 'not-allowed' : 'pointer',
                   }}
                 >
-                  {catalog.sleeves.map((slv: any) => (
-                    <option key={slv.id} value={slv.id}>{slv.name}</option>
-                  ))}
+                  {catalog.sleeves.map((slv: any) => {
+                    const isRemix = look.config.modelId === 'aodai_remix_raglan';
+                    const isTraditionalOnly = slv.id === 'traditional_long';
+                    const isCompatible = isRemix ? !isTraditionalOnly : isTraditionalOnly;
+                    const suffix = isCompatible ? '' : (isRemix ? ' (Hợp phom truyền thống)' : ' (Hợp phom Remix)');
+                    return (
+                      <option key={slv.id} value={slv.id}>
+                        {slv.name}{suffix}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
             </div>

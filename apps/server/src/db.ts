@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import {
   type Look,
@@ -7,6 +8,9 @@ import {
   type CultureCard,
   type CommandPayload,
   type CommandResult,
+  type GarmentConfig,
+  type AIImageJob,
+  type AIImageJobStatus,
   LookSchema,
   GarmentConfigSchema,
   LockStateSchema,
@@ -134,6 +138,7 @@ export function closeDb(): void {
 
 export interface LookRow {
   id: string;
+  session_id?: string | null;
   user_id: string;
   title: string;
   event_id: string;
@@ -148,6 +153,84 @@ export interface LookRow {
   undo_stack_json?: string;
 }
 
+export interface SessionRow {
+  id: string;
+  current_look_id: string | null;
+  created_at: string;
+  updated_at: string;
+  expires_at: string | null;
+}
+
+export interface FaceReferenceRow {
+  id: string;
+  session_id: string;
+  storage_path: string;
+  mime_type: string;
+  file_size: number;
+  created_at: string;
+  expires_at: string;
+}
+
+export interface AIImageJobRow {
+  id: string;
+  session_id: string;
+  look_id: string | null;
+  prompt: string;
+  style_preset: string;
+  status: string;
+  storage_path: string | null;
+  mime_type: string | null;
+  file_size: number | null;
+  width: number | null;
+  height: number | null;
+  model_used: string | null;
+  duration_ms: number | null;
+  parsed_details: string | null;
+  error_message: string | null;
+  parent_image_id?: string | null;
+  reference_id?: string | null;
+  iteration?: number | null;
+  refinement_prompt?: string | null;
+  background_setting?: string | null;
+  pose_style?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export function rowToAIImageJob(row: AIImageJobRow): AIImageJob {
+  let parsedDetails = undefined;
+  if (row.parsed_details) {
+    try {
+      parsedDetails = JSON.parse(row.parsed_details);
+    } catch {}
+  }
+  return {
+    id: row.id,
+    sessionId: row.session_id,
+    lookId: row.look_id || undefined,
+    prompt: row.prompt,
+    stylePreset: row.style_preset as any,
+    status: row.status as any,
+    imageUrl: row.status === 'completed' ? `/api/ai/images/${row.id}/file` : undefined,
+    downloadUrl: row.status === 'completed' ? `/api/ai/images/${row.id}/file?download=1` : undefined,
+    modelUsed: row.model_used || undefined,
+    width: row.width ?? undefined,
+    height: row.height ?? undefined,
+    fileSize: row.file_size ?? undefined,
+    durationMs: row.duration_ms ?? undefined,
+    parsedDetails,
+    errorMessage: row.error_message || undefined,
+    parentImageId: row.parent_image_id || undefined,
+    referenceId: row.reference_id || undefined,
+    iteration: row.iteration ?? 1,
+    refinementPrompt: row.refinement_prompt || undefined,
+    backgroundSetting: row.background_setting || undefined,
+    poseStyle: row.pose_style || undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
 export function rowToLook(row: LookRow): Look {
   const rawConfig = JSON.parse(row.config_json);
   if (!rawConfig.avatarId) {
@@ -157,6 +240,7 @@ export function rowToLook(row: LookRow): Look {
   const parsedLocks = LockStateSchema.parse(JSON.parse(row.locks_json));
   return {
     id: row.id,
+    sessionId: row.session_id || undefined,
     title: row.title,
     eventId: row.event_id as any,
     styleId: row.style_id as any,
@@ -170,11 +254,226 @@ export function rowToLook(row: LookRow): Look {
   };
 }
 
+function normalizeInitialGarmentConfig(raw: any): GarmentConfig {
+  const collarMap: Record<string, string> = {
+    co_tru_truyenthong: 'traditional_high',
+    co_tron: 'round',
+    co_thuyen: 'boat',
+    co_v: 'v_neck',
+  };
+  const sleeveMap: Record<string, string> = {
+    tay_dai: 'traditional_long',
+    tay_raglan: 'raglan',
+    tay_lung: 'elbow',
+    tay_xe: 'slit',
+  };
+  const fabricMap: Record<string, string> = {
+    lua_to_tam: 'silk_ha_dong',
+    gam_hoa: 'brocade_hue',
+    to_voan: 'voile_chiffon',
+    dui_to: 'linen_modern',
+  };
+  const patternMap: Record<string, string> = {
+    tron: 'plain',
+    hoa_sen: 'lotus',
+    van_may: 'cloud',
+    hac_phi: 'crane',
+    ky_ha: 'geometric_genz',
+  };
+  const bodyShapeMap: Record<string, string> = {
+    can_doi: 'standard',
+    nho_nhan: 'petite',
+    cao_thanh: 'tall_slender',
+    day_da: 'curvy_hips',
+  };
+  const modelIdMap: Record<string, string> = {
+    standard_female_aodai: 'aodai_traditional_v2',
+  };
+
+  const candidate = {
+    garmentType: 'aodai' as const,
+    primaryColor: raw?.primaryColor?.family
+      ? raw.primaryColor
+      : { hex: raw?.primaryColor?.hex || '#D97706', name: raw?.primaryColor?.name || 'Vàng Hoàng Cúc', family: 'yellow' as const },
+    pantsColor: raw?.pantsColor?.family
+      ? raw.pantsColor
+      : { hex: raw?.pantsColor?.hex || '#FFFFFF', name: raw?.pantsColor?.name || 'Trắng Tinh Khôi', family: 'white' as const },
+    collarStyle: collarMap[raw?.collarStyle] || raw?.collarStyle || 'traditional_high',
+    sleeveStyle: sleeveMap[raw?.sleeveStyle] || raw?.sleeveStyle || 'traditional_long',
+    fabric: fabricMap[raw?.fabric] || raw?.fabric || 'silk_ha_dong',
+    pattern: patternMap[raw?.pattern] || raw?.pattern || 'lotus',
+    accessories: Array.isArray(raw?.accessories) ? raw.accessories : ['non_la'],
+    bodyShape: bodyShapeMap[raw?.bodyShape] || raw?.bodyShape || 'standard',
+    modelId: modelIdMap[raw?.modelId] || raw?.modelId || 'aodai_traditional_v2',
+    avatarId: raw?.avatarId === 'avatar_ha_noi_01' ? 'avatar_v2' : (raw?.avatarId || 'avatar_v2'),
+  };
+
+  const parsed = GarmentConfigSchema.safeParse(candidate);
+  if (parsed.success) {
+    return parsed.data;
+  }
+
+  return {
+    garmentType: 'aodai',
+    primaryColor: { hex: '#D97706', name: 'Vàng Hoàng Cúc', family: 'yellow' },
+    pantsColor: { hex: '#FFFFFF', name: 'Trắng Tinh Khôi', family: 'white' },
+    collarStyle: 'traditional_high',
+    sleeveStyle: 'traditional_long',
+    fabric: 'silk_ha_dong',
+    pattern: 'lotus',
+    accessories: ['non_la'],
+    bodyShape: 'standard',
+    modelId: 'aodai_traditional_v2',
+    avatarId: 'avatar_v2',
+  };
+}
+
+export function createInitialLookForSession(sessionId: string): Look {
+  const db = getDb();
+  const now = new Date().toISOString();
+  const newLookId = `look_${randomUUID().replace(/-/g, '').slice(0, 16)}`;
+
+  let baseConfig: any = null;
+  let baseLocks: any = null;
+  let baseTitle = 'Bộ Áo Dài Truyền Thống';
+  let baseEventId = 'ky_yeu';
+  let baseStyleId = 'thanh_lich';
+  let baseExplanation = 'Phối đồ áo dài truyền thống';
+
+  const templateRow = db.prepare('SELECT * FROM looks WHERE id = ?').get('look_default_01') as LookRow | undefined;
+  if (templateRow) {
+    try {
+      baseConfig = JSON.parse(templateRow.config_json);
+      baseLocks = JSON.parse(templateRow.locks_json);
+      baseTitle = templateRow.title;
+      baseEventId = templateRow.event_id;
+      baseStyleId = templateRow.style_id;
+      baseExplanation = templateRow.explanation;
+    } catch {}
+  }
+
+  const validConfig = normalizeInitialGarmentConfig(baseConfig);
+
+  if (!baseLocks) {
+    baseLocks = {
+      primaryColor: false,
+      pantsColor: false,
+      collarStyle: false,
+      sleeveStyle: false,
+      fabric: false,
+      pattern: false,
+      accessories: false,
+      bodyShape: false,
+      modelId: false,
+      avatarId: false,
+    };
+  }
+
+  const initialLook: Look = {
+    id: newLookId,
+    sessionId,
+    title: baseTitle,
+    eventId: baseEventId as any,
+    styleId: baseStyleId as any,
+    config: validConfig,
+    locks: LockStateSchema.parse(baseLocks),
+    explanation: baseExplanation,
+    revision: 1,
+    isDesign: false,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  dbRepo.createLook(initialLook, sessionId);
+  return initialLook;
+}
+
 export const dbRepo = {
-  getLook(id: string): Look | null {
+  // Session repository
+  getSession(sessionId: string): SessionRow | null {
+    const db = getDb();
+    const row = db.prepare('SELECT * FROM sessions WHERE id = ?').get(sessionId) as SessionRow | undefined;
+    return row || null;
+  },
+
+  createSession(sessionId: string, currentLookId?: string | null, expiresAt?: string | null): SessionRow {
+    const db = getDb();
+    const now = new Date().toISOString();
+    db.prepare(`
+      INSERT INTO sessions (id, current_look_id, created_at, updated_at, expires_at)
+      VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        current_look_id = coalesce(excluded.current_look_id, sessions.current_look_id),
+        updated_at = excluded.updated_at
+    `).run(sessionId, currentLookId ?? null, now, now, expiresAt ?? null);
+    return {
+      id: sessionId,
+      current_look_id: currentLookId ?? null,
+      created_at: now,
+      updated_at: now,
+      expires_at: expiresAt ?? null,
+    };
+  },
+
+  updateSessionCurrentLook(sessionId: string, currentLookId: string): void {
+    const db = getDb();
+    db.prepare('UPDATE sessions SET current_look_id = ?, updated_at = ? WHERE id = ?').run(
+      currentLookId,
+      new Date().toISOString(),
+      sessionId
+    );
+  },
+
+  touchSession(sessionId: string): void {
+    const db = getDb();
+    db.prepare('UPDATE sessions SET updated_at = ? WHERE id = ?').run(new Date().toISOString(), sessionId);
+  },
+
+  getOrCreateSession(sessionId?: string): { sessionId: string; currentLookId: string; look: Look } {
+    const db = getDb();
+    if (sessionId) {
+      const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get(sessionId) as SessionRow | undefined;
+      if (session) {
+        const now = new Date().toISOString();
+        db.prepare('UPDATE sessions SET updated_at = ? WHERE id = ?').run(now, session.id);
+
+        if (session.current_look_id) {
+          const existingLook = dbRepo.getLook(session.current_look_id, session.id);
+          if (existingLook) {
+            return {
+              sessionId: session.id,
+              currentLookId: existingLook.id,
+              look: existingLook,
+            };
+          }
+        }
+
+        const newLook = createInitialLookForSession(session.id);
+        dbRepo.updateSessionCurrentLook(session.id, newLook.id);
+        return {
+          sessionId: session.id,
+          currentLookId: newLook.id,
+          look: newLook,
+        };
+      }
+    }
+
+    const targetSessionId = sessionId || `sess_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
+    const initialLook = createInitialLookForSession(targetSessionId);
+    dbRepo.createSession(targetSessionId, initialLook.id);
+    return {
+      sessionId: targetSessionId,
+      currentLookId: initialLook.id,
+      look: initialLook,
+    };
+  },
+  getLook(id: string, sessionId?: string): Look | null {
     const db = getDb();
     const row = db.prepare('SELECT * FROM looks WHERE id = ?').get(id) as LookRow | undefined;
     if (!row) return null;
+    if (sessionId && row.session_id !== sessionId) {
+      return null;
+    }
     return rowToLook(row);
   },
 
@@ -184,14 +483,16 @@ export const dbRepo = {
     return Boolean(row);
   },
 
-  createLook(look: Look): void {
+  createLook(look: Look, sessionId?: string): void {
     const db = getDb();
+    const targetSessionId = sessionId || look.sessionId || 'legacy_migration_archive';
     db.prepare(`
       INSERT INTO looks (
-        id, user_id, title, event_id, style_id, config_json, locks_json, explanation, revision, is_design, created_at, updated_at, undo_stack_json
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        id, session_id, user_id, title, event_id, style_id, config_json, locks_json, explanation, revision, is_design, created_at, updated_at, undo_stack_json
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       look.id,
+      targetSessionId,
       'default_user',
       look.title,
       look.eventId,
@@ -231,7 +532,8 @@ export const dbRepo = {
    */
   executeCommandTransaction(
     lookId: string,
-    command: CommandPayload
+    command: CommandPayload,
+    sessionId?: string
   ): { ok: true; result: CommandResult } | { ok: false; statusCode: number; error: string; code?: string; currentRevision?: number } {
     const db = getDb();
     db.exec('BEGIN IMMEDIATE');
@@ -252,6 +554,17 @@ export const dbRepo = {
       // 2. Read current state fresh from DB inside transaction
       const row = db.prepare('SELECT * FROM looks WHERE id = ?').get(lookId) as LookRow | undefined;
       if (!row) {
+        db.exec('ROLLBACK');
+        return {
+          ok: false,
+          statusCode: 404,
+          code: 'LOOK_NOT_FOUND',
+          error: 'Không tìm thấy bộ phối',
+        };
+      }
+
+      // 2b. Session ownership check
+      if (sessionId && row.session_id !== sessionId) {
         db.exec('ROLLBACK');
         return {
           ok: false,
@@ -401,7 +714,8 @@ export const dbRepo = {
    */
   executeUndoTransaction(
     lookId: string,
-    options: { expectedRevision: number; commandId: string }
+    options: { expectedRevision: number; commandId: string },
+    sessionId?: string
   ): { ok: true; result: { success: boolean; message: string; look: Look; remainingUndoSteps: number } } | { ok: false; statusCode: number; error: string; code?: string; currentRevision?: number } {
     if (!options || typeof options.expectedRevision !== 'number' || options.expectedRevision < 0 || !options.commandId) {
       return {
@@ -429,6 +743,12 @@ export const dbRepo = {
 
       const row = db.prepare('SELECT * FROM looks WHERE id = ?').get(lookId) as LookRow | undefined;
       if (!row) {
+        db.exec('ROLLBACK');
+        return { ok: false, statusCode: 404, code: 'LOOK_NOT_FOUND', error: 'Không tìm thấy bộ phối' };
+      }
+
+      // Session ownership check
+      if (sessionId && row.session_id !== sessionId) {
         db.exec('ROLLBACK');
         return { ok: false, statusCode: 404, code: 'LOOK_NOT_FOUND', error: 'Không tìm thấy bộ phối' };
       }
@@ -565,8 +885,12 @@ export const dbRepo = {
     }
   },
 
-  getRevision(lookId: string, revision: number): { config: any; locks: any; explanation: string } | null {
+  getRevision(lookId: string, revision: number, sessionId?: string): { config: any; locks: any; explanation: string } | null {
     const db = getDb();
+    if (sessionId) {
+      const look = db.prepare('SELECT session_id FROM looks WHERE id = ?').get(lookId) as { session_id?: string } | undefined;
+      if (!look || look.session_id !== sessionId) return null;
+    }
     const row = db.prepare('SELECT * FROM look_revisions WHERE look_id = ? AND revision = ?').get(lookId, revision) as any;
     if (!row) return null;
     return {
@@ -576,23 +900,38 @@ export const dbRepo = {
     };
   },
 
-  getAllRevisions(lookId: string): Array<{ revision: number; createdAt: string }> {
+  getAllRevisions(lookId: string, sessionId?: string): Array<{ revision: number; createdAt: string }> {
     const db = getDb();
+    if (sessionId) {
+      const look = db.prepare('SELECT session_id FROM looks WHERE id = ?').get(lookId) as { session_id?: string } | undefined;
+      if (!look || look.session_id !== sessionId) return [];
+    }
     const rows = db.prepare('SELECT revision, created_at FROM look_revisions WHERE look_id = ? ORDER BY revision ASC').all(lookId) as any[];
     return rows.map((r) => ({ revision: r.revision, createdAt: r.created_at }));
   },
 
   // Lookbook
-  getLookbook(): LookbookItem[] {
+  getLookbook(sessionId?: string): LookbookItem[] {
     const db = getDb();
-    const rows = db.prepare('SELECT * FROM lookbook ORDER BY created_at DESC').all() as any[];
+    if (!sessionId) {
+      return [];
+    }
+    const rows = db.prepare('SELECT * FROM lookbook WHERE session_id = ? ORDER BY created_at DESC').all(sessionId) as any[];
     return rows.map((r) => {
       const rawConfig = JSON.parse(r.snapshot_config_json);
       if (!rawConfig.avatarId) {
         rawConfig.avatarId = resolveAvatarForModel(rawConfig.modelId);
       }
+      let designMetadata = undefined;
+      if (r.design_metadata_json) {
+        try {
+          designMetadata = JSON.parse(r.design_metadata_json);
+        } catch {}
+      }
+      const resourceType = designMetadata?.resourceType || (designMetadata?.aiImageUrl ? (designMetadata?.referenceId ? 'ai_face_ref_image' : 'ai_prompt_image') : 'svg_2d');
       return {
         id: r.id,
+        sessionId: r.session_id,
         title: r.title,
         lookId: r.look_id,
         revision: r.revision,
@@ -600,18 +939,69 @@ export const dbRepo = {
         eventId: r.event_id,
         styleId: r.style_id,
         notes: r.notes,
+        resourceType,
+        designMetadata,
         createdAt: r.created_at,
       };
     });
   },
 
-  saveToLookbook(item: LookbookItem): void {
+  getLookbookItem(id: string, sessionId?: string): LookbookItem | null {
     const db = getDb();
+    const r = db.prepare('SELECT * FROM lookbook WHERE id = ?').get(id) as any;
+    if (!r) return null;
+    if (sessionId && r.session_id !== sessionId) return null;
+    const rawConfig = JSON.parse(r.snapshot_config_json);
+    if (!rawConfig.avatarId) {
+      rawConfig.avatarId = resolveAvatarForModel(rawConfig.modelId);
+    }
+    let designMetadata = undefined;
+    if (r.design_metadata_json) {
+      try {
+        designMetadata = JSON.parse(r.design_metadata_json);
+      } catch {}
+    }
+    const resourceType = designMetadata?.resourceType || (designMetadata?.aiImageUrl ? (designMetadata?.referenceId ? 'ai_face_ref_image' : 'ai_prompt_image') : 'svg_2d');
+    return {
+      id: r.id,
+      sessionId: r.session_id,
+      title: r.title,
+      lookId: r.look_id,
+      revision: r.revision,
+      snapshotConfig: GarmentConfigSchema.parse(rawConfig),
+      eventId: r.event_id,
+      styleId: r.style_id,
+      notes: r.notes,
+      resourceType,
+      designMetadata,
+      createdAt: r.created_at,
+    };
+  },
+
+  saveToLookbook(item: LookbookItem, sessionId?: string): { ok: true } | { ok: false; statusCode: number; error: string } {
+    const db = getDb();
+    const effectiveSessionId = sessionId || item.sessionId;
+    if (!effectiveSessionId) {
+      return { ok: false, statusCode: 401, error: 'Thiếu phiên người dùng khi lưu Lookbook' };
+    }
+
+    // Verify ownership of the referenced look
+    const lookRow = db.prepare('SELECT session_id FROM looks WHERE id = ?').get(item.lookId) as { session_id?: string } | undefined;
+    if (!lookRow || lookRow.session_id !== effectiveSessionId) {
+      return { ok: false, statusCode: 404, error: 'Không tìm thấy bộ phối nguồn hoặc bạn không có quyền sở hữu' };
+    }
+
+    const metaToSave = item.designMetadata ? { ...item.designMetadata } : (item.resourceType ? { resourceType: item.resourceType } : null);
+    if (metaToSave && item.resourceType && !metaToSave.resourceType) {
+      metaToSave.resourceType = item.resourceType;
+    }
+
     db.prepare(`
-      INSERT INTO lookbook (id, title, look_id, revision, snapshot_config_json, event_id, style_id, notes, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO lookbook (id, session_id, title, look_id, revision, snapshot_config_json, event_id, style_id, notes, design_metadata_json, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       item.id,
+      effectiveSessionId,
       item.title,
       item.lookId,
       item.revision,
@@ -619,14 +1009,262 @@ export const dbRepo = {
       item.eventId,
       item.styleId,
       item.notes,
+      metaToSave ? JSON.stringify(metaToSave) : null,
       item.createdAt
+    );
+    return { ok: true };
+  },
+
+  deleteFromLookbook(id: string, sessionId?: string): boolean {
+    const db = getDb();
+    if (!sessionId) {
+      return false;
+    }
+    const info = db.prepare('DELETE FROM lookbook WHERE id = ? AND session_id = ?').run(id, sessionId);
+    return info.changes > 0;
+  },
+
+  // Face References (Temporary Face Upload Storage)
+  createFaceReference(ref: {
+    id: string;
+    sessionId: string;
+    storagePath: string;
+    mimeType: string;
+    fileSize: number;
+    createdAt?: string;
+    expiresAt: string;
+  }): void {
+    const db = getDb();
+    const now = ref.createdAt || new Date().toISOString();
+    db.prepare(`
+      INSERT INTO face_references (id, session_id, storage_path, mime_type, file_size, created_at, expires_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(ref.id, ref.sessionId, ref.storagePath, ref.mimeType, ref.fileSize, now, ref.expiresAt);
+  },
+
+  getFaceReference(id: string, sessionId?: string): FaceReferenceRow | null {
+    const db = getDb();
+    const row = (sessionId
+      ? db.prepare('SELECT * FROM face_references WHERE id = ? AND session_id = ?').get(id, sessionId)
+      : db.prepare('SELECT * FROM face_references WHERE id = ?').get(id)) as FaceReferenceRow | undefined;
+    return row || null;
+  },
+
+  deleteFaceReference(id: string, sessionId?: string): boolean {
+    const db = getDb();
+    const stmt = sessionId
+      ? db.prepare('DELETE FROM face_references WHERE id = ? AND session_id = ?')
+      : db.prepare('DELETE FROM face_references WHERE id = ?');
+    const info = sessionId ? stmt.run(id, sessionId) : stmt.run(id);
+    return info.changes > 0;
+  },
+
+  getExpiredFaceReferences(): FaceReferenceRow[] {
+    const db = getDb();
+    const now = new Date().toISOString();
+    return db.prepare('SELECT * FROM face_references WHERE expires_at <= ?').all(now) as unknown as FaceReferenceRow[];
+  },
+
+  deleteExpiredFaceReferences(): number {
+    const db = getDb();
+    const now = new Date().toISOString();
+    const info = db.prepare('DELETE FROM face_references WHERE expires_at <= ?').run(now);
+    return Number(info.changes);
+  },
+
+  saveFaceReference(ref: {
+    id: string;
+    sessionId: string;
+    storagePath: string;
+    mimeType: string;
+    fileSize: number;
+    createdAt?: string;
+    expiresAt: string;
+  }): void {
+    this.createFaceReference(ref);
+  },
+
+  // AI Image Jobs
+  createAIImageJob(job: AIImageJob): void {
+    const db = getDb();
+    db.prepare(`
+      INSERT INTO ai_image_jobs (
+        id, session_id, look_id, prompt, style_preset, status,
+        storage_path, mime_type, file_size, width, height,
+        model_used, duration_ms, parsed_details, error_message,
+        parent_image_id, reference_id, iteration, refinement_prompt,
+        background_setting, pose_style,
+        created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      job.id,
+      job.sessionId,
+      job.lookId || null,
+      job.prompt,
+      job.stylePreset,
+      job.status,
+      null,
+      null,
+      job.fileSize ?? null,
+      job.width ?? null,
+      job.height ?? null,
+      job.modelUsed ?? null,
+      job.durationMs ?? null,
+      job.parsedDetails ? JSON.stringify(job.parsedDetails) : null,
+      job.errorMessage ?? null,
+      job.parentImageId || null,
+      job.referenceId || null,
+      job.iteration ?? 1,
+      job.refinementPrompt || null,
+      job.backgroundSetting || null,
+      job.poseStyle || null,
+      job.createdAt,
+      job.updatedAt
     );
   },
 
-  deleteFromLookbook(id: string): boolean {
+  getAIImageJob(id: string, sessionId?: string): AIImageJob | null {
     const db = getDb();
-    const info = db.prepare('DELETE FROM lookbook WHERE id = ?').run(id);
+    const row = (sessionId
+      ? db.prepare('SELECT * FROM ai_image_jobs WHERE id = ? AND session_id = ?').get(id, sessionId)
+      : db.prepare('SELECT * FROM ai_image_jobs WHERE id = ?').get(id)) as AIImageJobRow | undefined;
+    return row ? rowToAIImageJob(row) : null;
+  },
+
+  getAIImageJobLineage(jobId: string, sessionId?: string): AIImageJob[] {
+    const db = getDb();
+    const lineage: AIImageJob[] = [];
+    let currentId: string | undefined = jobId;
+    const visited = new Set<string>();
+
+    while (currentId && !visited.has(currentId)) {
+      visited.add(currentId);
+      const row = (sessionId
+        ? db.prepare('SELECT * FROM ai_image_jobs WHERE id = ? AND session_id = ?').get(currentId, sessionId)
+        : db.prepare('SELECT * FROM ai_image_jobs WHERE id = ?').get(currentId)) as AIImageJobRow | undefined;
+      if (!row) break;
+      lineage.unshift(rowToAIImageJob(row));
+      currentId = row.parent_image_id || undefined;
+    }
+    return lineage;
+  },
+
+  getAIImageJobStoragePath(id: string, sessionId?: string): { storagePath: string | null; mimeType: string | null; status: string } | null {
+    const db = getDb();
+    const row = (sessionId
+      ? db.prepare('SELECT storage_path, mime_type, status FROM ai_image_jobs WHERE id = ? AND session_id = ?').get(id, sessionId)
+      : db.prepare('SELECT storage_path, mime_type, status FROM ai_image_jobs WHERE id = ?').get(id)) as any;
+    if (!row) return null;
+    return {
+      storagePath: row.storage_path,
+      mimeType: row.mime_type,
+      status: row.status,
+    };
+  },
+
+  updateAIImageJob(
+    id: string,
+    updates: {
+      status?: AIImageJobStatus;
+      storagePath?: string;
+      mimeType?: string;
+      fileSize?: number;
+      width?: number;
+      height?: number;
+      modelUsed?: string;
+      durationMs?: number;
+      parsedDetails?: any;
+      errorMessage?: string;
+      parentImageId?: string | null;
+      referenceId?: string | null;
+      iteration?: number;
+      refinementPrompt?: string | null;
+      backgroundSetting?: string | null;
+      poseStyle?: string | null;
+    }
+  ): void {
+    const db = getDb();
+    const now = new Date().toISOString();
+    const existing = db.prepare('SELECT * FROM ai_image_jobs WHERE id = ?').get(id) as AIImageJobRow | undefined;
+    if (!existing) return;
+
+    db.prepare(`
+      UPDATE ai_image_jobs SET
+        status = ?,
+        storage_path = ?,
+        mime_type = ?,
+        file_size = ?,
+        width = ?,
+        height = ?,
+        model_used = ?,
+        duration_ms = ?,
+        parsed_details = ?,
+        error_message = ?,
+        parent_image_id = ?,
+        reference_id = ?,
+        iteration = ?,
+        refinement_prompt = ?,
+        background_setting = ?,
+        pose_style = ?,
+        updated_at = ?
+      WHERE id = ?
+    `).run(
+      updates.status ?? existing.status,
+      (updates.storagePath !== undefined ? updates.storagePath : existing.storage_path) ?? null,
+      (updates.mimeType !== undefined ? updates.mimeType : existing.mime_type) ?? null,
+      (updates.fileSize !== undefined ? updates.fileSize : existing.file_size) ?? null,
+      (updates.width !== undefined ? updates.width : existing.width) ?? null,
+      (updates.height !== undefined ? updates.height : existing.height) ?? null,
+      (updates.modelUsed !== undefined ? updates.modelUsed : existing.model_used) ?? null,
+      (updates.durationMs !== undefined ? updates.durationMs : existing.duration_ms) ?? null,
+      updates.parsedDetails !== undefined
+        ? JSON.stringify(updates.parsedDetails)
+        : (existing.parsed_details ?? null),
+      (updates.errorMessage !== undefined ? updates.errorMessage : existing.error_message) ?? null,
+      (updates.parentImageId !== undefined ? updates.parentImageId : existing.parent_image_id) ?? null,
+      (updates.referenceId !== undefined ? updates.referenceId : existing.reference_id) ?? null,
+      updates.iteration !== undefined ? updates.iteration : (existing.iteration ?? 1),
+      (updates.refinementPrompt !== undefined ? updates.refinementPrompt : existing.refinement_prompt) ?? null,
+      (updates.backgroundSetting !== undefined ? updates.backgroundSetting : existing.background_setting) ?? null,
+      (updates.poseStyle !== undefined ? updates.poseStyle : existing.pose_style) ?? null,
+      now,
+      id
+    );
+  },
+
+  getAIImageJobsBySession(sessionId: string, limit = 20): AIImageJob[] {
+    const db = getDb();
+    const rows = db.prepare('SELECT * FROM ai_image_jobs WHERE session_id = ? ORDER BY created_at DESC LIMIT ?').all(sessionId, limit) as unknown as AIImageJobRow[];
+    return rows.map(rowToAIImageJob);
+  },
+
+  deleteAIImageJob(id: string, sessionId?: string): boolean {
+    const db = getDb();
+    const stmt = sessionId
+      ? db.prepare('DELETE FROM ai_image_jobs WHERE id = ? AND session_id = ?')
+      : db.prepare('DELETE FROM ai_image_jobs WHERE id = ?');
+    const info = sessionId ? stmt.run(id, sessionId) : stmt.run(id);
     return info.changes > 0;
+  },
+
+  countActiveJobsForSession(sessionId: string): number {
+    const db = getDb();
+    const row = db.prepare(`
+      SELECT COUNT(*) as count FROM ai_image_jobs
+      WHERE session_id = ? AND status IN ('pending', 'processing')
+    `).get(sessionId) as { count: number };
+    return row?.count || 0;
+  },
+
+  findRecentDuplicateJob(sessionId: string, prompt: string, stylePreset: string, windowMs = 45000): AIImageJob | null {
+    const db = getDb();
+    const since = new Date(Date.now() - windowMs).toISOString();
+    const row = db.prepare(`
+      SELECT * FROM ai_image_jobs
+      WHERE session_id = ? AND prompt = ? AND style_preset = ? AND created_at >= ?
+      ORDER BY created_at DESC LIMIT 1
+    `).get(sessionId, prompt, stylePreset, since) as AIImageJobRow | undefined;
+    return row ? rowToAIImageJob(row) : null;
   },
 
   // Culture Cards

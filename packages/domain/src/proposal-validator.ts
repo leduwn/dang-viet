@@ -105,10 +105,22 @@ export function validateDesignProposal(
     return { valid: false, stale: false, errors, warnings };
   }
 
-  // 2. Anti-stale Revision Guard (OCC)
+  // 2. Anti-stale Revision & Context Guard (OCC)
   if (proposal.baseRevision !== currentLook.revision) {
     errors.push(
       `Đề xuất thiết kế bị lỗi thời (Stale): Thiết kế được sinh dựa trên phiên bản v${proposal.baseRevision}, nhưng Look hiện tại đã ở phiên bản v${currentLook.revision}. Vui lòng tạo lại đề xuất.`
+    );
+    return { valid: false, stale: true, errors, warnings };
+  }
+  if (proposal.baseEventId && proposal.baseEventId !== currentLook.eventId) {
+    errors.push(
+      `Đề xuất thiết kế bị lỗi thời (Stale): Được tạo cho sự kiện '${proposal.baseEventId}', nhưng Look hiện tại đang ở sự kiện '${currentLook.eventId}'. Vui lòng tạo lại đề xuất.`
+    );
+    return { valid: false, stale: true, errors, warnings };
+  }
+  if (proposal.baseStyleId && proposal.baseStyleId !== currentLook.styleId) {
+    errors.push(
+      `Đề xuất thiết kế bị lỗi thời (Stale): Được tạo cho phong cách '${proposal.baseStyleId}', nhưng Look hiện tại đang ở phong cách '${currentLook.styleId}'. Vui lòng tạo lại đề xuất.`
     );
     return { valid: false, stale: true, errors, warnings };
   }

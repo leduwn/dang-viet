@@ -7,27 +7,32 @@ import {
 import { dbRepo } from '../db.js';
 
 export const lookRoutes: FastifyPluginAsync = async (fastify) => {
-  // 1. Get Look by ID
+  // 1. Get Look by ID (with session ownership validation)
   fastify.get('/looks/:id', async (request, reply) => {
     const { id } = request.params as { id: string };
-    const look = dbRepo.getLook(id);
+    const look = dbRepo.getLook(id, request.sessionId);
     if (!look) {
       return reply.code(404).send({ error: 'Không tìm thấy bộ phối', code: 'LOOK_NOT_FOUND', id });
     }
     return look;
   });
 
-  // 2. Create Look
+  // 2. Create Look (scoped to current session)
   fastify.post('/looks', async (request, reply) => {
     const parse = LookSchema.safeParse(request.body);
     if (!parse.success) {
       return reply.code(400).send({ error: 'Dữ liệu bộ phối không hợp lệ', details: parse.error.format() });
     }
-    dbRepo.createLook(parse.data);
-    return reply.code(201).send(parse.data);
+    const lookData = {
+      ...parse.data,
+      sessionId: request.sessionId,
+    };
+    dbRepo.createLook(lookData, request.sessionId);
+    dbRepo.updateSessionCurrentLook(request.sessionId, lookData.id);
+    return reply.code(201).send(lookData);
   });
 
-  // 3. Command execution (Single transaction: duplicate check, concurrency OCC, lock enforcement)
+  // 3. Command execution (Single transaction: duplicate check, concurrency OCC, ownership, lock enforcement)
   fastify.post('/looks/:id/command', async (request, reply) => {
     const { id } = request.params as { id: string };
 
@@ -48,8 +53,8 @@ export const lookRoutes: FastifyPluginAsync = async (fastify) => {
       });
     }
 
-    // Execute via transactional database repository
-    const execution = dbRepo.executeCommandTransaction(id, command);
+    // Execute via transactional database repository with session ownership check
+    const execution = dbRepo.executeCommandTransaction(id, command, request.sessionId);
     if (!execution.ok) {
       return reply.code(execution.statusCode).send({
         error: execution.error,
@@ -61,7 +66,7 @@ export const lookRoutes: FastifyPluginAsync = async (fastify) => {
     return execution.result;
   });
 
-  // 4. Sequential Multi-level Undo (Transaction, monotonic revision, conflict protection)
+  // 4. Sequential Multi-level Undo (Transaction, monotonic revision, ownership, conflict protection)
   fastify.post('/looks/:id/undo', async (request, reply) => {
     const { id } = request.params as { id: string };
     const parse = UndoRequestSchema.safeParse(request.body);
@@ -73,7 +78,7 @@ export const lookRoutes: FastifyPluginAsync = async (fastify) => {
       });
     }
 
-    const undoResult = dbRepo.executeUndoTransaction(id, parse.data);
+    const undoResult = dbRepo.executeUndoTransaction(id, parse.data, request.sessionId);
     if (!undoResult.ok) {
       return reply.code(undoResult.statusCode).send({
         error: undoResult.error,
@@ -88,7 +93,11 @@ export const lookRoutes: FastifyPluginAsync = async (fastify) => {
   // 5. Look revisions history
   fastify.get('/looks/:id/history', async (request, reply) => {
     const { id } = request.params as { id: string };
-    const history = dbRepo.getAllRevisions(id);
+    const look = dbRepo.getLook(id, request.sessionId);
+    if (!look) {
+      return reply.code(404).send({ error: 'Không tìm thấy bộ phối', code: 'LOOK_NOT_FOUND', id });
+    }
+    const history = dbRepo.getAllRevisions(id, request.sessionId);
     return { lookId: id, history };
   });
 };

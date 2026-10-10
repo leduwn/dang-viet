@@ -201,7 +201,7 @@ export const MODEL_CAPABILITIES: Record<GarmentModelId, ModelCapability> = {
     supportedCollars: ['traditional_high'] as const,
     supportedSleeves: ['traditional_long'] as const,
     supportedFabrics: ['silk_ha_dong', 'brocade_hue', 'linen_modern', 'voile_chiffon'] as const,
-    supportedPatterns: ['plain'] as const,
+    supportedPatterns: ['plain', 'lotus', 'cloud', 'crane', 'geometric_genz'] as const,
     supportedAccessories: ['man_truyen_thong', 'non_la', 'chuoi_ngoc', 'quat_xep', 'tui_coi', 'guoc_moc'] as const,
     supportedBodyShapes: ['standard', 'petite', 'tall_slender', 'broad_shoulders', 'curvy_hips', 'plus_size'] as const,
     incompatibleOptionMessages: {
@@ -221,7 +221,7 @@ export const MODEL_CAPABILITIES: Record<GarmentModelId, ModelCapability> = {
     supportedCollars: ['boat', 'round', 'v_neck'] as const,
     supportedSleeves: ['raglan', 'elbow', 'slit'] as const,
     supportedFabrics: ['silk_ha_dong', 'brocade_hue', 'linen_modern', 'voile_chiffon'] as const,
-    supportedPatterns: ['plain'] as const,
+    supportedPatterns: ['plain', 'lotus', 'cloud', 'crane', 'geometric_genz'] as const,
     supportedAccessories: ['man_truyen_thong', 'non_la', 'chuoi_ngoc', 'quat_xep', 'tui_coi', 'guoc_moc'] as const,
     supportedBodyShapes: ['standard', 'petite', 'tall_slender', 'broad_shoulders', 'curvy_hips', 'plus_size'] as const,
     incompatibleOptionMessages: {
@@ -236,7 +236,7 @@ export const MODEL_CAPABILITIES: Record<GarmentModelId, ModelCapability> = {
     supportedCollars: ['traditional_high'] as const,
     supportedSleeves: ['traditional_long'] as const,
     supportedFabrics: ['silk_ha_dong', 'brocade_hue', 'linen_modern', 'voile_chiffon'] as const,
-    supportedPatterns: ['plain'] as const,
+    supportedPatterns: ['plain', 'lotus', 'cloud', 'crane', 'geometric_genz'] as const,
     supportedAccessories: ['man_truyen_thong', 'non_la', 'chuoi_ngoc', 'quat_xep', 'tui_coi', 'guoc_moc'] as const,
     supportedBodyShapes: ['standard', 'petite', 'tall_slender', 'broad_shoulders', 'curvy_hips', 'plus_size'] as const,
     incompatibleOptionMessages: {
@@ -364,6 +364,7 @@ export type StyleItem = z.infer<typeof StyleItemSchema>;
 
 export const LookSchema = z.object({
   id: z.string(),
+  sessionId: z.string().optional(),
   title: z.string(),
   eventId: EventIdEnum,
   styleId: StyleIdEnum,
@@ -377,8 +378,12 @@ export const LookSchema = z.object({
 });
 export type Look = z.infer<typeof LookSchema>;
 
+export const LookbookResourceTypeEnum = z.enum(['svg_2d', 'ai_prompt_image', 'ai_face_ref_image']);
+export type LookbookResourceType = z.infer<typeof LookbookResourceTypeEnum>;
+
 export const LookbookItemSchema = z.object({
   id: z.string(),
+  sessionId: z.string().optional(),
   title: z.string(),
   lookId: z.string(),
   revision: z.number().int(),
@@ -386,17 +391,42 @@ export const LookbookItemSchema = z.object({
   eventId: EventIdEnum,
   styleId: StyleIdEnum,
   notes: z.string().default(''),
+  resourceType: LookbookResourceTypeEnum.default('svg_2d').optional(),
   designMetadata: z
     .object({
       mode: z.enum(['mock', 'live']).optional(),
       model: z.string().optional(),
       prompt: z.string().optional(),
       generatedAt: z.string().optional(),
+      aiImageId: z.string().optional(),
+      aiImageUrl: z.string().optional(),
+      aiImagePrompt: z.string().optional(),
+      aiImageStyle: z.string().optional(),
+      resourceType: LookbookResourceTypeEnum.optional(),
+      referenceId: z.string().nullable().optional(),
+      parentImageId: z.string().nullable().optional(),
+      iteration: z.number().int().optional(),
     })
     .optional(),
   createdAt: z.string(),
 });
 export type LookbookItem = z.infer<typeof LookbookItemSchema>;
+
+export const SessionInfoSchema = z.object({
+  sessionId: z.string(),
+  currentLookId: z.string().nullable().optional(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  expiresAt: z.string().optional(),
+});
+export type SessionInfo = z.infer<typeof SessionInfoSchema>;
+
+export const SessionStateSchema = z.object({
+  sessionId: z.string(),
+  currentLookId: z.string(),
+  look: LookSchema,
+});
+export type SessionState = z.infer<typeof SessionStateSchema>;
 
 export const DesignObjectSchema = z.object({
   id: z.string(),
@@ -561,6 +591,8 @@ export const ApplyPresetCommandSchema = BaseCommandSchema.extend({
     config: DesignGarmentConfigSchema,
     title: z.string().optional(),
     explanation: z.string().optional(),
+    eventId: EventIdEnum.optional(),
+    styleId: StyleIdEnum.optional(),
   }),
 });
 
@@ -729,6 +761,151 @@ export const ConceptTaskSchema = z.object({
 export type ConceptTask = z.infer<typeof ConceptTaskSchema>;
 
 // ==========================================
+// 6b. AI Image Generation Contracts (2D Illustration)
+// ==========================================
+
+export const AIImageStylePresetEnum = z.enum([
+  'elegant_fashion_2d',
+  'digital_painting_2d',
+  'modern_watercolor_2d',
+  'flat_vector_2d',
+]);
+export type AIImageStylePreset = z.infer<typeof AIImageStylePresetEnum>;
+
+export const AI_IMAGE_STYLE_LABELS: Record<AIImageStylePreset, string> = {
+  elegant_fashion_2d: 'Minh họa thời trang 2D thanh lịch',
+  digital_painting_2d: 'Digital painting 2D mỹ thuật',
+  modern_watercolor_2d: 'Tranh màu nước hiện đại',
+  flat_vector_2d: 'Flat fashion illustration',
+};
+
+export const BackgroundSettingEnum = z.enum([
+  'studio_minimal',
+  'hanoi_ancient',
+  'hue_palace',
+  'lotus_pond',
+  'solid_color',
+]);
+export type BackgroundSetting = z.infer<typeof BackgroundSettingEnum>;
+
+export const BACKGROUND_SETTING_LABELS: Record<BackgroundSetting, string> = {
+  studio_minimal: 'Phòng chụp studio tối giản',
+  hanoi_ancient: 'Phố cổ Hà Nội / Hội An',
+  hue_palace: 'Cung đình & chùa cổ linh thiêng',
+  lotus_pond: 'Hồ sen thơm ngát',
+  solid_color: 'Phông nền đơn sắc nghệ thuật',
+};
+
+export const PoseStyleEnum = z.enum([
+  'full_body_standing',
+  'full_body_sitting',
+  'three_quarter',
+]);
+export type PoseStyle = z.infer<typeof PoseStyleEnum>;
+
+export const POSE_STYLE_LABELS: Record<PoseStyle, string> = {
+  full_body_standing: 'Toàn thân đứng thanh thoát',
+  full_body_sitting: 'Toàn thân ngồi duyên dáng',
+  three_quarter: 'Dáng 3/4 nghệ thuật',
+};
+
+export const AIImageJobStatusEnum = z.enum(['pending', 'processing', 'completed', 'failed']);
+export type AIImageJobStatus = z.infer<typeof AIImageJobStatusEnum>;
+
+export const AIImageParsedDetailsSchema = z.object({
+  garmentModel: GarmentModelIdEnum.optional(),
+  primaryColor: ColorSchema.optional(),
+  pantsColor: ColorSchema.optional(),
+  collarStyle: CollarStyleEnum.optional(),
+  sleeveStyle: SleeveStyleEnum.optional(),
+  fabric: FabricEnum.optional(),
+  pattern: PatternEnum.optional(),
+  accessories: z.array(AccessoryIdEnum).optional(),
+  backgroundContext: z.string().optional(),
+  pose: z.string().optional(),
+  imageStyle: AIImageStylePresetEnum.optional(),
+  unsupportedRequests: z.array(z.string()).default([]),
+  warnings: z.array(z.string()).default([]),
+  preservedLocks: z.array(z.string()).default([]),
+  finalPrompt: z.string().optional(),
+});
+export type AIImageParsedDetails = z.infer<typeof AIImageParsedDetailsSchema>;
+
+export const AIImageGenerateRequestSchema = z.object({
+  prompt: z.string().min(1, 'Mô tả hình ảnh không được để trống').max(1000, 'Mô tả tối đa 1000 ký tự'),
+  lookId: z.string().optional(),
+  stylePreset: AIImageStylePresetEnum.default('elegant_fashion_2d').optional(),
+  useCurrentLookAsBase: z.boolean().default(false).optional(),
+  customConfig: GarmentConfigSchema.optional(),
+  referenceId: z.string().optional(),
+  parentImageId: z.string().optional(),
+  backgroundSetting: BackgroundSettingEnum.optional(),
+  poseStyle: PoseStyleEnum.optional(),
+  facePreservation: z.boolean().default(true).optional(),
+  async: z.boolean().default(false).optional(),
+});
+export type AIImageGenerateRequest = z.infer<typeof AIImageGenerateRequestSchema>;
+
+export const AIImageJobSchema = z.object({
+  id: z.string(),
+  sessionId: z.string(),
+  lookId: z.string().nullable().optional(),
+  prompt: z.string(),
+  stylePreset: AIImageStylePresetEnum,
+  status: AIImageJobStatusEnum,
+  imageUrl: z.string().optional(),
+  downloadUrl: z.string().optional(),
+  modelUsed: z.string().optional(),
+  width: z.number().int().optional(),
+  height: z.number().int().optional(),
+  fileSize: z.number().int().optional(),
+  durationMs: z.number().int().optional(),
+  parsedDetails: AIImageParsedDetailsSchema.optional(),
+  errorMessage: z.string().optional(),
+  parentImageId: z.string().nullable().optional(),
+  referenceId: z.string().nullable().optional(),
+  iteration: z.number().int().default(1).optional(),
+  refinementPrompt: z.string().nullable().optional(),
+  backgroundSetting: z.string().nullable().optional(),
+  poseStyle: z.string().nullable().optional(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+export type AIImageJob = z.infer<typeof AIImageJobSchema>;
+
+export const FaceReferenceUploadRequestSchema = z.object({
+  data: z.string().min(1, 'Dữ liệu ảnh không được để trống'),
+  filename: z.string().optional(),
+});
+export type FaceReferenceUploadRequest = z.infer<typeof FaceReferenceUploadRequestSchema>;
+
+export const FaceReferenceItemSchema = z.object({
+  id: z.string(),
+  filename: z.string().optional(),
+  sessionId: z.string().optional(),
+  referenceUrl: z.string().optional(),
+  fileSize: z.number().int(),
+  mimeType: z.string(),
+  createdAt: z.string(),
+  expiresAt: z.string(),
+});
+export type FaceReferenceItem = z.infer<typeof FaceReferenceItemSchema>;
+export const FaceReferenceSchema = FaceReferenceItemSchema;
+export type FaceReference = FaceReferenceItem;
+
+export const ConversationalEditRequestSchema = z.object({
+  parentImageId: z.string().min(1, 'parentImageId không được để trống'),
+  instruction: z.string().min(1, 'Câu lệnh chỉnh sửa không được để trống').max(1000, 'Tối đa 1000 ký tự'),
+  keepFaceReference: z.boolean().default(true).optional(),
+  stylePreset: AIImageStylePresetEnum.optional(),
+  backgroundSetting: BackgroundSettingEnum.optional(),
+  poseStyle: PoseStyleEnum.optional(),
+  lookId: z.string().optional(),
+  async: z.boolean().default(false).optional(),
+});
+export type ConversationalEditRequest = z.infer<typeof ConversationalEditRequestSchema>;
+
+// ==========================================
 // 7. Structured AI 3D Design Proposal Contracts
 // ==========================================
 
@@ -751,6 +928,8 @@ export const DesignProposalSchema = z.object({
   proposalId: z.string(),
   targetLookId: z.string(),
   baseRevision: z.number(),
+  baseEventId: EventIdEnum.optional(),
+  baseStyleId: StyleIdEnum.optional(),
   catalogVersion: z.string().default('2.0.0'),
   title: z.string(),
   proposedConfig: GarmentConfigSchema,

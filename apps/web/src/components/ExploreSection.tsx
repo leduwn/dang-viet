@@ -7,8 +7,9 @@ interface ExploreSectionProps {
   events: EventItem[];
   presets: any[];
   cultureCards: CultureCard[];
-  onSelectEvent: (eventId: string) => void;
-  onApplyPreset: (preset: any) => void;
+  onSelectEvent: (eventId: string) => Promise<void> | void;
+  onApplyPreset: (preset: any) => Promise<void> | void;
+  isBusy?: boolean;
 }
 
 export const ExploreSection: React.FC<ExploreSectionProps> = ({
@@ -17,8 +18,33 @@ export const ExploreSection: React.FC<ExploreSectionProps> = ({
   cultureCards,
   onSelectEvent,
   onApplyPreset,
+  isBusy = false,
 }) => {
   const [cultureFilter, setCultureFilter] = React.useState<'published' | 'all'>('published');
+  const [pendingEventId, setPendingEventId] = React.useState<string | null>(null);
+  const [pendingPresetId, setPendingPresetId] = React.useState<string | null>(null);
+
+  const isInteracting = isBusy || pendingEventId !== null || pendingPresetId !== null;
+
+  const handleSelectEventClick = async (eventId: string) => {
+    if (isInteracting) return;
+    setPendingEventId(eventId);
+    try {
+      await onSelectEvent(eventId);
+    } finally {
+      setPendingEventId(null);
+    }
+  };
+
+  const handleApplyPresetClick = async (preset: any) => {
+    if (isInteracting) return;
+    setPendingPresetId(preset.id);
+    try {
+      await onApplyPreset(preset);
+    } finally {
+      setPendingPresetId(null);
+    }
+  };
 
   const displayedCards = React.useMemo(() => {
     if (cultureFilter === 'published') {
@@ -73,7 +99,8 @@ export const ExploreSection: React.FC<ExploreSectionProps> = ({
           </p>
           <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
             <button
-              onClick={() => onSelectEvent('ky_yeu')}
+              onClick={() => handleSelectEventClick('ky_yeu')}
+              disabled={isInteracting}
               style={{
                 background: 'var(--accent-red)',
                 color: 'white',
@@ -85,9 +112,11 @@ export const ExploreSection: React.FC<ExploreSectionProps> = ({
                 alignItems: 'center',
                 gap: '0.5rem',
                 boxShadow: 'var(--shadow-sm)',
+                opacity: isInteracting ? 0.6 : 1,
+                cursor: isInteracting ? 'not-allowed' : 'pointer',
               }}
             >
-              <span>Vào Phòng phối ngay</span>
+              <span>{pendingEventId === 'ky_yeu' ? 'Đang chuyển...' : 'Vào Phòng phối ngay'}</span>
               <ArrowRight size={18} />
             </button>
           </div>
@@ -179,7 +208,8 @@ export const ExploreSection: React.FC<ExploreSectionProps> = ({
               </div>
 
               <button
-                onClick={() => onSelectEvent(ev.id)}
+                onClick={() => handleSelectEventClick(ev.id)}
+                disabled={isInteracting}
                 style={{
                   width: '100%',
                   padding: '0.65rem',
@@ -193,9 +223,11 @@ export const ExploreSection: React.FC<ExploreSectionProps> = ({
                   justifyContent: 'center',
                   gap: '0.4rem',
                   border: '1px solid var(--border-medium)',
+                  opacity: isInteracting ? 0.6 : 1,
+                  cursor: isInteracting ? 'not-allowed' : 'pointer',
                 }}
               >
-                <span>Phối đồ cho sự kiện này</span>
+                <span>{pendingEventId === ev.id ? 'Đang áp dụng sự kiện...' : 'Phối đồ cho sự kiện này'}</span>
                 <ArrowRight size={16} />
               </button>
             </div>
@@ -285,7 +317,8 @@ export const ExploreSection: React.FC<ExploreSectionProps> = ({
 
                 <div style={{ marginTop: 'auto', width: '100%' }}>
                   <button
-                    onClick={() => onApplyPreset(preset)}
+                    onClick={() => handleApplyPresetClick(preset)}
+                    disabled={isInteracting}
                     style={{
                       width: '100%',
                       padding: '0.65rem',
@@ -298,11 +331,13 @@ export const ExploreSection: React.FC<ExploreSectionProps> = ({
                       alignItems: 'center',
                       justifyContent: 'center',
                       gap: '0.4rem',
+                      opacity: isInteracting ? 0.6 : 1,
+                      cursor: isInteracting ? 'not-allowed' : 'pointer',
                       transition: 'background 0.2s ease',
                     }}
                   >
                     <Sparkles size={14} />
-                    <span>Chọn và tùy biến bộ này</span>
+                    <span>{pendingPresetId === preset.id ? 'Đang áp dụng...' : 'Chọn và tùy biến bộ này'}</span>
                   </button>
                 </div>
               </div>

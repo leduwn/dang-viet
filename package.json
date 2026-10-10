@@ -19,7 +19,9 @@
     "start": "node apps/server/dist/index.js",
     "backup": "node scripts/backup.mjs",
     "restore": "node scripts/restore.mjs",
-    "test": "node scripts/test-flow.mjs"
+    "test:flow": "node scripts/test-flow.mjs",
+    "test:image-ai": "node scripts/test-image-ai.mjs",
+    "test": "node scripts/test-flow.mjs && node scripts/test-image-ai.mjs"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",

@@ -558,6 +558,8 @@ export class MockAIAdapter implements AIAdapter {
       proposalId: randomUUID(),
       targetLookId: baseLook.id,
       baseRevision: baseLook.revision,
+      baseEventId: req.eventId || baseLook.eventId,
+      baseStyleId: req.styleId || baseLook.styleId,
       catalogVersion: '2.0.0',
       title,
       proposedConfig,

@@ -20,8 +20,9 @@
    - Luôn kèm nhãn cảnh báo quy chuẩn: *"Thiết kế cách điệu do AI hỗ trợ — Không thể dùng trực tiếp làm bản rập may."*
    - Giao diện đáp ứng mượt mà trên mọi thiết bị di động (tối ưu cả màn hình hẹp < 360px).
 
-3. **Lookbook cá nhân & So sánh đối chiếu:**
+3. **Lookbook cá nhân & Phân loại tài nguyên:**
    - Lưu trữ bản phối theo cơ chế chụp sâu độc lập (Snapshot Isolation) trong SQLite. Sửa đổi mới trong phòng phối không làm thay đổi bản ghi đã lưu.
+   - Phân loại rõ ràng 3 nhóm tài nguyên thời trang: Bản phối SVG 2D (`svg_2d`), Ảnh AI tạo từ mô tả (`ai_prompt_image`), và Ảnh AI có khuôn mặt tham chiếu (`ai_face_ref_image`).
    - Mở thiết kế từ Lookbook vào phòng phối qua `APPLY_DESIGN` phục hồi đầy đủ định danh mà không bị các quy tắc phối đè thuộc tính chưa khóa.
    - Hiển thị rõ ràng trạng thái đang xem thiết kế gốc và phân biệt khi người dùng tiếp tục chỉnh sửa.
    - So sánh trực quan song song (Side-by-side) 2 bản phối bất kỳ kèm bảng đối chiếu đặc tính chi tiết.
@@ -32,6 +33,18 @@
    - Chỉ công bố (`published`) các thẻ có bằng chứng lịch sử rõ ràng, các chủ đề chưa đủ dẫn chứng vật lý được đưa vào diện thẩm định (`review`) và AI từ chối trích dẫn nguồn chưa kiểm chứng.
    - Kiến trúc Adapter kép: Tự động chạy với Intelligent Mock Adapter khi chưa có API Key và kết nối 9router / OpenAI-compatible API khi được cấu hình.
    - Kiểm soát đồng quy lạc quan (`Optimistic Concurrency Control` - OCC 409) và chống thực thi trùng lặp Command ID.
+
+5. **Xưởng vẽ Áo dài AI 2D & Thử trang phục với khuôn mặt của bạn (Face Reference):**
+   - Kết xuất hình minh họa thời trang 2D toàn thân sắc nét (1024x1024) từ mô tả tiếng Việt tự do hoặc đồng bộ trực tiếp từ cấu hình Outfit Room.
+   - Hỗ trợ tải ảnh chân dung khuôn mặt thực tế (JPG, PNG, WebP tối đa 8MB) làm ảnh tham chiếu nhận diện (Face Reference).
+   - Bảo vệ quyền riêng tư nghiêm ngặt: Kiểm tra chữ ký nhị phân (magic bytes) ngăn tệp giả mạo, lọc sạch toàn bộ metadata EXIF nhạy cảm (GPS, thông tin thiết bị), tự động dọn dẹp và xóa ảnh sau 24 giờ, phân vùng dữ liệu nghiêm ngặt theo phiên (`sessionId`), cấm log dữ liệu Base64 ra nhật ký hệ thống.
+   - Áp đặt rào chắn quy chuẩn văn hóa Áo dài: Áo dài 2 tà trước/sau xẻ eo cao, quần lụa dài chạm mu bàn chân; negative constraints loại trừ hoàn toàn Qipao/xường xám, Kimono, Hanbok.
+
+6. **Chỉnh sửa ảnh bằng hội thoại đa lượt (Multi-turn Conversational Refinement):**
+   - Tinh chỉnh hình ảnh bằng câu lệnh tự nhiên (ví dụ: *"Giữ khuôn mặt nhưng đổi áo sang màu đỏ thêu hoa sen"*, *"Đổi nền thành phố cổ Hà Nội"*).
+   - Truy vết phả hệ phiên bản (`lineage`: v1 -> v2 -> v3) kế thừa thuộc tính đã khóa và liên kết cha-con (`parentImageId`).
+   - Chế độ so sánh trước/sau (Side-by-side) trực quan giữa bản trước và bản mới tinh chỉnh.
+   - Tải ảnh chất lượng cao về máy hoặc lưu trữ vào Lookbook kèm siêu dữ liệu đầy đủ.
 
 ---
 
@@ -76,6 +89,9 @@ npm run build
 ```bash
 # Kiểm thử luồng nghiệp vụ người dùng trọn vẹn E2E (Khởi tạo -> Phối đồ -> Khóa -> AI -> Thiết kế -> Lưu -> Mở lại)
 npm test
+
+# Kiểm thử hệ thống AI Tạo ảnh 2D & Thử khuôn mặt (125 kịch bản unit, bảo mật magic bytes, lọc EXIF, anti-SSRF, phả hệ, Lookbook)
+npm run test:image-ai
 
 # Kiểm thử củng cố hệ thống (Hoàn tác đa cấp tuần tự, OCC 409, Khóa, AI Parser, Chống trùng lặp)
 node scripts/test-harden.mjs
@@ -140,6 +156,8 @@ npm run dev
 1. **Mô hình đồ họa minh họa:** Hình ảnh trang phục được dựng bằng vector SVG 2D nhiều lớp động, mô phỏng màu sắc, phom dáng cắt may và vân dệt bề mặt. Hệ thống hiện **chưa mô phỏng độ rủ vi sợi 3D** hoặc độ vừa vặn cơ thể thực tế theo từng số đo nhân trắc học.
 2. **Thiết kế do AI hỗ trợ:** Các mẫu do AI sinh ra là gợi ý sáng tạo thẩm mỹ phong cách cách tân, **không thể dùng trực tiếp làm bản rập kỹ thuật may đo**.
 3. **Dữ liệu tư liệu văn hóa:** Tuân thủ nguyên tắc liêm chính học thuật, hiện tại hệ thống chỉ công bố (`published`) 2 thẻ tư liệu đã được đối soát nguồn công báo/báo chí chính thống trực tiếp (Làng may Trạch Xá và Dệt lụa Vạn Phúc - TTXVN). Các tư liệu văn hóa khác đang được lưu trữ ở trạng thái thẩm định (`review`) và AI từ chối trích dẫn tự động cho tới khi hoàn tất đối soát số trang/công báo vật lý.
+4. **Độ tương đồng khuôn mặt trong AI Image 2D:** Kết quả từ tính năng "Thử áo dài với khuôn mặt" là tranh minh họa thời trang 2D toàn thân chuyển thể nghệ thuật đặc điểm nhận dạng khuôn mặt, **không phải phép thử đồ đảm bảo chính xác 100% danh tính, vóc dáng hoặc số đo cơ thể thực tế**.
+5. **Khả năng hỗ trợ của Gateway ngoài:** Khả năng kết xuất hình ảnh multimodal và tinh chỉnh hội thoại đa lượt phụ thuộc vào tính sẵn sàng của mô hình `ag/gemini-3.1-flash-image` qua cổng 9router Gateway. Nếu cổng gateway không trả về dữ liệu ảnh hợp lệ, hệ thống báo lỗi minh bạch và từ chối sinh ảnh giả mạo.
 
 ---
 
@@ -167,10 +185,18 @@ Sao chép `.env.example` thành `.env`:
 PORT=3088
 HOST=127.0.0.1
 DATABASE_PATH=data/dangviet.db
-AI_BASE_URL=
+
+# 9router / OpenAI-compatible AI Provider (Text / Chat / Structured Design)
+AI_BASE_URL=https://api.9router.com/v1
+AI_MODEL=gemini-2.5-flash
 AI_API_KEY=
-AI_MODEL=
 AI_TIMEOUT_MS=30000
+
+# 9router AI Image Generation Provider (2D Ao Dai Illustration & Face Reference)
+AI_IMAGE_BASE_URL=https://9router.duwn.id.vn/v1
+AI_IMAGE_MODEL=ag/gemini-3.1-flash-image
+AI_IMAGE_API_KEY=
+AI_IMAGE_TIMEOUT_MS=120000
 ```
 
 *Lưu ý:*
@@ -178,6 +204,7 @@ AI_TIMEOUT_MS=30000
 - Biến môi trường truyền từ bên ngoài (`process.env`) luôn có quyền ưu tiên cao hơn tệp `.env`.
 - `DATABASE_PATH` luôn được chuẩn hóa từ Project Root, không phụ thuộc vào thư mục hiện hành (`cwd`).
 - Nếu không điền `AI_API_KEY`, ứng dụng tự động chạy ở chế độ **Mock AI thông minh** nội bộ với đầy đủ khả năng hiểu câu lệnh và trích dẫn văn hóa mà không phát sinh bất kỳ lỗi nào.
+- Nếu không điền `AI_IMAGE_API_KEY`, hệ thống tự động kế thừa `AI_API_KEY`. Khi chưa cấu hình key, xưởng vẽ AI hiển thị thông báo mô phỏng an toàn minh bạch.
 
 ---
 

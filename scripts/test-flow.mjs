@@ -65,11 +65,33 @@ if (!ready || !assignedPort) {
 const BASE_URL = `http://127.0.0.1:${assignedPort}/api`;
 console.log(`[OK] Máy chủ backend đã sẵn sàng tại port ${assignedPort} (xác nhận đúng tiến trình con vừa khởi tạo).\n`);
 
+const sessionCookies = new Map();
+
 async function api(endpoint, options = {}) {
   const url = `${BASE_URL}${endpoint}`;
   const headers = { ...(options.headers || {}) };
   if (options.body) headers['Content-Type'] = 'application/json';
-  const res = await fetch(url, { headers, ...options });
+
+  if (sessionCookies.size > 0) {
+    headers['Cookie'] = Array.from(sessionCookies.entries())
+      .map(([k, v]) => `${k}=${v}`)
+      .join('; ');
+  }
+
+  const res = await fetch(url, { ...options, headers });
+
+  const setCookies = res.headers.getSetCookie ? res.headers.getSetCookie() : [];
+  if (setCookies.length === 0) {
+    const raw = res.headers.get('set-cookie');
+    if (raw) setCookies.push(raw);
+  }
+  for (const sc of setCookies) {
+    const parts = sc.split(';')[0].split('=');
+    if (parts.length >= 2) {
+      sessionCookies.set(parts[0].trim(), parts.slice(1).join('=').trim());
+    }
+  }
+
   const data = await res.json().catch(() => null);
   return { status: res.status, ok: res.ok, data };
 }

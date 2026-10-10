@@ -13,8 +13,8 @@ if (fs.existsSync(testDir)) {
 fs.mkdirSync(testDir, { recursive: true });
 
 try {
-  // Test 1: Database trống chạy 001 rồi 002
-  console.log('[TEST 1] Database trống chạy tuần tự 001_initial và 002_undo_and_constraints...');
+  // Test 1: Database trống chạy 001 rồi 002 rồi 003
+  console.log('[TEST 1] Database trống chạy tuần tự 001_initial, 002_undo_and_constraints, 003_session_and_ownership...');
   const db1Path = path.join(testDir, 'db1_clean.db');
 
   // Use server db module logic directly
@@ -24,11 +24,21 @@ try {
 
   const migrationsApplied = db1.prepare('SELECT version FROM schema_migrations ORDER BY version ASC').all();
   const versions = migrationsApplied.map((m) => m.version);
-  assert.deepStrictEqual(versions, ['001_initial', '002_undo_and_constraints'], '001 và 002 phải được áp dụng đầy đủ');
+  assert.deepStrictEqual(versions, ['001_initial', '002_undo_and_constraints', '003_session_and_ownership'], '001, 002 và 003 phải được áp dụng đầy đủ');
 
   const looksColumns = db1.prepare('PRAGMA table_info(looks)').all().map((c) => c.name);
   assert(looksColumns.includes('undo_stack_json'), 'Cột undo_stack_json phải tồn tại');
-  console.log(' -> PASSED: Database trống đã áp dụng thành công 001 và 002.\n');
+  assert(looksColumns.includes('session_id'), 'Cột session_id phải tồn tại trên bảng looks');
+
+  const lookbookColumns = db1.prepare('PRAGMA table_info(lookbook)').all().map((c) => c.name);
+  assert(lookbookColumns.includes('session_id'), 'Cột session_id phải tồn tại trên bảng lookbook');
+
+  const sessionsColumns = db1.prepare('PRAGMA table_info(sessions)').all().map((c) => c.name);
+  assert(sessionsColumns.includes('id') && sessionsColumns.includes('current_look_id'), 'Bảng sessions phải tồn tại đầy đủ');
+
+  const legacySession = db1.prepare('SELECT * FROM sessions WHERE id = ?').get('legacy_migration_archive');
+  assert(legacySession, 'Phiên cách ly legacy_migration_archive phải tồn tại');
+  console.log(' -> PASSED: Database trống đã áp dụng thành công 001, 002 và 003.\n');
 
   // Test 2: Chạy lại bằng TIẾN TRÌNH MỚI HOÀN TOÀN không áp dụng trùng migration
   console.log('[TEST 2] Khởi động lại bằng tiến trình mới (child process) trên database đã có schema...');
@@ -177,10 +187,12 @@ try {
   assert.strictEqual(revCount, 5);
 
   // Verify new column undo_stack_json exists with default '[]'
-  const lookRow = dbUpgraded.prepare('SELECT undo_stack_json FROM looks WHERE id = ?').get('look_test_preserve');
+  const lookRow = dbUpgraded.prepare('SELECT undo_stack_json, session_id FROM looks WHERE id = ?').get('look_test_preserve');
   assert.strictEqual(lookRow.undo_stack_json, '[]');
+  assert.strictEqual(lookRow.session_id, 'legacy_migration_archive', 'Legacy look phải được cách ly vào session legacy_migration_archive');
+  assert.strictEqual(lbItem.session_id, 'legacy_migration_archive', 'Legacy lookbook item phải được cách ly vào session legacy_migration_archive');
   dbUpgraded.close();
-  console.log(' -> PASSED: Nâng cấp schema giữ nguyên 100% dữ liệu looks, lookbook và look_revisions!\n');
+  console.log(' -> PASSED: Nâng cấp schema giữ nguyên 100% dữ liệu looks, lookbook, revisions và cách ly dữ liệu cũ vào legacy_migration_archive!\n');
 
   console.log('===============================================================================');
   console.log('  CHÚC MỪNG: TẤT CẢ 4 BÀI KIỂM THỬ MIGRATION AN TOÀN ĐỀU ĐẠT CHUẨN!');

@@ -17,3 +17,6 @@ restored/
 *-scratch/
 .staging_*
 .DS_Store
+temp/
+test-*.jpg
+test-*.png
